@@ -189,7 +189,7 @@ begin
     'invoices', 'payments', 'receipts', 'chart_of_accounts', 'journal_entries', 'journal_lines',
     'suppliers', 'purchase_orders', 'po_items', 'consumable_items', 'stock_movements',
     'employees', 'attendance', 'leave_requests', 'payroll_runs', 'payslips',
-    'audit_logs', 'settings', 'registration_orders',
+    'audit_logs', 'settings', 'registration_orders', 'sales_orders',
     'compensation_plans', 'commission_rules'
   ]
   loop

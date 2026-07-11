@@ -104,7 +104,11 @@ export async function AdminSection() {
         <StatCard label="Monthly Sales" value={formatMYR(stats.monthSales)} />
         <StatCard label="Total Agent" value={String(stats.totalAgent)} href="/admin/registrations?status=approved" />
         <StatCard label="Pending Registration" value={String(stats.pendingRegistration)} href="/admin/registrations?status=pending" />
-        <StatCard label="Pending Payment Verification" value={String(stats.pendingPaymentVerification)} />
+        <StatCard
+          label="Pending Payment Verification"
+          value={String(stats.pendingPaymentVerification)}
+          href="/admin/sales-orders?status=pending"
+        />
         <StatCard label="Today's Commission" value={formatMYR(stats.todayCommission)} />
         <StatCard label="Today's Override" value={formatMYR(stats.todayOverride)} />
         <StatCard label="Monthly Expenses" value={formatMYR(stats.monthExpenses)} />

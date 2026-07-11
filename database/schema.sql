@@ -465,6 +465,25 @@ create table detection_vouchers (
 );
 create index idx_vouchers_analyst on detection_vouchers(analyst_id);
 
+create table sales_orders (
+  -- Side-table for order_type = 'detection_service' orders that need payment
+  -- verification, mirroring how registration_orders is the side-table for
+  -- order_type = 'registration' — orders itself stays generic. Only created
+  -- for the "customer pays now, screenshot + back-office review" path;
+  -- voucher-redemption orders go straight to orders.status = 'paid' with no
+  -- row here, since there is nothing for back office to verify (the customer
+  -- already paid the analyst directly for a resold voucher).
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references orders(id),
+  payment_screenshot_url text not null,
+  reviewed_by uuid references users(id),
+  reviewed_at timestamptz,
+  rejection_reason text,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  created_at timestamptz not null default now()
+);
+create index idx_sales_orders_order on sales_orders(order_id);
+
 -- ============================================================================
 -- 9. COMMISSION ENGINE
 -- Five trigger types, each independently configurable and versioned so that
