@@ -7,6 +7,11 @@ import { Header } from "./_components/header";
 // This is the authoritative authorization check (proxy.ts only checks "is
 // there a session" for UX redirect convenience — see the comment there).
 // Runs once per navigation into the (protected) group.
+//
+// Gate is "has at least one Portal role" now, not is_back_office() — Agents,
+// Leaders, Introducers, and PICs all log in here too as of Phase 3. A user
+// with zero role rows (e.g. an analyst who was created but never had a role
+// granted) is treated as not provisioned yet, same as a missing profile.
 export default async function AdminProtectedLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createServerSupabaseClient();
 
@@ -18,22 +23,17 @@ export default async function AdminProtectedLayout({ children }: { children: Rea
     redirect("/admin/login");
   }
 
-  const { data: isBackOffice } = await supabase.rpc("is_back_office");
-  if (!isBackOffice) {
-    redirect("/admin/login?error=not_authorized");
-  }
-
   const context = await getPortalUserContext();
   if (!context) {
-    // is_back_office() passed but there's no linked party/individual record —
-    // a data setup problem, not a permissions one. Surface it rather than
-    // silently rendering a blank shell.
     redirect("/admin/login?error=incomplete_profile");
+  }
+  if (context.roles.length === 0) {
+    redirect("/admin/login?error=not_authorized");
   }
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar isAdmin={context.roles.includes("admin")} />
+      <Sidebar context={context} />
       <div className="flex flex-1 flex-col">
         <Header context={context} />
         <main className="flex-1 px-6 py-8">{children}</main>

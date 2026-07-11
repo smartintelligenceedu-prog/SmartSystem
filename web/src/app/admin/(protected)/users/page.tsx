@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { getPortalUserContext, hasRole } from "@/lib/auth/context";
+import { getPortalUserContext } from "@/lib/auth/context";
+import { hasRole } from "@/lib/auth/roles";
 import { listBackOfficeUsers } from "./data";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";

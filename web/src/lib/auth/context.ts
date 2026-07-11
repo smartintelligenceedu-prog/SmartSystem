@@ -1,7 +1,8 @@
 import "server-only";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import type { PortalRole } from "./roles";
 
-export type BackOfficeRole = "admin" | "finance" | "back_office";
+export type { PortalRole } from "./roles";
 
 export interface PortalUserContext {
   userId: string;
@@ -9,18 +10,25 @@ export interface PortalUserContext {
   partyId: string;
   fullName: string;
   email: string;
-  roles: BackOfficeRole[];
+  roles: PortalRole[];
+  /** Set only if this party also has an analysts row (i.e. holds agent/leader/pic in practice). */
+  analystId: string | null;
+  analystStatus: string | null;
+  /** Set only if this party also has an introducers row. */
+  introducerId: string | null;
 }
 
 /**
  * Role Detection: resolves the logged-in Supabase Auth user to their internal
- * identity + role list. Returns null if there's no session — callers decide
- * whether that means redirect (pages) or a 401-style error (actions).
+ * identity + role list + linked analyst/introducer identity (a user can be
+ * both — e.g. an Agent who is also an Introducer of a friend). Returns null
+ * if there's no session — callers decide whether that means redirect (pages)
+ * or a 401-style error (actions).
  *
  * This is a convenience read, not the authorization boundary — every
- * privileged Server Action still calls is_back_office() (or a specific role
- * check) against the caller's own session independently. See the same note
- * in admin/registrations/actions.ts.
+ * privileged Server Action still calls is_back_office() / hasRole() (or a
+ * specific RPC's own internal check) against the caller's own session
+ * independently. See the same note in admin/registrations/actions.ts.
  */
 export async function getPortalUserContext(): Promise<PortalUserContext | null> {
   const supabase = await createServerSupabaseClient();
@@ -53,7 +61,12 @@ export async function getPortalUserContext(): Promise<PortalUserContext | null> 
 
   const roles = (roleRows ?? [])
     .map((r) => (r.roles as unknown as { name: string } | null)?.name)
-    .filter((name): name is BackOfficeRole => !!name);
+    .filter((name): name is PortalRole => !!name);
+
+  const [{ data: analyst }, { data: introducer }] = await Promise.all([
+    supabase.from("analysts").select("id, status").eq("party_id", userRow.party_id).maybeSingle(),
+    supabase.from("introducers").select("id").eq("party_id", userRow.party_id).maybeSingle(),
+  ]);
 
   return {
     userId: userRow.id,
@@ -62,9 +75,8 @@ export async function getPortalUserContext(): Promise<PortalUserContext | null> 
     fullName: identity?.full_name ?? "—",
     email: identity?.email ?? authUser.email ?? "—",
     roles,
+    analystId: analyst?.id ?? null,
+    analystStatus: analyst?.status ?? null,
+    introducerId: introducer?.id ?? null,
   };
-}
-
-export function hasRole(context: PortalUserContext | null, role: BackOfficeRole): boolean {
-  return context?.roles.includes(role) ?? false;
 }

@@ -14,7 +14,11 @@
 insert into roles (name, description) values
   ('admin', '完整后台权限，含系统设定'),
   ('finance', '财务/佣金相关权限'),
-  ('back_office', '一般后台权限（客服/行政）')
+  ('back_office', '一般后台权限（客服/行政）'),
+  ('agent', '分析师本人 — Registration Module 里的 analysts'),
+  ('leader', '团队主管，可查看下线团队汇总（不含顾客明细）'),
+  ('introducer', '外部引荐渠道，非分析师体系成员'),
+  ('pic', '通路开发负责人（校园/机构/roadshow），未来启用')
 on conflict (name) do nothing;
 
 insert into registration_kits (name, price, voucher_self_use_count, voucher_resale_count, includes_business_card, version, is_active)

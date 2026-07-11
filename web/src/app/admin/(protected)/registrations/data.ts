@@ -2,6 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSignedDocumentUrl } from "@/lib/storage";
 import type { AnalystStatus } from "@/lib/types/registration";
+import type { PortalRole } from "@/lib/auth/roles";
 
 export interface RegistrationListRow {
   analyst_id: string;
@@ -29,6 +30,8 @@ export interface RegistrationDetail extends RegistrationListRow {
   rejection_reason: string | null;
   ic_document_signed_url: string | null;
   payment_screenshot_signed_url: string | null;
+  has_login: boolean;
+  portal_roles: PortalRole[];
 }
 
 // Not an embedded PostgREST select on purpose: analysts <-> individuals have
@@ -148,6 +151,15 @@ export async function getRegistrationDetail(analystId: string): Promise<Registra
     getSignedDocumentUrl("payment-screenshots", regOrder.payment_screenshot_url),
   ]);
 
+  const { data: userRow } = await admin.from("users").select("id").eq("party_id", analyst.party_id).maybeSingle();
+  let portalRoles: PortalRole[] = [];
+  if (userRow) {
+    const { data: roleRows } = await admin.from("user_roles").select("roles(name)").eq("user_id", userRow.id);
+    portalRoles = (roleRows ?? [])
+      .map((r) => (r.roles as unknown as { name: PortalRole } | null)?.name)
+      .filter((name): name is PortalRole => !!name);
+  }
+
   return {
     analyst_id: analyst.id,
     party_id: analyst.party_id,
@@ -171,6 +183,8 @@ export async function getRegistrationDetail(analystId: string): Promise<Registra
     rejection_reason: regOrder.rejection_reason,
     ic_document_signed_url: icUrl,
     payment_screenshot_signed_url: paymentUrl,
+    has_login: !!userRow,
+    portal_roles: portalRoles,
   };
 }
 

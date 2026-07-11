@@ -1,5 +1,8 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { listRegistrations } from "./data";
+import { getPortalUserContext } from "@/lib/auth/context";
+import { isBackOfficeRole } from "@/lib/auth/roles";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -46,6 +49,16 @@ export default async function RegistrationsListPage({
 }: {
   searchParams: Promise<{ status?: string }>;
 }) {
+  // This page renders other people's IC documents, payment screenshots, and
+  // bank details — back-office only. The (protected) layout only checks
+  // "has at least one Portal role", which as of Phase 3 also lets Agents/
+  // Leaders/Introducers in, so every page needs its own gate for who
+  // specifically may see it.
+  const context = await getPortalUserContext();
+  if (!isBackOfficeRole(context)) {
+    redirect("/admin");
+  }
+
   const { status } = await searchParams;
   const activeStatus = (status as AnalystStatus | undefined) ?? "pending";
   const rows = await listRegistrations(activeStatus === ("all" as never) ? undefined : activeStatus);

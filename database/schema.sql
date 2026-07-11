@@ -80,6 +80,8 @@ create table roles (
 create table user_roles (
   user_id uuid not null references users(id),
   role_id uuid not null references roles(id),
+  granted_by uuid references users(id),
+  granted_at timestamptz not null default now(),
   primary key (user_id, role_id)
 );
 
@@ -485,10 +487,16 @@ create table commission_rules (
     trigger_type in ('personal_sale', 'pic_channel', 'introducer', 'recruitment', 'voucher_resale')
   ),
   level_number int not null default 1, -- 1 = direct sponsor, 2 = sponsor's sponsor, etc.
-  rate_percent numeric(5,2) not null,
+  calculation_type text not null default 'percentage' check (calculation_type in ('percentage', 'flat')),
+  rate_percent numeric(5,2), -- required when calculation_type = 'percentage'
+  flat_amount numeric(12,2), -- required when calculation_type = 'flat'
   cap_amount numeric(12,2), -- optional; null = no cap (current business decision)
   effective_from date not null,
-  effective_to date
+  effective_to date,
+  constraint chk_commission_rule_calculation check (
+    (calculation_type = 'percentage' and rate_percent is not null and flat_amount is null) or
+    (calculation_type = 'flat' and flat_amount is not null and rate_percent is null)
+  )
 );
 create index idx_commission_rules_plan on commission_rules(plan_id, trigger_type);
 
@@ -504,12 +512,20 @@ create table commission_records (
   level_number int not null default 0,
   analyst_id uuid references analysts(id),
   introducer_id uuid references introducers(id),
-  rate_applied numeric(5,2) not null,
+  calculation_type text not null default 'percentage' check (calculation_type in ('percentage', 'flat')),
+  rate_applied numeric(5,2), -- null when calculation_type = 'flat'
   base_amount numeric(12,2) not null,
   commission_amount numeric(12,2) not null,
   status text not null default 'pending' check (status in ('pending', 'approved', 'paid', 'reversed')),
   calculated_at timestamptz not null default now(),
   paid_at timestamptz,
+  -- manual override trail — original_amount is only ever set the first time
+  -- someone overrides the auto-calculated commission_amount, so it always
+  -- reflects what the engine originally computed, not the latest edit.
+  original_amount numeric(12,2),
+  adjusted_by uuid references users(id),
+  adjusted_at timestamptz,
+  adjustment_reason text,
   constraint chk_commission_payee check (
     (analyst_id is not null and introducer_id is null) or
     (analyst_id is null and introducer_id is not null)

@@ -22,6 +22,7 @@ import {
 } from "../actions";
 import type { RegistrationDetail } from "../data";
 import type { AnalystStatus } from "@/lib/types/registration";
+import { LoginAccountCard } from "./login-account-card";
 
 const STATUS_LABEL: Record<AnalystStatus, string> = {
   pending: "待审核",
@@ -161,6 +162,8 @@ export function ReviewPanel({
           </div>
         </CardContent>
       </Card>
+
+      {detail.status === "approved" && <LoginAccountCard detail={detail} />}
 
       {detail.status === "rejected" && detail.rejection_reason && (
         <Card>

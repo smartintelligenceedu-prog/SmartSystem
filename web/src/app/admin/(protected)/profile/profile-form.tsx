@@ -7,13 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { updateOwnName, changeOwnPassword } from "./actions";
-import type { PortalUserContext, BackOfficeRole } from "@/lib/auth/context";
-
-const ROLE_LABEL: Record<BackOfficeRole, string> = {
-  admin: "管理员",
-  finance: "财务",
-  back_office: "后台人员",
-};
+import type { PortalUserContext } from "@/lib/auth/context";
+import { ROLE_LABEL } from "@/lib/auth/roles";
 
 export function ProfileForm({ context }: { context: PortalUserContext }) {
   const [isPending, startTransition] = useTransition();

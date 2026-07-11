@@ -2,7 +2,7 @@
 -- TQC Business Management System — Row Level Security (v1.0)
 -- Apply after schema.sql. Implements three access patterns:
 --   1. Self-scope   — an analyst sees only what they own (customers, sessions, commissions)
---   2. Aggregate-only upline view — via SECURITY DEFINER RPC, never raw rows
+--   2. Aggregate-only Leader/Introducer view — via SECURITY DEFINER RPC, never raw rows
 --   3. Back-office  — full access for admin/finance roles
 -- ============================================================================
 
@@ -36,6 +36,15 @@ security definer
 set search_path = public
 as $$
   select id from analysts where party_id = current_party_id()
+$$;
+
+create or replace function current_introducer_id()
+returns uuid
+language sql stable
+security definer
+set search_path = public
+as $$
+  select id from introducers where party_id = current_party_id()
 $$;
 
 create or replace function is_back_office()
@@ -124,16 +133,19 @@ create policy "analyst reads own sessions, back office reads all"
   using (analyst_id = current_analyst_id() or is_back_office());
 
 -- ----------------------------------------------------------------------------
--- Commission records — an analyst sees only commission where THEY are the
--- payee. Introducers have no portal login in v1, so introducer-attributed
--- rows are back-office-only.
+-- Commission records — the payee (analyst or introducer) sees only their own
+-- rows; back office sees all.
 -- ----------------------------------------------------------------------------
 
 alter table commission_records enable row level security;
 
-create policy "analyst reads own commission records, back office reads all"
+create policy "self or back office reads commission records"
   on commission_records for select
-  using (analyst_id = current_analyst_id() or is_back_office());
+  using (
+    analyst_id = current_analyst_id()
+    or introducer_id = current_introducer_id()
+    or is_back_office()
+  );
 
 -- ----------------------------------------------------------------------------
 -- Devices — an analyst can see devices currently assigned to them
@@ -177,7 +189,7 @@ begin
     'invoices', 'payments', 'receipts', 'chart_of_accounts', 'journal_entries', 'journal_lines',
     'suppliers', 'purchase_orders', 'po_items', 'consumable_items', 'stock_movements',
     'employees', 'attendance', 'leave_requests', 'payroll_runs', 'payslips',
-    'audit_logs', 'settings', 'introducers', 'registration_orders',
+    'audit_logs', 'settings', 'registration_orders',
     'compensation_plans', 'commission_rules'
   ]
   loop
@@ -189,6 +201,14 @@ begin
   end loop;
 end;
 $$;
+
+-- introducers: unlike the tables above, an introducer can log in and needs
+-- to read their own row (self-or-back-office), not back-office-only.
+alter table introducers enable row level security;
+create policy "self or back office reads introducers" on introducers for select
+  using (party_id = current_party_id() or is_back_office());
+create policy "back office manages introducers" on introducers for insert with check (is_back_office());
+create policy "back office updates introducers" on introducers for update using (is_back_office());
 
 -- ----------------------------------------------------------------------------
 -- Remaining tables that were left without RLS above. Without an explicit
@@ -351,18 +371,27 @@ alter table notifications enable row level security;
 create policy "back office only" on notifications for all using (is_back_office()) with check (is_back_office());
 
 -- ============================================================================
--- Aggregate-only upline visibility
--- Runs as SECURITY DEFINER so it can read across the whole downline tree,
--- but only ever returns summed numbers — never a customer row. This is the
--- entire enforcement mechanism for "upline sees totals, not names".
+-- Aggregate-only Leader team view
+-- Runs as SECURITY DEFINER so it can read across the whole team, but only
+-- ever returns summed numbers or per-member totals — never a customer row.
+-- This is the entire enforcement mechanism for "Leader sees team numbers,
+-- not customer names".
+--
+-- Team membership is assigned_leader_id — deliberately NOT the sponsor-based
+-- downline_analyst_ids() used by the commission engine. Those are two
+-- independent relationships by design (see the Introducer-vs-Assigned-Leader
+-- decision in the Registration Module). Teams are also flat: a Leader can't
+-- see another Leader's team, and there's no leader-of-leaders nesting.
 -- ============================================================================
 
-create or replace function team_summary(for_analyst_id uuid default null)
+create function team_summary(for_analyst_id uuid default null)
 returns table (
   analyst_count bigint,
   customer_count bigint,
   session_count bigint,
-  total_revenue numeric
+  total_revenue numeric,
+  team_commission_total numeric,
+  pending_team_count bigint
 )
 language plpgsql
 security definer
@@ -375,26 +404,118 @@ begin
   if requester_id is null and not is_back_office() then
     raise exception 'not authorized';
   end if;
-
-  if not is_back_office() and target_id <> requester_id
-     and target_id not in (select id from downline_analyst_ids(requester_id)) then
+  if not is_back_office() and target_id <> requester_id then
     raise exception 'not authorized to view this analyst''s team summary';
   end if;
 
+  -- Independent scalar subqueries per metric, not a multi-table LEFT JOIN —
+  -- joining customers, detection_sessions, and orders from the same
+  -- analysts row in one query fans out into a cartesian product between
+  -- those independent one-to-many relationships (N customers × M orders =
+  -- N×M rows), which silently multiplies SUM(orders.total_amount). COUNT
+  -- (DISTINCT ...) happens to mask this for the count columns, but SUM has
+  -- no equivalent protection.
   return query
     select
-      count(distinct a.id),
-      count(distinct c.id),
-      count(distinct s.id),
-      coalesce(sum(o.total_amount) filter (where o.status = 'paid'), 0)
+      (select count(*) from analysts where assigned_leader_id = target_id),
+      (select count(*) from customers
+         where owner_analyst_id in (select id from analysts where assigned_leader_id = target_id)),
+      (select count(*) from detection_sessions
+         where analyst_id in (select id from analysts where assigned_leader_id = target_id)),
+      coalesce((select sum(total_amount) from orders
+         where analyst_id in (select id from analysts where assigned_leader_id = target_id) and status = 'paid'), 0),
+      coalesce((
+        -- Team Commission includes the leader's OWN commission_records, not
+        -- just team members' — sponsor/leader-type commission is credited
+        -- to the leader's analyst_id, so excluding it would show RM 0.00
+        -- even when the team is actively generating revenue.
+        select sum(commission_amount) from commission_records
+        where analyst_id = target_id
+           or analyst_id in (select id from analysts where assigned_leader_id = target_id)
+      ), 0),
+      (select count(*) from analysts where assigned_leader_id = target_id and status = 'pending');
+end;
+$$;
+
+create function team_members(for_analyst_id uuid default null)
+returns table (
+  analyst_id uuid,
+  full_name text,
+  status text,
+  customer_count bigint,
+  revenue numeric
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  requester_id uuid := current_analyst_id();
+  target_id uuid := coalesce(for_analyst_id, requester_id);
+begin
+  if requester_id is null and not is_back_office() then
+    raise exception 'not authorized';
+  end if;
+  if not is_back_office() and target_id <> requester_id then
+    raise exception 'not authorized to view this analyst''s team';
+  end if;
+
+  -- Correlated subqueries per analyst row (scoped to a.id) instead of a
+  -- second-level join, for the same fan-out reason as team_summary() above.
+  return query
+    select
+      a.id,
+      coalesce(i.full_name, '—'),
+      a.status,
+      (select count(*) from customers c where c.owner_analyst_id = a.id),
+      coalesce((select sum(o.total_amount) from orders o where o.analyst_id = a.id and o.status = 'paid'), 0)
     from analysts a
-    left join customers c on c.owner_analyst_id = a.id
-    left join detection_sessions s on s.analyst_id = a.id
-    left join orders o on o.analyst_id = a.id
-    where a.id = target_id
-       or a.id in (select id from downline_analyst_ids(target_id));
+    left join individuals i on i.party_id = a.party_id
+    where a.assigned_leader_id = target_id
+    order by 5 desc;
 end;
 $$;
 
 revoke all on function team_summary(uuid) from public;
 grant execute on function team_summary(uuid) to authenticated;
+revoke all on function team_members(uuid) from public;
+grant execute on function team_members(uuid) to authenticated;
+
+-- ============================================================================
+-- Aggregate-only Introducer view — same reasoning as team_summary: an
+-- introducer sees totals, never the underlying customer rows.
+-- ============================================================================
+
+create function introducer_summary(for_introducer_id uuid default null)
+returns table (
+  total_introduced_customers bigint,
+  total_bonus numeric,
+  pending_bonus numeric,
+  paid_bonus numeric
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  requester_id uuid := current_introducer_id();
+  target_id uuid := coalesce(for_introducer_id, requester_id);
+begin
+  if requester_id is null and not is_back_office() then
+    raise exception 'not authorized';
+  end if;
+  if not is_back_office() and target_id <> requester_id then
+    raise exception 'not authorized to view this introducer''s summary';
+  end if;
+
+  return query
+    select
+      (select count(*) from customers where acquired_via_introducer_id = target_id),
+      coalesce((select sum(commission_amount) from commission_records where introducer_id = target_id), 0),
+      coalesce((select sum(commission_amount) from commission_records where introducer_id = target_id and status = 'pending'), 0),
+      coalesce((select sum(commission_amount) from commission_records where introducer_id = target_id and status = 'paid'), 0);
+end;
+$$;
+
+revoke all on function introducer_summary(uuid) from public;
+grant execute on function introducer_summary(uuid) to authenticated;

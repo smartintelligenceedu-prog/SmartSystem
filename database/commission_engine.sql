@@ -1,5 +1,5 @@
 -- ============================================================================
--- TQC Business Management System — Commission Engine (v1.0)
+-- TQC Business Management System — Commission Engine (v1.1)
 -- Apply after schema.sql + rls_policies.sql.
 --
 -- Design note: the actual calculation runs as a Postgres trigger (not an Edge
@@ -8,6 +8,12 @@
 -- versa, because they're the same transaction. Edge Functions are reserved
 -- for work that genuinely needs to live outside the database: the periodic
 -- payout batch (settle-commissions Edge Function, see supabase/functions/).
+--
+-- v1.1: commission_rules can now be percentage-based OR a flat amount (see
+-- schema.sql's calculation_type column) — a business decision that rates
+-- don't always have to be "% of the transaction". Individual
+-- commission_records can also be manually adjusted after the fact by
+-- admin/finance, with the original auto-calculated amount preserved for audit.
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
@@ -32,16 +38,18 @@ as $$
 $$;
 
 -- ----------------------------------------------------------------------------
--- Helper: look up the currently-effective rate for a trigger type + level.
--- Pulls from the active compensation plan; a missing rate means "don't pay
+-- Helper: look up the currently-effective rule for a trigger type + level.
+-- Pulls from the active compensation plan; a missing rule means "don't pay
 -- this level" rather than an error, so partial rule sets degrade safely.
+-- Returns the whole rule (not just a rate) since a rule can now be either
+-- percentage-based or a flat amount.
 -- ----------------------------------------------------------------------------
 
-create or replace function get_active_rate(p_trigger_type text, p_level int, p_as_of date default current_date)
-returns numeric
+create or replace function get_active_rule(p_trigger_type text, p_level int, p_as_of date default current_date)
+returns table(calculation_type text, rate_percent numeric, flat_amount numeric, cap_amount numeric)
 language sql stable
 as $$
-  select cr.rate_percent
+  select cr.calculation_type, cr.rate_percent, cr.flat_amount, cr.cap_amount
   from commission_rules cr
   join compensation_plans cp on cp.id = cr.plan_id and cp.is_active
   where cr.trigger_type = p_trigger_type
@@ -53,7 +61,10 @@ as $$
 $$;
 
 -- ----------------------------------------------------------------------------
--- Small insert helper so the branches below stay readable.
+-- Small insert helper so the branches below stay readable. Computes the
+-- final amount from whichever calculation_type the rule uses, then applies
+-- the cap (if the rule has one — the "no cap" business decision from the
+-- Registration Module still holds by default, this is an opt-in per rule).
 -- ----------------------------------------------------------------------------
 
 create or replace function insert_commission(
@@ -62,19 +73,38 @@ create or replace function insert_commission(
   p_level int,
   p_analyst_id uuid,
   p_introducer_id uuid,
+  p_calculation_type text,
   p_rate numeric,
+  p_flat_amount numeric,
+  p_cap numeric,
   p_base numeric
 )
 returns void
-language sql
+language plpgsql
 as $$
+declare
+  v_amount numeric;
+begin
+  if p_calculation_type = 'flat' then
+    v_amount := p_flat_amount;
+  else
+    v_amount := round(p_base * p_rate / 100, 2);
+  end if;
+
+  if p_cap is not null and v_amount > p_cap then
+    v_amount := p_cap;
+  end if;
+
   insert into commission_records (
     trigger_type, source_transaction_type, source_transaction_id,
-    level_number, analyst_id, introducer_id, rate_applied, base_amount, commission_amount
+    level_number, analyst_id, introducer_id, calculation_type, rate_applied, base_amount, commission_amount
   ) values (
     p_trigger_type, 'order', p_order_id,
-    p_level, p_analyst_id, p_introducer_id, p_rate, p_base, round(p_base * p_rate / 100, 2)
-  )
+    p_level, p_analyst_id, p_introducer_id, p_calculation_type,
+    case when p_calculation_type = 'flat' then null else p_rate end,
+    p_base, v_amount
+  );
+end;
 $$;
 
 -- ----------------------------------------------------------------------------
@@ -96,7 +126,7 @@ declare
   v_reg_order registration_orders%rowtype;
   v_new_analyst_id uuid;
   v_sponsor uuid;
-  v_rate numeric;
+  v_rule record;
   v_has_voucher_item boolean;
   v_campaign_id uuid;
   v_pic_analyst_id uuid;
@@ -132,9 +162,12 @@ begin
     for i in 1..3 loop
       v_sponsor := sponsor_at_level(v_new_analyst_id, i);
       exit when v_sponsor is null;
-      v_rate := get_active_rate('recruitment', i);
-      if v_rate is not null then
-        perform insert_commission('recruitment', new.id, i, v_sponsor, null, v_rate, new.total_amount);
+      select * into v_rule from get_active_rule('recruitment', i);
+      if v_rule.calculation_type is not null then
+        perform insert_commission(
+          'recruitment', new.id, i, v_sponsor, null,
+          v_rule.calculation_type, v_rule.rate_percent, v_rule.flat_amount, v_rule.cap_amount, new.total_amount
+        );
       end if;
     end loop;
 
@@ -152,8 +185,16 @@ begin
   ) into v_has_voucher_item;
 
   if v_has_voucher_item then
-    v_rate := coalesce(get_active_rate('voucher_resale', 0), 100);
-    perform insert_commission('voucher_resale', new.id, 0, new.analyst_id, null, v_rate, new.total_amount);
+    select * into v_rule from get_active_rule('voucher_resale', 0);
+    if v_rule.calculation_type is null then
+      -- fall back to the "100% to self" default if nobody has configured this rule yet
+      perform insert_commission('voucher_resale', new.id, 0, new.analyst_id, null, 'percentage', 100, null, null, new.total_amount);
+    else
+      perform insert_commission(
+        'voucher_resale', new.id, 0, new.analyst_id, null,
+        v_rule.calculation_type, v_rule.rate_percent, v_rule.flat_amount, v_rule.cap_amount, new.total_amount
+      );
+    end if;
     return new;
   end if;
 
@@ -165,23 +206,32 @@ begin
   -- the direct sponsor for that one sale, and neither cascades further.
   if v_campaign_id is not null then
     select pic_analyst_id into v_pic_analyst_id from channel_campaigns where id = v_campaign_id;
-    v_rate := get_active_rate('pic_channel', 1);
-    if v_pic_analyst_id is not null and v_rate is not null then
-      perform insert_commission('pic_channel', new.id, 1, v_pic_analyst_id, null, v_rate, new.total_amount);
+    select * into v_rule from get_active_rule('pic_channel', 1);
+    if v_pic_analyst_id is not null and v_rule.calculation_type is not null then
+      perform insert_commission(
+        'pic_channel', new.id, 1, v_pic_analyst_id, null,
+        v_rule.calculation_type, v_rule.rate_percent, v_rule.flat_amount, v_rule.cap_amount, new.total_amount
+      );
     end if;
   else
     v_sponsor := sponsor_at_level(new.analyst_id, 1);
-    v_rate := get_active_rate('personal_sale', 1);
-    if v_sponsor is not null and v_rate is not null then
-      perform insert_commission('personal_sale', new.id, 1, v_sponsor, null, v_rate, new.total_amount);
+    select * into v_rule from get_active_rule('personal_sale', 1);
+    if v_sponsor is not null and v_rule.calculation_type is not null then
+      perform insert_commission(
+        'personal_sale', new.id, 1, v_sponsor, null,
+        v_rule.calculation_type, v_rule.rate_percent, v_rule.flat_amount, v_rule.cap_amount, new.total_amount
+      );
     end if;
   end if;
 
   -- Introducer referral fee stacks on top of whichever rule fired above.
   if v_introducer_id is not null then
-    v_rate := get_active_rate('introducer', 1);
-    if v_rate is not null then
-      perform insert_commission('introducer', new.id, 1, null, v_introducer_id, v_rate, new.total_amount);
+    select * into v_rule from get_active_rule('introducer', 1);
+    if v_rule.calculation_type is not null then
+      perform insert_commission(
+        'introducer', new.id, 1, null, v_introducer_id,
+        v_rule.calculation_type, v_rule.rate_percent, v_rule.flat_amount, v_rule.cap_amount, new.total_amount
+      );
     end if;
   end if;
 
@@ -202,4 +252,13 @@ create trigger trg_calculate_commissions
 --
 --   update commission_records set status = 'approved'
 --   where status = 'pending' and calculated_at < now() - interval '14 days';
+--
+-- Manual amount override (admin/finance only — enforced in the app layer's
+-- Server Action, not here) preserves the original auto-calculated amount:
+--
+--   update commission_records
+--   set original_amount = coalesce(original_amount, commission_amount),
+--       commission_amount = <new amount>,
+--       adjusted_by = <users.id>, adjusted_at = now(), adjustment_reason = <text>
+--   where id = <commission_records.id>;
 -- ----------------------------------------------------------------------------

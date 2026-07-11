@@ -2,8 +2,9 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { getPortalUserContext, hasRole } from "@/lib/auth/context";
+import { getPortalUserContext } from "@/lib/auth/context";
 import type { PortalUserContext } from "@/lib/auth/context";
+import { hasRole } from "@/lib/auth/roles";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**

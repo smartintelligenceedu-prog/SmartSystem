@@ -3,19 +3,38 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Logo } from "@/components/logo";
+import type { PortalUserContext } from "@/lib/auth/context";
+import { hasRole, hasAnyRole, isBackOfficeRole } from "@/lib/auth/roles";
 
 interface NavItem {
   href: string;
   label: string;
 }
 
-export function Sidebar({ isAdmin }: { isAdmin: boolean }) {
+// Nav items are gated per-role so nothing links to a page that would just
+// redirect the visitor away (every gated page re-checks its own access
+// independently — this is only about not showing dead links).
+export function Sidebar({ context }: { context: PortalUserContext }) {
   const pathname = usePathname();
+
+  const hasAnalyst = !!context.analystId;
+  const isLeader = hasRole(context, "leader") && hasAnalyst;
+  const isBackOffice = isBackOfficeRole(context);
+  const isFinance = hasAnyRole(context, ["admin", "finance"]);
+  const isAdmin = hasRole(context, "admin");
 
   const items: NavItem[] = [
     { href: "/admin", label: "Dashboard" },
-    { href: "/admin/registrations", label: "注册审核" },
+    ...(hasAnalyst || isBackOffice ? [{ href: "/admin/customers", label: "顾客" }] : []),
+    ...(hasAnalyst || isBackOffice ? [{ href: "/admin/sales-orders", label: "销售订单" }] : []),
+    ...(hasAnalyst ? [{ href: "/admin/reports", label: "我的报告" }] : []),
+    ...(hasAnalyst || context.introducerId || isBackOffice ? [{ href: "/admin/commission", label: "佣金" }] : []),
+    ...(isLeader ? [{ href: "/admin/team", label: "团队" }] : []),
+    ...(isFinance ? [{ href: "/admin/finance", label: "财务" }] : []),
+    ...(isBackOffice ? [{ href: "/admin/registrations", label: "注册审核" }] : []),
+    ...(isBackOffice ? [{ href: "/admin/introducers", label: "引荐人管理" }] : []),
     ...(isAdmin ? [{ href: "/admin/users", label: "帐号管理" }] : []),
+    ...(isAdmin ? [{ href: "/admin/settings", label: "设定" }] : []),
     { href: "/admin/profile", label: "我的帐户" },
   ];
 
