@@ -14,8 +14,8 @@ export default async function RegistrationDetailPage({
   if (!detail) notFound();
 
   return (
-    <main className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-3xl">
       <ReviewPanel detail={detail} leaders={leaders} />
-    </main>
+    </div>
   );
 }

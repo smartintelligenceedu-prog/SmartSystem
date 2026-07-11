@@ -51,7 +51,7 @@ export default async function RegistrationsListPage({
   const rows = await listRegistrations(activeStatus === ("all" as never) ? undefined : activeStatus);
 
   return (
-    <main className="mx-auto max-w-5xl">
+    <div className="mx-auto max-w-5xl">
       <h1 className="text-xl font-semibold">分析师注册审核</h1>
 
       <nav className="mt-4 flex gap-1 border-b">
@@ -118,6 +118,6 @@ export default async function RegistrationsListPage({
           </TableBody>
         </Table>
       </div>
-    </main>
+    </div>
   );
 }
