@@ -1,0 +1,400 @@
+-- ============================================================================
+-- TQC Business Management System — Row Level Security (v1.0)
+-- Apply after schema.sql. Implements three access patterns:
+--   1. Self-scope   — an analyst sees only what they own (customers, sessions, commissions)
+--   2. Aggregate-only upline view — via SECURITY DEFINER RPC, never raw rows
+--   3. Back-office  — full access for admin/finance roles
+-- ============================================================================
+
+-- ----------------------------------------------------------------------------
+-- Helper functions
+--
+-- All four are SECURITY DEFINER on purpose. Every one of them queries a
+-- table that itself carries an RLS policy calling back into one of these
+-- functions (users, analysts, user_roles) — under normal SECURITY INVOKER
+-- semantics that's circular (the helper's own internal query would be
+-- filtered by the policy that is currently evaluating, which calls the
+-- helper again). SECURITY DEFINER makes the helper's internal lookup an
+-- authoritative, RLS-bypassing read, which is what breaks the cycle. This
+-- is the standard pattern for identity/role-check helpers in Postgres RLS,
+-- not a workaround specific to this schema.
+-- ----------------------------------------------------------------------------
+
+create or replace function current_party_id()
+returns uuid
+language sql stable
+security definer
+set search_path = public
+as $$
+  select party_id from users where auth_user_id = auth.uid()
+$$;
+
+create or replace function current_analyst_id()
+returns uuid
+language sql stable
+security definer
+set search_path = public
+as $$
+  select id from analysts where party_id = current_party_id()
+$$;
+
+create or replace function is_back_office()
+returns boolean
+language sql stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from user_roles ur
+    join roles r on r.id = ur.role_id
+    join users u on u.id = ur.user_id
+    where u.auth_user_id = auth.uid()
+      and r.name in ('admin', 'finance', 'back_office')
+  )
+$$;
+
+-- Recursive downline lookup (excludes root_id itself)
+create or replace function downline_analyst_ids(root_id uuid)
+returns table(id uuid)
+language sql stable
+security definer
+set search_path = public
+as $$
+  with recursive tree as (
+    select a.id from analysts a where a.id = root_id
+    union all
+    select a.id from analysts a
+    join tree t on a.sponsor_id = t.id
+  )
+  select id from tree where id <> root_id
+$$;
+
+-- ----------------------------------------------------------------------------
+-- CRM: customers — self-scope only. No upline SELECT policy exists on this
+-- table on purpose; upline visibility is aggregate-only via team_summary().
+-- ----------------------------------------------------------------------------
+
+alter table customers enable row level security;
+
+create policy "analyst reads own customers, back office reads all"
+  on customers for select
+  using (owner_analyst_id = current_analyst_id() or is_back_office());
+
+create policy "analyst writes own customers, back office writes all"
+  on customers for insert
+  with check (owner_analyst_id = current_analyst_id() or is_back_office());
+
+create policy "analyst updates own customers, back office updates all"
+  on customers for update
+  using (owner_analyst_id = current_analyst_id() or is_back_office());
+
+alter table interactions enable row level security;
+
+create policy "analyst reads interactions on own customers"
+  on interactions for select
+  using (
+    is_back_office()
+    or exists (
+      select 1 from customers c
+      where c.id = interactions.customer_id
+        and c.owner_analyst_id = current_analyst_id()
+    )
+  );
+
+-- ----------------------------------------------------------------------------
+-- Detection sessions / appointments — visible to the performing analyst
+-- ----------------------------------------------------------------------------
+
+alter table detection_appointments enable row level security;
+
+create policy "analyst reads own appointments, back office reads all"
+  on detection_appointments for select
+  using (analyst_id = current_analyst_id() or is_back_office());
+
+create policy "analyst manages own appointments, back office manages all"
+  on detection_appointments for all
+  using (analyst_id = current_analyst_id() or is_back_office())
+  with check (analyst_id = current_analyst_id() or is_back_office());
+
+alter table detection_sessions enable row level security;
+
+create policy "analyst reads own sessions, back office reads all"
+  on detection_sessions for select
+  using (analyst_id = current_analyst_id() or is_back_office());
+
+-- ----------------------------------------------------------------------------
+-- Commission records — an analyst sees only commission where THEY are the
+-- payee. Introducers have no portal login in v1, so introducer-attributed
+-- rows are back-office-only.
+-- ----------------------------------------------------------------------------
+
+alter table commission_records enable row level security;
+
+create policy "analyst reads own commission records, back office reads all"
+  on commission_records for select
+  using (analyst_id = current_analyst_id() or is_back_office());
+
+-- ----------------------------------------------------------------------------
+-- Devices — an analyst can see devices currently assigned to them
+-- ----------------------------------------------------------------------------
+
+alter table devices enable row level security;
+
+-- note: devices.current_analyst_id (column) vs current_analyst_id() (function)
+-- are distinguishable by the parentheses, but qualify the column explicitly
+-- to keep the policy readable.
+create policy "analyst reads own assigned device, back office reads all"
+  on devices for select
+  using (devices.current_analyst_id = current_analyst_id() or is_back_office());
+
+-- ----------------------------------------------------------------------------
+-- Analysts table — an analyst can read their own record and their direct
+-- downline's basic profile (name/rank/status), not full party details.
+-- ----------------------------------------------------------------------------
+
+alter table analysts enable row level security;
+
+create policy "analyst reads self, direct downline, or back office reads all"
+  on analysts for select
+  using (
+    id = current_analyst_id()
+    or sponsor_id = current_analyst_id()
+    or is_back_office()
+  );
+
+-- ----------------------------------------------------------------------------
+-- Everything else that is purely internal back-office (Finance, HR,
+-- Procurement, system tables): same pattern, one policy per table.
+-- Analysts have no direct access; only is_back_office() roles do.
+-- ----------------------------------------------------------------------------
+
+do $$
+declare
+  t text;
+begin
+  foreach t in array array[
+    'invoices', 'payments', 'receipts', 'chart_of_accounts', 'journal_entries', 'journal_lines',
+    'suppliers', 'purchase_orders', 'po_items', 'consumable_items', 'stock_movements',
+    'employees', 'attendance', 'leave_requests', 'payroll_runs', 'payslips',
+    'audit_logs', 'settings', 'introducers', 'registration_orders',
+    'compensation_plans', 'commission_rules'
+  ]
+  loop
+    execute format('alter table %I enable row level security', t);
+    execute format(
+      'create policy "back office only" on %I for all using (is_back_office()) with check (is_back_office())',
+      t
+    );
+  end loop;
+end;
+$$;
+
+-- ----------------------------------------------------------------------------
+-- Remaining tables that were left without RLS above. Without an explicit
+-- policy, Supabase's auto-generated API would expose these completely
+-- unrestricted to anyone with an API key — that includes PII (parties,
+-- individuals, organizations, addresses) and financial data (orders,
+-- order_items) — so none of these can be skipped before going live.
+-- ----------------------------------------------------------------------------
+
+-- PII: back office manages all; a user may read their own party record.
+alter table parties enable row level security;
+alter table individuals enable row level security;
+alter table organizations enable row level security;
+alter table addresses enable row level security;
+
+create policy "self or back office" on parties for select
+  using (id = current_party_id() or is_back_office());
+create policy "back office writes parties" on parties for insert with check (is_back_office());
+create policy "back office updates parties" on parties for update using (is_back_office());
+
+create policy "self or back office" on individuals for select
+  using (party_id = current_party_id() or is_back_office());
+create policy "back office writes individuals" on individuals for insert with check (is_back_office());
+create policy "back office updates individuals" on individuals for update using (is_back_office());
+
+create policy "self or back office" on organizations for select
+  using (party_id = current_party_id() or is_back_office());
+create policy "back office manages organizations" on organizations for all using (is_back_office());
+
+create policy "self or back office" on addresses for select
+  using (party_id = current_party_id() or is_back_office());
+create policy "back office manages addresses" on addresses for all using (is_back_office());
+
+-- users / roles / user_roles: a user reads their own row; role management is back office.
+alter table users enable row level security;
+alter table roles enable row level security;
+alter table user_roles enable row level security;
+
+create policy "self or back office" on users for select
+  using (auth_user_id = auth.uid() or is_back_office());
+create policy "back office manages users" on users for all using (is_back_office());
+
+create policy "authenticated can read role catalog" on roles for select
+  using (auth.role() = 'authenticated');
+create policy "back office manages roles" on roles for all using (is_back_office());
+
+create policy "self or back office" on user_roles for select
+  using (
+    is_back_office()
+    or user_id in (select id from users where auth_user_id = auth.uid())
+  );
+create policy "back office manages user_roles" on user_roles for insert with check (is_back_office());
+create policy "back office updates user_roles" on user_roles for delete using (is_back_office());
+
+-- orders / order_items: an analyst sees their own sales; back office sees all.
+alter table orders enable row level security;
+alter table order_items enable row level security;
+
+create policy "analyst reads own orders, back office reads all" on orders for select
+  using (analyst_id = current_analyst_id() or is_back_office());
+create policy "analyst creates own orders, back office creates all" on orders for insert
+  with check (analyst_id = current_analyst_id() or is_back_office());
+create policy "back office updates orders" on orders for update using (is_back_office());
+
+create policy "analyst reads own order items, back office reads all" on order_items for select
+  using (
+    is_back_office()
+    or exists (select 1 from orders o where o.id = order_items.order_id and o.analyst_id = current_analyst_id())
+  );
+
+-- channel_campaigns: any authenticated analyst can see the campaign catalog
+-- (needed to attribute a customer at signup time); only back office / the
+-- assigned PIC manage it.
+alter table channel_campaigns enable row level security;
+create policy "authenticated can read campaigns" on channel_campaigns for select
+  using (auth.role() = 'authenticated');
+create policy "pic or back office manages campaign" on channel_campaigns for update
+  using (pic_analyst_id = current_analyst_id() or is_back_office());
+create policy "back office creates campaigns" on channel_campaigns for insert
+  with check (is_back_office());
+
+-- leads: assigned analyst only, back office sees all.
+alter table leads enable row level security;
+create policy "analyst reads assigned leads, back office reads all" on leads for select
+  using (assigned_analyst_id = current_analyst_id() or is_back_office());
+create policy "analyst manages assigned leads, back office manages all" on leads for all
+  using (assigned_analyst_id = current_analyst_id() or is_back_office())
+  with check (assigned_analyst_id = current_analyst_id() or is_back_office());
+
+-- customer_ownership_history / customer_consents: tied to customer ownership.
+alter table customer_ownership_history enable row level security;
+alter table customer_consents enable row level security;
+
+create policy "owner or back office" on customer_ownership_history for select
+  using (
+    is_back_office()
+    or exists (select 1 from customers c where c.id = customer_ownership_history.customer_id and c.owner_analyst_id = current_analyst_id())
+  );
+create policy "back office writes ownership history" on customer_ownership_history for insert with check (is_back_office());
+
+create policy "owner or back office" on customer_consents for select
+  using (
+    is_back_office()
+    or exists (select 1 from customers c where c.id = customer_consents.customer_id and c.owner_analyst_id = current_analyst_id())
+  );
+create policy "owner records consent, back office records all" on customer_consents for insert
+  with check (
+    is_back_office()
+    or exists (select 1 from customers c where c.id = customer_consents.customer_id and c.owner_analyst_id = current_analyst_id())
+  );
+
+-- Catalog / reference data: read-only to any authenticated user, writes are back office.
+do $$
+declare
+  t text;
+begin
+  foreach t in array array['branches', 'detection_centers', 'analyst_ranks', 'training_courses', 'certification_exams', 'registration_kits']
+  loop
+    execute format('alter table %I enable row level security', t);
+    execute format('create policy "authenticated can read" on %I for select using (auth.role() = ''authenticated'')', t);
+    execute format('create policy "back office writes" on %I for insert with check (is_back_office())', t);
+    execute format('create policy "back office updates" on %I for update using (is_back_office())', t);
+  end loop;
+end;
+$$;
+
+-- Analyst's own training / certification / voucher / business-card records.
+do $$
+declare
+  t text;
+begin
+  foreach t in array array['training_enrollments', 'certification_records', 'detection_vouchers', 'business_card_orders']
+  loop
+    execute format('alter table %I enable row level security', t);
+    execute format(
+      'create policy "analyst reads own, back office reads all" on %I for select using (analyst_id = current_analyst_id() or is_back_office())',
+      t
+    );
+    execute format('create policy "back office manages" on %I for insert with check (is_back_office())', t);
+    execute format('create policy "back office updates" on %I for update using (is_back_office())', t);
+  end loop;
+end;
+$$;
+
+-- Device history tables: internal only — analysts see the device's current
+-- state via the devices table policy above, not its full assignment/maintenance history.
+do $$
+declare
+  t text;
+begin
+  foreach t in array array['device_assignments', 'device_maintenance_logs', 'device_incidents']
+  loop
+    execute format('alter table %I enable row level security', t);
+    execute format('create policy "back office only" on %I for all using (is_back_office()) with check (is_back_office())', t);
+  end loop;
+end;
+$$;
+
+alter table notifications enable row level security;
+create policy "back office only" on notifications for all using (is_back_office()) with check (is_back_office());
+
+-- ============================================================================
+-- Aggregate-only upline visibility
+-- Runs as SECURITY DEFINER so it can read across the whole downline tree,
+-- but only ever returns summed numbers — never a customer row. This is the
+-- entire enforcement mechanism for "upline sees totals, not names".
+-- ============================================================================
+
+create or replace function team_summary(for_analyst_id uuid default null)
+returns table (
+  analyst_count bigint,
+  customer_count bigint,
+  session_count bigint,
+  total_revenue numeric
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  requester_id uuid := current_analyst_id();
+  target_id uuid := coalesce(for_analyst_id, requester_id);
+begin
+  if requester_id is null and not is_back_office() then
+    raise exception 'not authorized';
+  end if;
+
+  if not is_back_office() and target_id <> requester_id
+     and target_id not in (select id from downline_analyst_ids(requester_id)) then
+    raise exception 'not authorized to view this analyst''s team summary';
+  end if;
+
+  return query
+    select
+      count(distinct a.id),
+      count(distinct c.id),
+      count(distinct s.id),
+      coalesce(sum(o.total_amount) filter (where o.status = 'paid'), 0)
+    from analysts a
+    left join customers c on c.owner_analyst_id = a.id
+    left join detection_sessions s on s.analyst_id = a.id
+    left join orders o on o.analyst_id = a.id
+    where a.id = target_id
+       or a.id in (select id from downline_analyst_ids(target_id));
+end;
+$$;
+
+revoke all on function team_summary(uuid) from public;
+grant execute on function team_summary(uuid) to authenticated;
