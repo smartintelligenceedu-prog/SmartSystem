@@ -194,13 +194,35 @@ create table customers (
   acquired_via_campaign_id uuid references channel_campaigns(id), -- PIC attribution (nullable)
   acquired_via_introducer_id uuid references introducers(id), -- Introducer attribution (nullable)
   branch_id uuid references branches(id),
-  status text not null default 'active' check (status in ('active', 'inactive')),
+  status text not null default 'active' check (status in ('active', 'inactive')), -- "Archive" in the UI sets this to 'inactive'
+  occupation text,
+  marital_status text check (marital_status is null or marital_status in ('single', 'married', 'divorced', 'widowed', 'other')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 create index idx_customers_owner on customers(owner_analyst_id);
 create index idx_customers_campaign on customers(acquired_via_campaign_id);
 create index idx_customers_introducer on customers(acquired_via_introducer_id);
+
+-- IC/passport, date_of_birth, gender, phone, email all live on individuals
+-- (via customers.party_id) — no separate columns needed here. Address
+-- reuses the generic addresses table the same way.
+
+create table customer_children (
+  -- Age is deliberately not stored — derive it from date_of_birth in the UI,
+  -- since a stored age goes stale the day after it's entered.
+  id uuid primary key default gen_random_uuid(),
+  customer_id uuid not null references customers(id),
+  full_name text not null,
+  gender text check (gender in ('male', 'female', 'other', 'undisclosed')),
+  date_of_birth date,
+  school text,
+  remark text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index idx_customer_children_customer on customer_children(customer_id);
+create trigger set_updated_at before update on customer_children for each row execute function set_updated_at();
 
 alter table leads add constraint fk_leads_converted_customer
   foreign key (converted_customer_id) references customers(id);

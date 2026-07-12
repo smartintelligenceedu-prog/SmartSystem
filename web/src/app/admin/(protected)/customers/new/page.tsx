@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { getPortalUserContext } from "@/lib/auth/context";
 import { listActiveIntroducersForAttribution } from "../data";
-import { NewCustomerForm } from "./new-customer-form";
+import { CustomerForm } from "../customer-form";
+import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -15,10 +16,10 @@ export default async function NewCustomerPage() {
   return (
     <div className="mx-auto max-w-lg space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">登记新顾客</h1>
-        <p className="mt-1 text-sm text-muted-foreground">为你名下新增一位顾客。</p>
+        <h1 className="text-xl font-semibold">{t("customer.form.create_title")}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t("customer.form.create_subtitle")}</p>
       </div>
-      <NewCustomerForm introducers={introducers} />
+      <CustomerForm mode="create" introducers={introducers} />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Logo } from "@/components/logo";
 import type { PortalUserContext } from "@/lib/auth/context";
 import { hasRole, hasAnyRole, isBackOfficeRole } from "@/lib/auth/roles";
+import { t } from "@/lib/i18n";
 
 interface NavItem {
   href: string;
@@ -25,7 +26,9 @@ export function Sidebar({ context }: { context: PortalUserContext }) {
 
   const items: NavItem[] = [
     { href: "/admin", label: "Dashboard" },
-    ...(hasAnalyst || isBackOffice ? [{ href: "/admin/customers", label: "顾客" }] : []),
+    ...(hasAnalyst || context.introducerId || isBackOffice
+      ? [{ href: "/admin/customers", label: isBackOffice ? t("customer.nav.label_back_office") : t("customer.nav.label") }]
+      : []),
     ...(hasAnalyst || isBackOffice ? [{ href: "/admin/sales-orders", label: "销售订单" }] : []),
     ...(hasAnalyst ? [{ href: "/admin/reports", label: "我的报告" }] : isBackOffice ? [{ href: "/admin/reports", label: "报告交付状态" }] : []),
     ...(hasAnalyst || context.introducerId || isBackOffice ? [{ href: "/admin/commission", label: "佣金" }] : []),

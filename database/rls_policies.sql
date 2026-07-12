@@ -98,6 +98,26 @@ create policy "analyst updates own customers, back office updates all"
   on customers for update
   using (owner_analyst_id = current_analyst_id() or is_back_office());
 
+-- Introducer visibility (added for Customer Management, migration 011) —
+-- an introducer sees only the customers they referred. Leader visibility
+-- deliberately stays aggregate-only per the original decision above (no
+-- policy added here for leaders).
+create policy "introducer reads own referred customers" on customers for select
+  using (acquired_via_introducer_id = current_introducer_id());
+
+alter table customer_children enable row level security;
+
+create policy "analyst reads own customers' children, back office reads all"
+  on customer_children for select
+  using (
+    is_back_office()
+    or exists (select 1 from customers c where c.id = customer_children.customer_id and c.owner_analyst_id = current_analyst_id())
+    or exists (select 1 from customers c where c.id = customer_children.customer_id and c.acquired_via_introducer_id = current_introducer_id())
+  );
+
+create policy "back office writes customer children" on customer_children for insert with check (is_back_office());
+create policy "back office updates customer children" on customer_children for update using (is_back_office());
+
 alter table interactions enable row level security;
 
 create policy "analyst reads interactions on own customers"
