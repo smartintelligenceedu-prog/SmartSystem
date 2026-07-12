@@ -402,6 +402,11 @@ create table orders (
   branch_id uuid references branches(id),
   total_amount numeric(12,2) not null default 0,
   status text not null default 'pending' check (status in ('pending', 'paid', 'cancelled', 'refunded')),
+  -- Set when an analyst (or back office) marks a paid detection_service
+  -- order's report as handed to the customer. The report itself is never
+  -- stored — delivery happens over WhatsApp/email outside this system; this
+  -- is only a checklist fact for the analyst's "My Reports" view.
+  report_delivered_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

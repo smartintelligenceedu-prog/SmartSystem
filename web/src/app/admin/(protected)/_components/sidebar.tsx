@@ -27,7 +27,7 @@ export function Sidebar({ context }: { context: PortalUserContext }) {
     { href: "/admin", label: "Dashboard" },
     ...(hasAnalyst || isBackOffice ? [{ href: "/admin/customers", label: "顾客" }] : []),
     ...(hasAnalyst || isBackOffice ? [{ href: "/admin/sales-orders", label: "销售订单" }] : []),
-    ...(hasAnalyst ? [{ href: "/admin/reports", label: "我的报告" }] : []),
+    ...(hasAnalyst ? [{ href: "/admin/reports", label: "我的报告" }] : isBackOffice ? [{ href: "/admin/reports", label: "报告交付状态" }] : []),
     ...(hasAnalyst || context.introducerId || isBackOffice ? [{ href: "/admin/commission", label: "佣金" }] : []),
     ...(isLeader ? [{ href: "/admin/team", label: "团队" }] : []),
     ...(isFinance ? [{ href: "/admin/finance", label: "财务" }] : []),
