@@ -299,6 +299,33 @@ create policy "analyst reads own order items, back office reads all" on order_it
     or exists (select 1 from orders o where o.id = order_items.order_id and o.analyst_id = current_analyst_id())
   );
 
+-- Multi-person orders (migration 012): a different family member's item can
+-- be credited to a different agent than whoever submitted the order, so
+-- that agent needs to see the item (and the order it belongs to) even
+-- though they're not orders.analyst_id.
+create policy "analyst reads own assigned order items" on order_items for select
+  using (analyst_id = current_analyst_id());
+
+-- SECURITY DEFINER wrapper (migration 013 fix) — a plain correlated
+-- subquery on order_items here would recurse: the order_items policy above
+-- queries orders, and this orders policy would query order_items, forever.
+-- The function's internal query runs as the bypassing owner role instead of
+-- re-triggering order_items' RLS, which breaks the cycle — same pattern as
+-- current_analyst_id() / is_back_office() elsewhere in this file.
+create or replace function analyst_has_item_in_order(p_order_id uuid)
+returns boolean
+language sql stable security definer set search_path = public
+as $$
+  select exists (
+    select 1 from order_items oi where oi.order_id = p_order_id and oi.analyst_id = current_analyst_id()
+  )
+$$;
+revoke all on function analyst_has_item_in_order(uuid) from public;
+grant execute on function analyst_has_item_in_order(uuid) to authenticated;
+
+create policy "analyst reads orders containing their assigned items" on orders for select
+  using (analyst_has_item_in_order(orders.id));
+
 -- channel_campaigns: any authenticated analyst can see the campaign catalog
 -- (needed to attribute a customer at signup time); only back office / the
 -- assigned PIC manage it.

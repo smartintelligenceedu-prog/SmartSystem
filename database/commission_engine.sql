@@ -108,6 +108,56 @@ end;
 $$;
 
 -- ----------------------------------------------------------------------------
+-- Per-item commission insert helper (v1.2, migration 012). Same as
+-- insert_commission() above except source_transaction_type is 'order_item'
+-- (source_transaction_id = order_items.id) instead of 'order' — this is what
+-- makes it possible to trace which specific person's commission a record
+-- belongs to when a multi-person order (e.g. a family visiting together)
+-- credits different items to different agents. Additive: insert_commission()
+-- itself is untouched and still used by the registration branch below.
+-- ----------------------------------------------------------------------------
+
+create or replace function insert_item_commission(
+  p_trigger_type text,
+  p_order_item_id uuid,
+  p_level int,
+  p_analyst_id uuid,
+  p_introducer_id uuid,
+  p_calculation_type text,
+  p_rate numeric,
+  p_flat_amount numeric,
+  p_cap numeric,
+  p_base numeric
+)
+returns void
+language plpgsql
+as $$
+declare
+  v_amount numeric;
+begin
+  if p_calculation_type = 'flat' then
+    v_amount := p_flat_amount;
+  else
+    v_amount := round(p_base * p_rate / 100, 2);
+  end if;
+
+  if p_cap is not null and v_amount > p_cap then
+    v_amount := p_cap;
+  end if;
+
+  insert into commission_records (
+    trigger_type, source_transaction_type, source_transaction_id,
+    level_number, analyst_id, introducer_id, calculation_type, rate_applied, base_amount, commission_amount
+  ) values (
+    p_trigger_type, 'order_item', p_order_item_id,
+    p_level, p_analyst_id, p_introducer_id, p_calculation_type,
+    case when p_calculation_type = 'flat' then null else p_rate end,
+    p_base, v_amount
+  );
+end;
+$$;
+
+-- ----------------------------------------------------------------------------
 -- Main trigger function — fires when an order transitions into 'paid'.
 -- ----------------------------------------------------------------------------
 
@@ -116,6 +166,14 @@ $$;
 -- office. Without security definer, this trigger would silently compute
 -- zero commissions whenever a regular analyst session (not back office)
 -- causes the order to become 'paid'.
+--
+-- v1.2 (migration 012): the detection_service branch moved from computing
+-- one commission pass for the whole order (using orders.customer_id /
+-- orders.analyst_id / orders.total_amount) to looping every order_item and
+-- computing commission per item (using that item's own customer_id /
+-- analyst_id / subtotal) — this is what lets one order cover several people
+-- (e.g. a family visiting together), each credited to their own agent. The
+-- registration branch is completely unchanged.
 create or replace function calculate_commissions_for_order()
 returns trigger
 language plpgsql
@@ -127,10 +185,10 @@ declare
   v_new_analyst_id uuid;
   v_sponsor uuid;
   v_rule record;
-  v_has_voucher_item boolean;
   v_campaign_id uuid;
   v_pic_analyst_id uuid;
   v_introducer_id uuid;
+  v_item order_items%rowtype;
   i int;
 begin
   -- Only fire on the pending/other -> paid transition, and only once.
@@ -147,7 +205,7 @@ begin
     end if;
   end if;
 
-  -- ---- Registration order: 3-level recruitment commission ----
+  -- ---- Registration order: 3-level recruitment commission (unchanged) ----
   if new.order_type = 'registration' then
     select * into v_reg_order from registration_orders where order_id = new.id;
     if not found or v_reg_order.sponsor_id is null then
@@ -174,66 +232,75 @@ begin
     return new;
   end if;
 
-  -- ---- Detection service order ----
-  if new.order_type <> 'detection_service' or new.analyst_id is null then
+  -- ---- Detection service order: one commission pass per order_item ----
+  if new.order_type <> 'detection_service' then
     return new;
   end if;
 
-  -- Voucher redemption sales are terminal: 100% to the redeeming analyst, no cascade.
-  select exists (
-    select 1 from order_items where order_id = new.id and item_type = 'voucher_redemption'
-  ) into v_has_voucher_item;
+  for v_item in
+    select * from order_items
+    where order_id = new.id and item_type in ('detection_session', 'voucher_redemption')
+  loop
+    if v_item.analyst_id is null then
+      continue; -- no agent assigned to this person's line item, nothing to pay
+    end if;
 
-  if v_has_voucher_item then
-    select * into v_rule from get_active_rule('voucher_resale', 0);
-    if v_rule.calculation_type is null then
-      -- fall back to the "100% to self" default if nobody has configured this rule yet
-      perform insert_commission('voucher_resale', new.id, 0, new.analyst_id, null, 'percentage', 100, null, null, new.total_amount);
+    -- Voucher redemption is terminal: 100% to the redeeming analyst, no cascade.
+    if v_item.item_type = 'voucher_redemption' then
+      select * into v_rule from get_active_rule('voucher_resale', 0);
+      if v_rule.calculation_type is null then
+        -- fall back to the "100% to self" default if nobody has configured this rule yet
+        perform insert_item_commission('voucher_resale', v_item.id, 0, v_item.analyst_id, null, 'percentage', 100, null, null, v_item.subtotal);
+      else
+        perform insert_item_commission(
+          'voucher_resale', v_item.id, 0, v_item.analyst_id, null,
+          v_rule.calculation_type, v_rule.rate_percent, v_rule.flat_amount, v_rule.cap_amount, v_item.subtotal
+        );
+      end if;
+      continue;
+    end if;
+
+    v_campaign_id := null;
+    v_introducer_id := null;
+    if v_item.customer_id is not null then
+      select acquired_via_campaign_id, acquired_via_introducer_id
+        into v_campaign_id, v_introducer_id
+      from customers where id = v_item.customer_id;
+    end if;
+
+    -- Personal sale vs. PIC channel sale are mutually exclusive per item —
+    -- PIC replaces the direct sponsor for that one item, neither cascades further.
+    if v_campaign_id is not null then
+      select pic_analyst_id into v_pic_analyst_id from channel_campaigns where id = v_campaign_id;
+      select * into v_rule from get_active_rule('pic_channel', 1);
+      if v_pic_analyst_id is not null and v_rule.calculation_type is not null then
+        perform insert_item_commission(
+          'pic_channel', v_item.id, 1, v_pic_analyst_id, null,
+          v_rule.calculation_type, v_rule.rate_percent, v_rule.flat_amount, v_rule.cap_amount, v_item.subtotal
+        );
+      end if;
     else
-      perform insert_commission(
-        'voucher_resale', new.id, 0, new.analyst_id, null,
-        v_rule.calculation_type, v_rule.rate_percent, v_rule.flat_amount, v_rule.cap_amount, new.total_amount
-      );
+      v_sponsor := sponsor_at_level(v_item.analyst_id, 1);
+      select * into v_rule from get_active_rule('personal_sale', 1);
+      if v_sponsor is not null and v_rule.calculation_type is not null then
+        perform insert_item_commission(
+          'personal_sale', v_item.id, 1, v_sponsor, null,
+          v_rule.calculation_type, v_rule.rate_percent, v_rule.flat_amount, v_rule.cap_amount, v_item.subtotal
+        );
+      end if;
     end if;
-    return new;
-  end if;
 
-  select acquired_via_campaign_id, acquired_via_introducer_id
-    into v_campaign_id, v_introducer_id
-  from customers where id = new.customer_id;
-
-  -- Personal sale vs. PIC channel sale are mutually exclusive — PIC replaces
-  -- the direct sponsor for that one sale, and neither cascades further.
-  if v_campaign_id is not null then
-    select pic_analyst_id into v_pic_analyst_id from channel_campaigns where id = v_campaign_id;
-    select * into v_rule from get_active_rule('pic_channel', 1);
-    if v_pic_analyst_id is not null and v_rule.calculation_type is not null then
-      perform insert_commission(
-        'pic_channel', new.id, 1, v_pic_analyst_id, null,
-        v_rule.calculation_type, v_rule.rate_percent, v_rule.flat_amount, v_rule.cap_amount, new.total_amount
-      );
+    -- Introducer referral fee stacks on top of whichever rule fired above.
+    if v_introducer_id is not null then
+      select * into v_rule from get_active_rule('introducer', 1);
+      if v_rule.calculation_type is not null then
+        perform insert_item_commission(
+          'introducer', v_item.id, 1, null, v_introducer_id,
+          v_rule.calculation_type, v_rule.rate_percent, v_rule.flat_amount, v_rule.cap_amount, v_item.subtotal
+        );
+      end if;
     end if;
-  else
-    v_sponsor := sponsor_at_level(new.analyst_id, 1);
-    select * into v_rule from get_active_rule('personal_sale', 1);
-    if v_sponsor is not null and v_rule.calculation_type is not null then
-      perform insert_commission(
-        'personal_sale', new.id, 1, v_sponsor, null,
-        v_rule.calculation_type, v_rule.rate_percent, v_rule.flat_amount, v_rule.cap_amount, new.total_amount
-      );
-    end if;
-  end if;
-
-  -- Introducer referral fee stacks on top of whichever rule fired above.
-  if v_introducer_id is not null then
-    select * into v_rule from get_active_rule('introducer', 1);
-    if v_rule.calculation_type is not null then
-      perform insert_commission(
-        'introducer', new.id, 1, null, v_introducer_id,
-        v_rule.calculation_type, v_rule.rate_percent, v_rule.flat_amount, v_rule.cap_amount, new.total_amount
-      );
-    end if;
-  end if;
+  end loop;
 
   return new;
 end;

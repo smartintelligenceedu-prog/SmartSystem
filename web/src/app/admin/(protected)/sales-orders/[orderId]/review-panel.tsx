@@ -56,9 +56,25 @@ export function ReviewPanel({ detail }: { detail: SalesOrderDetail }) {
 
       <Card>
         <CardContent className="grid grid-cols-2 gap-4 pt-6">
-          <Field label="顾客" value={detail.customer_name} />
-          <Field label="分析师" value={detail.analyst_name} />
-          <Field label="金额" value={formatMYR(detail.total_amount)} />
+          <Field label="提交分析师" value={detail.analyst_name} />
+          <Field label="总金额" value={formatMYR(detail.total_amount)} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="space-y-3 pt-6">
+          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">顾客明细</p>
+          <div className="divide-y rounded-md border">
+            {detail.items.map((item) => (
+              <div key={item.item_id} className="flex items-center justify-between px-3 py-2 text-sm">
+                <div>
+                  <p>{item.customer_name}</p>
+                  <p className="text-xs text-muted-foreground">负责分析师：{item.analyst_name}</p>
+                </div>
+                <span className="tabular-nums">{formatMYR(item.subtotal)}</span>
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
 

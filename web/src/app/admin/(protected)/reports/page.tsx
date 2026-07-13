@@ -19,7 +19,7 @@ export default async function ReportsPage() {
   const isBackOffice = isBackOfficeRole(context);
   if (!context.analystId && !isBackOffice) redirect("/admin");
 
-  const orders = await listReportableOrders(isBackOffice);
+  const orders = await listReportableOrders(isBackOffice, context.analystId);
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -51,7 +51,7 @@ export default async function ReportsPage() {
               </TableRow>
             )}
             {orders.map((o) => (
-              <TableRow key={o.order_id}>
+              <TableRow key={o.item_id}>
                 <TableCell className="text-muted-foreground tabular-nums">
                   {new Date(o.created_at).toLocaleDateString("zh-CN")}
                 </TableCell>
@@ -68,7 +68,7 @@ export default async function ReportsPage() {
                   )}
                 </TableCell>
                 <TableCell className="text-right">
-                  {!o.report_delivered_at && <MarkDeliveredButton orderId={o.order_id} />}
+                  {!o.report_delivered_at && o.can_mark_delivered && <MarkDeliveredButton orderId={o.order_id} />}
                 </TableCell>
               </TableRow>
             ))}

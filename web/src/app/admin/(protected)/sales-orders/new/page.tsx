@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getPortalUserContext } from "@/lib/auth/context";
-import { listOwnCustomersForPicker, listOwnRedeemableVouchers } from "../data";
+import { listOwnCustomersForPicker, listOwnRedeemableVouchers, listApprovedAgents } from "../data";
 import { NewSalesOrderForm } from "./new-sales-order-form";
 
 export const dynamic = "force-dynamic";
@@ -10,18 +10,25 @@ export default async function NewSalesOrderPage() {
   if (!context) redirect("/admin/login");
   if (!context.analystId) redirect("/admin");
 
-  const [customers, vouchers] = await Promise.all([
+  const [customers, vouchers, agents] = await Promise.all([
     listOwnCustomersForPicker(context.analystId),
     listOwnRedeemableVouchers(context.analystId),
+    listApprovedAgents(),
   ]);
 
   return (
     <div className="mx-auto max-w-lg space-y-6">
       <div>
         <h1 className="text-xl font-semibold">新增销售订单</h1>
-        <p className="mt-1 text-sm text-muted-foreground">为顾客建立一笔检测服务订单。</p>
+        <p className="mt-1 text-sm text-muted-foreground">为顾客建立一笔检测服务订单，可以一次加入多位顾客（例如一家人一起来）。</p>
       </div>
-      <NewSalesOrderForm customers={customers} vouchers={vouchers} />
+      <NewSalesOrderForm
+        ownAnalystId={context.analystId}
+        ownAnalystName={context.fullName}
+        customers={customers}
+        agents={agents}
+        vouchers={vouchers}
+      />
     </div>
   );
 }

@@ -76,11 +76,17 @@ export async function listCustomers(isBackOffice: boolean, filters: CustomerList
   const customerIds = customers.map((c) => c.id);
 
   const admin = createAdminClient();
-  const [{ data: analysts }, { data: introducers }, { data: orders }] = await Promise.all([
+  const [{ data: analysts }, { data: introducers }, { data: items }] = await Promise.all([
     admin.from("analysts").select("id, party_id").in("id", analystIds),
     introducerIds.length > 0 ? admin.from("introducers").select("id, party_id").in("id", introducerIds) : Promise.resolve({ data: [] }),
-    admin.from("orders").select("customer_id, total_amount, status").in("customer_id", customerIds).eq("order_type", "detection_service"),
+    // detection_service orders no longer set orders.customer_id (migration
+    // 012 — one order can cover several people) — order ownership per
+    // customer now lives on order_items instead.
+    admin.from("order_items").select("customer_id, subtotal, order_id").in("customer_id", customerIds).in("item_type", ["detection_session", "voucher_redemption"]),
   ]);
+  const itemOrderIds = [...new Set((items ?? []).map((i) => i.order_id))];
+  const { data: orders } = itemOrderIds.length > 0 ? await admin.from("orders").select("id, status").in("id", itemOrderIds) : { data: [] };
+  const orderStatusById = new Map((orders ?? []).map((o) => [o.id, o.status]));
 
   const analystPartyById = new Map((analysts ?? []).map((a) => [a.id, a.party_id]));
   const introducerPartyById = new Map((introducers ?? []).map((i) => [i.id, i.party_id]));
@@ -90,11 +96,11 @@ export async function listCustomers(isBackOffice: boolean, filters: CustomerList
   const identityByParty = new Map((identities ?? []).map((i) => [i.party_id, i]));
 
   const orderStatsByCustomer = new Map<string, { count: number; total: number }>();
-  for (const o of orders ?? []) {
-    const key = o.customer_id as string;
+  for (const it of items ?? []) {
+    const key = it.customer_id as string;
     const cur = orderStatsByCustomer.get(key) ?? { count: 0, total: 0 };
     cur.count += 1;
-    if (o.status === "paid") cur.total += Number(o.total_amount);
+    if (orderStatusById.get(it.order_id) === "paid") cur.total += Number(it.subtotal);
     orderStatsByCustomer.set(key, cur);
   }
 
@@ -289,27 +295,40 @@ export interface CustomerOrderRow {
   report_delivered_at: string | null;
 }
 
+// detection_service orders no longer set orders.customer_id (migration 012
+// — one order can cover several people), so "this customer's orders" means
+// "order_items assigned to this customer". The amount/status shown are this
+// customer's own line item, not the whole (possibly multi-person) order.
 export async function listCustomerOrders(customerId: string): Promise<CustomerOrderRow[]> {
   const admin = createAdminClient();
+  const { data: items } = await admin
+    .from("order_items")
+    .select("id, order_id, item_type, subtotal")
+    .eq("customer_id", customerId)
+    .in("item_type", ["detection_session", "voucher_redemption"]);
+  if (!items || items.length === 0) return [];
+
   const { data: orders } = await admin
     .from("orders")
-    .select("id, total_amount, status, created_at, report_delivered_at")
-    .eq("customer_id", customerId)
-    .eq("order_type", "detection_service")
-    .order("created_at", { ascending: false });
-  if (!orders || orders.length === 0) return [];
+    .select("id, status, created_at, report_delivered_at")
+    .in("id", items.map((i) => i.order_id));
+  const orderById = new Map((orders ?? []).map((o) => [o.id, o]));
 
-  const { data: items } = await admin.from("order_items").select("order_id, item_type").in("order_id", orders.map((o) => o.id));
-  const itemTypeByOrder = new Map((items ?? []).map((i) => [i.order_id, i.item_type]));
-
-  return orders.map((o) => ({
-    order_id: o.id,
-    item_type: itemTypeByOrder.get(o.id) ?? "—",
-    total_amount: Number(o.total_amount),
-    status: o.status,
-    created_at: o.created_at,
-    report_delivered_at: o.report_delivered_at,
-  }));
+  return items
+    .map((it) => {
+      const order = orderById.get(it.order_id);
+      if (!order) return null;
+      return {
+        order_id: it.order_id,
+        item_type: it.item_type,
+        total_amount: Number(it.subtotal),
+        status: order.status,
+        created_at: order.created_at,
+        report_delivered_at: order.report_delivered_at,
+      };
+    })
+    .filter((row): row is CustomerOrderRow => row !== null)
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 }
 
 export interface CustomerCommissionRow {
@@ -322,16 +341,19 @@ export interface CustomerCommissionRow {
 
 // Read-only, per the spec — Customer Detail only displays commission tied to
 // this customer's orders, no adjustment action (that stays on /admin/commission).
+// Commission for detection_service is calculated per order_item (migration
+// 012), source_transaction_type = 'order_item' pointing at that item's id.
 export async function listCustomerCommissions(customerId: string): Promise<CustomerCommissionRow[]> {
   const admin = createAdminClient();
-  const { data: orders } = await admin.from("orders").select("id").eq("customer_id", customerId);
-  const orderIds = (orders ?? []).map((o) => o.id);
-  if (orderIds.length === 0) return [];
+  const { data: items } = await admin.from("order_items").select("id").eq("customer_id", customerId);
+  const itemIds = (items ?? []).map((i) => i.id);
+  if (itemIds.length === 0) return [];
 
   const { data: records } = await admin
     .from("commission_records")
     .select("id, trigger_type, commission_amount, status, calculated_at")
-    .in("source_transaction_id", orderIds)
+    .eq("source_transaction_type", "order_item")
+    .in("source_transaction_id", itemIds)
     .order("calculated_at", { ascending: false });
   return (records ?? []).map((r) => ({
     id: r.id,

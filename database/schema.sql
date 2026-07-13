@@ -442,8 +442,17 @@ create table order_items (
   description text,
   unit_price numeric(12,2) not null,
   quantity int not null default 1,
-  subtotal numeric(12,2) not null
+  subtotal numeric(12,2) not null,
+  -- Only set for detection_session/voucher_redemption items — lets one
+  -- order cover multiple people (e.g. a family visiting together) each with
+  -- their own customer and credited agent; commission is calculated per
+  -- item against these, not against orders.customer_id/analyst_id. Null for
+  -- registration_kit items (unused there).
+  customer_id uuid references customers(id),
+  analyst_id uuid references analysts(id)
 );
+create index idx_order_items_customer on order_items(customer_id);
+create index idx_order_items_analyst on order_items(analyst_id);
 
 alter table detection_sessions add constraint fk_sessions_order_item
   foreign key (order_item_id) references order_items(id);
