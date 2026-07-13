@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+
+export type ReportTier = "standard" | "upgrade";
 
 export interface ReportableOrder {
   order_id: string;
@@ -10,23 +11,23 @@ export interface ReportableOrder {
   item_type: string;
   amount: number;
   created_at: string;
+  report_tier: ReportTier | null;
   report_delivered_at: string | null;
-  can_mark_delivered: boolean; // true only for whoever submitted the order, or back office
+  can_mark_delivered: boolean; // true for the item's own assigned analyst, or back office
 }
 
 // One row per person (order_item), not per order — a multi-person order
 // (e.g. a family visiting together) can credit different agents to
-// different items, so "my reports" means "items assigned to me", not
-// "orders I submitted". report_delivered_at is still order-level (one flag
-// for the whole order/payment), so every item on the same order shares the
-// same delivered status; only the submitting agent (orders.analyst_id) or
-// back office can mark it, even though other agents can see their own item.
+// different items. Delivery status and tier are per-item too (migration
+// 015), since different people's reports can finish and get delivered at
+// different times — "my reports" means "items assigned to me", and only
+// that item's own assigned analyst (or back office) can mark it delivered.
 export async function listReportableOrders(isBackOffice: boolean, selfAnalystId: string | null): Promise<ReportableOrder[]> {
   const admin = createAdminClient();
 
   const { data: orders } = await admin
     .from("orders")
-    .select("id, analyst_id, created_at, report_delivered_at")
+    .select("id, created_at")
     .eq("order_type", "detection_service")
     .eq("status", "paid")
     .order("created_at", { ascending: false });
@@ -35,8 +36,9 @@ export async function listReportableOrders(isBackOffice: boolean, selfAnalystId:
   const orderIds = orders.map((o) => o.id);
   const { data: items } = await admin
     .from("order_items")
-    .select("id, order_id, item_type, subtotal, customer_id, analyst_id")
-    .in("order_id", orderIds);
+    .select("id, order_id, item_type, subtotal, customer_id, analyst_id, report_tier, report_delivered_at")
+    .in("order_id", orderIds)
+    .in("item_type", ["detection_session", "voucher_redemption"]);
   if (!items || items.length === 0) return [];
 
   const scopedItems = isBackOffice ? items : items.filter((it) => it.analyst_id === selfAnalystId);
@@ -70,8 +72,9 @@ export async function listReportableOrders(isBackOffice: boolean, selfAnalystId:
         item_type: it.item_type,
         amount: Number(it.subtotal),
         created_at: order.created_at,
-        report_delivered_at: order.report_delivered_at,
-        can_mark_delivered: isBackOffice || order.analyst_id === selfAnalystId,
+        report_tier: it.report_tier as ReportTier | null,
+        report_delivered_at: it.report_delivered_at,
+        can_mark_delivered: isBackOffice || it.analyst_id === selfAnalystId,
       };
     })
     .filter((row): row is ReportableOrder => row !== null)

@@ -132,5 +132,30 @@
   "dashboard.agent.notification.pending_approval.suffix": "笔佣金待核准发放",
   "dashboard.agent.notification.new_commission.label": "新佣金入帐",
   "dashboard.agent.notification.new_commission.prefix": "近 7 天有",
-  "dashboard.agent.notification.new_commission.suffix": "笔新佣金入帐"
+  "dashboard.agent.notification.new_commission.suffix": "笔新佣金入帐",
+
+  "reports.title.back_office": "报告交付状态",
+  "reports.title.self": "我的报告",
+  "reports.subtitle": "系统不存放报告本身（检测设备自己产报告，交付走 WhatsApp/邮件），这里只记录是否已经交给顾客。",
+  "reports.column.date": "日期",
+  "reports.column.customer": "顾客",
+  "reports.column.analyst": "分析师",
+  "reports.column.type": "类型",
+  "reports.column.tier": "报告分类",
+  "reports.column.status": "状态",
+  "reports.empty": "尚无检测服务订单",
+  "reports.item_type.detection_session": "检测服务（现场付款）",
+  "reports.item_type.voucher_redemption": "检测券兑换",
+  "reports.tier.standard": "标准",
+  "reports.tier.upgrade": "升级",
+  "reports.status.delivered": "已交付",
+  "reports.status.undelivered": "未交付",
+  "reports.mark_delivered.tier_placeholder": "选择分类",
+  "reports.mark_delivered.submit": "确认交付",
+
+  "finance.report_summary.title": "已交付报告成本",
+  "finance.report_summary.total": "报告总数",
+  "finance.report_summary.standard": "标准",
+  "finance.report_summary.upgrade": "升级",
+  "finance.report_summary.total_cost": "本月报告成本"
 }

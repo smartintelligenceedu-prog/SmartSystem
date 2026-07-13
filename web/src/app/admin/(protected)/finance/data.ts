@@ -86,6 +86,38 @@ export async function getProfitAndLossThisMonth(): Promise<ProfitAndLoss> {
   return { revenue, expense, totalRevenue, totalExpense, netProfit: totalRevenue - totalExpense };
 }
 
+export interface ReportDeliverySummary {
+  standardCount: number;
+  upgradeCount: number;
+  totalCount: number;
+  totalCost: number;
+}
+
+// Report cost itself already flows into getProfitAndLossThisMonth()'s
+// expense breakdown automatically (account 5600, auto-posted by
+// calculate_report_override_commission() — see commission_engine.sql). This
+// is just the count-by-tier the user separately asked for alongside the P&L.
+export async function getReportDeliverySummaryThisMonth(): Promise<ReportDeliverySummary> {
+  const admin = createAdminClient();
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+  const { data: items } = await admin
+    .from("order_items")
+    .select("report_tier")
+    .not("report_delivered_at", "is", null)
+    .gte("report_delivered_at", monthStart);
+
+  const standardCount = (items ?? []).filter((i) => i.report_tier === "standard").length;
+  const upgradeCount = (items ?? []).filter((i) => i.report_tier === "upgrade").length;
+  return {
+    standardCount,
+    upgradeCount,
+    totalCount: standardCount + upgradeCount,
+    totalCost: standardCount * 25 + upgradeCount * 125,
+  };
+}
+
 export interface JournalEntryRow {
   id: string;
   entry_date: string;

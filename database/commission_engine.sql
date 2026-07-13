@@ -1,5 +1,5 @@
 -- ============================================================================
--- TQC Business Management System — Commission Engine (v1.1)
+-- TQC Business Management System — Commission Engine (v1.3)
 -- Apply after schema.sql + rls_policies.sql.
 --
 -- Design note: the actual calculation runs as a Postgres trigger (not an Edge
@@ -204,7 +204,6 @@ declare
   v_sponsor uuid;
   v_rule record;
   v_campaign_id uuid;
-  v_pic_analyst_id uuid;
   v_introducer_id uuid;
   v_intro_payee uuid;
   v_item order_items%rowtype;
@@ -288,17 +287,16 @@ begin
       from customers where id = v_item.customer_id;
     end if;
 
-    -- Personal sale vs. PIC channel sale are mutually exclusive per item —
-    -- PIC replaces the direct sponsor for that one item, neither cascades further.
+    -- Personal sale vs. PIC channel sale are mutually exclusive per item.
+    -- v1.3 (migration 015): PIC-channel items no longer get a commission at
+    -- sale time at all — that payout moved to report-delivery time instead
+    -- (see calculate_report_override_commission() below), where the PIC
+    -- gets a flat RM40 "report override" commission, replacing (not
+    -- stacking with) what pic_channel used to pay here. commission_rules
+    -- keeps the 'pic_channel' rows for historical/audit purposes but the
+    -- trigger no longer calls get_active_rule('pic_channel', ...).
     if v_campaign_id is not null then
-      select pic_analyst_id into v_pic_analyst_id from channel_campaigns where id = v_campaign_id;
-      select * into v_rule from get_active_rule('pic_channel', 1);
-      if v_pic_analyst_id is not null and v_rule.calculation_type is not null then
-        perform insert_item_commission(
-          'pic_channel', v_item.id, 1, v_pic_analyst_id, null,
-          v_rule.calculation_type, v_rule.rate_percent, v_rule.flat_amount, v_rule.cap_amount, v_item.subtotal
-        );
-      end if;
+      null; -- intentionally no sale-time commission for PIC-channel items
     else
       v_sponsor := sponsor_at_level(v_item.analyst_id, 1);
       select * into v_rule from get_active_rule('personal_sale', 1);
@@ -343,6 +341,110 @@ create trigger trg_calculate_commissions
   after insert or update of status on orders
   for each row
   execute function calculate_commissions_for_order();
+
+-- ----------------------------------------------------------------------------
+-- Report-delivery-triggered commission + cost (v1.3, migration 015).
+--
+-- Fires once, on the report_delivered_at null -> not-null transition on an
+-- order_item (report delivery is per-person/per-report, not per-order — see
+-- migration 015's comment). Two independent things happen in the same
+-- transaction as the UPDATE that marks delivery, so there is no window
+-- where "delivered" is true but the payout/cost is missing:
+--
+--   1. A flat RM40 "report override" commission: to the performing
+--      analyst's assigned_leader_id normally, or to the campaign's PIC
+--      instead if this item came through a channel campaign (replacing,
+--      not stacking with, the pic_channel commission that no longer fires
+--      at sale time for these items — see calculate_commissions_for_order()
+--      above).
+--   2. The report's hard cost (RM25 standard / RM125 upgrade) is posted
+--      immediately to the ledger (debit 5600 报告制作成本 expense, credit
+--      2100 应计报告成本 liability) — auto-posted rather than going through
+--      the manual/periodic postToLedger() batch flow that orders and
+--      commission_records use, per explicit user instruction that report
+--      cost should hit the P&L the moment the report is delivered.
+--
+-- security definer: chart_of_accounts/journal_entries/journal_lines and
+-- commission_rules are all back-office-only RLS — same reasoning as
+-- calculate_commissions_for_order() above.
+-- ----------------------------------------------------------------------------
+
+create or replace function calculate_report_override_commission()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_campaign_id uuid;
+  v_pic_analyst_id uuid;
+  v_leader_id uuid;
+  v_rule record;
+  v_cost numeric;
+  v_expense_account uuid;
+  v_liability_account uuid;
+  v_entry_id uuid;
+begin
+  if new.report_delivered_at is null or old.report_delivered_at is not null then
+    return new;
+  end if;
+  if new.item_type not in ('detection_session', 'voucher_redemption') then
+    return new;
+  end if;
+
+  -- ---- 1. RM40 report override commission ----
+  v_campaign_id := null;
+  v_pic_analyst_id := null;
+  if new.customer_id is not null then
+    select acquired_via_campaign_id into v_campaign_id from customers where id = new.customer_id;
+  end if;
+  if v_campaign_id is not null then
+    select pic_analyst_id into v_pic_analyst_id from channel_campaigns where id = v_campaign_id;
+  end if;
+
+  select * into v_rule from get_active_rule('report_override', 1);
+  if v_rule.calculation_type is not null then
+    if v_pic_analyst_id is not null then
+      perform insert_item_commission(
+        'report_override', new.id, 1, v_pic_analyst_id, null,
+        v_rule.calculation_type, v_rule.rate_percent, v_rule.flat_amount, v_rule.cap_amount, new.subtotal
+      );
+    elsif new.analyst_id is not null then
+      select assigned_leader_id into v_leader_id from analysts where id = new.analyst_id;
+      if v_leader_id is not null then
+        perform insert_item_commission(
+          'report_override', new.id, 1, v_leader_id, null,
+          v_rule.calculation_type, v_rule.rate_percent, v_rule.flat_amount, v_rule.cap_amount, new.subtotal
+        );
+      end if;
+    end if;
+  end if;
+
+  -- ---- 2. Report cost (COGS), auto-posted immediately ----
+  if new.report_tier is not null then
+    v_cost := case new.report_tier when 'standard' then 25.00 when 'upgrade' then 125.00 else 0 end;
+    select id into v_expense_account from chart_of_accounts where code = '5600';
+    select id into v_liability_account from chart_of_accounts where code = '2100';
+    if v_cost > 0 and v_expense_account is not null and v_liability_account is not null then
+      insert into journal_entries (entry_date, source_type, source_id, description, posted_by)
+      values (current_date, 'report_delivery', new.id, '报告制作成本 - ' || new.report_tier, 'system')
+      returning id into v_entry_id;
+
+      insert into journal_lines (journal_entry_id, account_id, debit, credit) values
+        (v_entry_id, v_expense_account, v_cost, 0),
+        (v_entry_id, v_liability_account, 0, v_cost);
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_report_override_commission on order_items;
+create trigger trg_report_override_commission
+  after update of report_delivered_at on order_items
+  for each row
+  execute function calculate_report_override_commission();
 
 -- ----------------------------------------------------------------------------
 -- Approval step: back office reviews 'pending' records (e.g. past the refund

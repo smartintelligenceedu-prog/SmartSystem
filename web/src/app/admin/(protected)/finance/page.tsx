@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
 import { getPortalUserContext } from "@/lib/auth/context";
 import { hasAnyRole } from "@/lib/auth/roles";
-import { getUnpostedSummary, getProfitAndLossThisMonth, listRecentJournalEntries } from "./data";
+import { getUnpostedSummary, getProfitAndLossThisMonth, listRecentJournalEntries, getReportDeliverySummaryThisMonth } from "./data";
 import { Card, CardContent } from "@/components/ui/card";
 import { PostToLedgerButton } from "./post-to-ledger-button";
+import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -27,10 +28,11 @@ export default async function FinancePage() {
   if (!context) redirect("/admin/login");
   if (!hasAnyRole(context, ["admin", "finance"])) redirect("/admin");
 
-  const [unposted, pnl, recentEntries] = await Promise.all([
+  const [unposted, pnl, recentEntries, reportSummary] = await Promise.all([
     getUnpostedSummary(),
     getProfitAndLossThisMonth(),
     listRecentJournalEntries(),
+    getReportDeliverySummaryThisMonth(),
   ]);
 
   return (
@@ -62,6 +64,16 @@ export default async function FinancePage() {
         <p className="mt-2 text-xs text-muted-foreground">
           这个数字只算已过帐的交易，跟 Dashboard 上「简化估算」的 Net Profit 在完全过帐前可能会不一致——过帐后两者会趋于一致。
         </p>
+      </div>
+
+      <div>
+        <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{t("finance.report_summary.title")}</h2>
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          <StatCard label={t("finance.report_summary.total")} value={String(reportSummary.totalCount)} />
+          <StatCard label={t("finance.report_summary.standard")} value={String(reportSummary.standardCount)} />
+          <StatCard label={t("finance.report_summary.upgrade")} value={String(reportSummary.upgradeCount)} />
+          <StatCard label={t("finance.report_summary.total_cost")} value={formatMYR(reportSummary.totalCost)} />
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">

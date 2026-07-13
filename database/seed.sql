@@ -41,3 +41,15 @@ from compensation_plans,
     ('voucher_resale', 0)
   ) as rules(trigger_type, level_number)
 where compensation_plans.name = 'Default Compensation Plan';
+
+-- 'report_override' is a real, confirmed business figure (RM40 flat) — not
+-- a 10% placeholder like the rows above (migration 015).
+insert into commission_rules (plan_id, trigger_type, level_number, calculation_type, flat_amount, effective_from)
+select id, 'report_override', 1, 'flat', 40.00, current_date
+from compensation_plans
+where name = 'Default Compensation Plan';
+
+insert into chart_of_accounts (code, name, account_type) values
+  ('5600', '报告制作成本', 'expense'),
+  ('2100', '应计报告成本', 'liability')
+on conflict (code) do nothing;

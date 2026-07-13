@@ -124,7 +124,7 @@ create table analysts (
   id uuid primary key default gen_random_uuid(),
   party_id uuid not null references parties(id),
   sponsor_id uuid references analysts(id), -- Introducer / recruiter; self-referencing tree, drives commission, root = null
-  assigned_leader_id uuid references analysts(id), -- operational team assignment; independent of sponsor_id, admin-editable, no commission effect
+  assigned_leader_id uuid references analysts(id), -- operational team assignment; independent of sponsor_id, admin-editable. Since migration 015, this IS a commission recipient: the RM40 report-override commission (see commission_engine.sql)
   rank_id uuid references analyst_ranks(id),
   registration_order_id uuid, -- FK added later (registration_orders is defined after this table)
   referral_code text not null unique default replace(gen_random_uuid()::text, '-', ''), -- shareable code new recruits sign up under
@@ -429,10 +429,10 @@ create table orders (
   branch_id uuid references branches(id),
   total_amount numeric(12,2) not null default 0,
   status text not null default 'pending' check (status in ('pending', 'paid', 'cancelled', 'refunded')),
-  -- Set when an analyst (or back office) marks a paid detection_service
-  -- order's report as handed to the customer. The report itself is never
-  -- stored — delivery happens over WhatsApp/email outside this system; this
-  -- is only a checklist fact for the analyst's "My Reports" view.
+  -- Deprecated as of migration 015 — delivery is now tracked per-report on
+  -- order_items.report_delivered_at instead (a multi-person order can have
+  -- reports delivered at different times). Column kept for historical data
+  -- backfilled into order_items; no longer written to going forward.
   report_delivered_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -454,7 +454,14 @@ create table order_items (
   -- item against these, not against orders.customer_id/analyst_id. Null for
   -- registration_kit items (unused there).
   customer_id uuid references customers(id),
-  analyst_id uuid references analysts(id)
+  analyst_id uuid references analysts(id),
+  -- Report delivery is per-item (per-person/per-report), not per-order — a
+  -- multi-person order can have different people's reports finish and get
+  -- delivered at different times, each independently classified. Setting
+  -- report_delivered_at (migration 015) fires the RM40 report-override
+  -- commission + report-cost posting trigger; see commission_engine.sql.
+  report_tier text check (report_tier in ('standard', 'upgrade')),
+  report_delivered_at timestamptz
 );
 create index idx_order_items_customer on order_items(customer_id);
 create index idx_order_items_analyst on order_items(analyst_id);
@@ -527,8 +534,10 @@ create index idx_sales_orders_order on sales_orders(order_id);
 
 -- ============================================================================
 -- 9. COMMISSION ENGINE
--- Five trigger types, each independently configurable and versioned so that
--- rate changes never rewrite historical commission_records.
+-- Six trigger types, each independently configurable and versioned so that
+-- rate changes never rewrite historical commission_records. 'report_override'
+-- (migration 015) is delivery-triggered (order_items.report_delivered_at),
+-- not sale-triggered like the other five — see commission_engine.sql.
 -- ============================================================================
 
 create table compensation_plans (
@@ -544,7 +553,7 @@ create table commission_rules (
   id uuid primary key default gen_random_uuid(),
   plan_id uuid not null references compensation_plans(id),
   trigger_type text not null check (
-    trigger_type in ('personal_sale', 'pic_channel', 'introducer', 'recruitment', 'voucher_resale')
+    trigger_type in ('personal_sale', 'pic_channel', 'introducer', 'recruitment', 'voucher_resale', 'report_override')
   ),
   level_number int not null default 1, -- 1 = direct sponsor, 2 = sponsor's sponsor, etc.
   calculation_type text not null default 'percentage' check (calculation_type in ('percentage', 'flat')),
@@ -563,7 +572,7 @@ create index idx_commission_rules_plan on commission_rules(plan_id, trigger_type
 create table commission_records (
   id uuid primary key default gen_random_uuid(),
   trigger_type text not null check (
-    trigger_type in ('personal_sale', 'pic_channel', 'introducer', 'recruitment', 'voucher_resale')
+    trigger_type in ('personal_sale', 'pic_channel', 'introducer', 'recruitment', 'voucher_resale', 'report_override')
   ),
   -- polymorphic reference to the originating transaction (order, registration_order, ...);
   -- intentionally not FK-constrained since it can point at more than one table

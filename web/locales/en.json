@@ -132,5 +132,30 @@
   "dashboard.agent.notification.pending_approval.suffix": "commission record(s) awaiting approval",
   "dashboard.agent.notification.new_commission.label": "New Commission",
   "dashboard.agent.notification.new_commission.prefix": "In the last 7 days,",
-  "dashboard.agent.notification.new_commission.suffix": "new commission record(s) posted"
+  "dashboard.agent.notification.new_commission.suffix": "new commission record(s) posted",
+
+  "reports.title.back_office": "Report Delivery Status",
+  "reports.title.self": "My Reports",
+  "reports.subtitle": "The system doesn't store reports themselves (the detection device produces them, delivery happens over WhatsApp/email) — this only tracks whether the customer has received theirs.",
+  "reports.column.date": "Date",
+  "reports.column.customer": "Customer",
+  "reports.column.analyst": "Agent",
+  "reports.column.type": "Type",
+  "reports.column.tier": "Report Tier",
+  "reports.column.status": "Status",
+  "reports.empty": "No detection service orders yet",
+  "reports.item_type.detection_session": "Detection Service (paid on-site)",
+  "reports.item_type.voucher_redemption": "Voucher Redemption",
+  "reports.tier.standard": "Standard",
+  "reports.tier.upgrade": "Upgrade",
+  "reports.status.delivered": "Delivered",
+  "reports.status.undelivered": "Not Delivered",
+  "reports.mark_delivered.tier_placeholder": "Select tier",
+  "reports.mark_delivered.submit": "Confirm Delivery",
+
+  "finance.report_summary.title": "Delivered Report Cost",
+  "finance.report_summary.total": "Total Reports",
+  "finance.report_summary.standard": "Standard",
+  "finance.report_summary.upgrade": "Upgrade",
+  "finance.report_summary.total_cost": "Report Cost This Month"
 }
