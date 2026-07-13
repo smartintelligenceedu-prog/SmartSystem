@@ -53,3 +53,10 @@ insert into chart_of_accounts (code, name, account_type) values
   ('5600', '报告制作成本', 'expense'),
   ('2100', '应计报告成本', 'liability')
 on conflict (code) do nothing;
+
+-- Institutional/B2B invoicing accounts (migration 016).
+insert into chart_of_accounts (code, name, account_type) values
+  ('1100', '应收账款 (Accounts Receivable)', 'asset'),
+  ('2200', '递延收入 (Deferred Revenue)', 'liability'),
+  ('2300', '客户定金 (Customer Deposits Received)', 'liability')
+on conflict (code) do nothing;

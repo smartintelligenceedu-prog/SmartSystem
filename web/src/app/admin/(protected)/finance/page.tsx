@@ -1,8 +1,10 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getPortalUserContext } from "@/lib/auth/context";
 import { hasAnyRole } from "@/lib/auth/roles";
 import { getUnpostedSummary, getProfitAndLossThisMonth, listRecentJournalEntries, getReportDeliverySummaryThisMonth } from "./data";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { PostToLedgerButton } from "./post-to-ledger-button";
 import { t } from "@/lib/i18n";
 
@@ -37,9 +39,12 @@ export default async function FinancePage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">
-      <div>
-        <h1 className="text-xl font-semibold">财务</h1>
-        <p className="mt-1 text-sm text-muted-foreground">总帐（Chart of Accounts）与本月损益。</p>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold">财务</h1>
+          <p className="mt-1 text-sm text-muted-foreground">总帐（Chart of Accounts）与本月损益。</p>
+        </div>
+        <Button size="sm" variant="secondary" render={<Link href="/admin/finance/institutional">{t("finance.institutional.nav_link")}</Link>} />
       </div>
 
       <Card>

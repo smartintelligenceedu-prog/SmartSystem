@@ -58,7 +58,11 @@ export async function postToLedger(): Promise<{ ok: boolean; message: string }> 
   }
 
   const [{ data: paidOrders }, { data: postedOrderEntries }, { data: commissions }, { data: postedCommissionEntries }] = await Promise.all([
-    admin.from("orders").select("id, order_type, total_amount, created_at").eq("status", "paid"),
+    // billing_mode = 'invoice' orders (migration 016) are excluded — those
+    // are institutional/B2B orders already auto-posted the moment their
+    // invoice/payment is recorded (see finance_engine.sql). Posting them
+    // again here would double-count their revenue.
+    admin.from("orders").select("id, order_type, total_amount, created_at").eq("status", "paid").neq("billing_mode", "invoice"),
     admin.from("journal_entries").select("source_id").eq("source_type", "order"),
     admin.from("commission_records").select("id, trigger_type, commission_amount, calculated_at"),
     admin.from("journal_entries").select("source_id").eq("source_type", "commission_record"),

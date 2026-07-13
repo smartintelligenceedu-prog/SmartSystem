@@ -429,6 +429,17 @@ create table orders (
   branch_id uuid references branches(id),
   total_amount numeric(12,2) not null default 0,
   status text not null default 'pending' check (status in ('pending', 'paid', 'cancelled', 'refunded')),
+  -- 'immediate' = today's only mode (consumer walk-in pay-now/voucher flow,
+  -- unaffected by this column). 'invoice' = institutional/B2B orders that go
+  -- through invoices/payments instead (migration 016) — postToLedger()
+  -- explicitly skips these to avoid double-posting revenue, since they're
+  -- auto-posted by handle_invoice_issued()/handle_payment_recorded().
+  billing_mode text not null default 'immediate' check (billing_mode in ('immediate', 'invoice')),
+  -- Only meaningful for billing_mode = 'invoice' orders (migration 017) —
+  -- points at a parties row (party_type = 'organization') for printable
+  -- invoices/receipts. Reuses the existing organizations/addresses tables
+  -- rather than a redundant new "institutions" table.
+  institution_party_id uuid references parties(id),
   -- Deprecated as of migration 015 — delivery is now tracked per-report on
   -- order_items.report_delivered_at instead (a multi-person order can have
   -- reports delivered at different times). Column kept for historical data
@@ -439,6 +450,7 @@ create table orders (
 );
 create index idx_orders_analyst on orders(analyst_id);
 create index idx_orders_customer on orders(customer_id);
+create index idx_orders_institution_party on orders(institution_party_id);
 
 create table order_items (
   id uuid primary key default gen_random_uuid(),
@@ -640,6 +652,11 @@ create table invoices (
   id uuid primary key default gen_random_uuid(),
   order_id uuid not null references orders(id),
   invoice_no text not null unique,
+  amount numeric(12,2) not null, -- always the order's full total_amount, regardless of invoice_type
+  -- 'standard' = invoice-first, pay-in-full-later (books Dr AR / Cr Deferred
+  -- Revenue). 'final_settlement' = deposit-first, nets the deposit off the
+  -- total and recognizes revenue immediately (migration 016).
+  invoice_type text not null default 'standard' check (invoice_type in ('standard', 'final_settlement')),
   issued_at timestamptz not null default now(),
   due_at timestamptz,
   status text not null default 'issued' check (status in ('issued', 'paid', 'void'))
@@ -650,6 +667,9 @@ create table payments (
   order_id uuid not null references orders(id),
   amount numeric(12,2) not null,
   method text not null,
+  -- Which of the three institutional billing moments this is — drives which
+  -- accounting entry handle_payment_recorded() posts (migration 016).
+  payment_type text not null default 'full_payment' check (payment_type in ('deposit', 'full_payment', 'final_payment')),
   paid_at timestamptz not null default now(),
   reference_no text
 );
