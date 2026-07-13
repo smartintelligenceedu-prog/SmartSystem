@@ -235,16 +235,17 @@ export interface CustomerChild {
   date_of_birth: string | null;
   school: string | null;
   remark: string | null;
+  tags: string[];
 }
 
 export async function listCustomerChildren(customerId: string): Promise<CustomerChild[]> {
   const admin = createAdminClient();
   const { data } = await admin
     .from("customer_children")
-    .select("id, full_name, gender, date_of_birth, school, remark")
+    .select("id, full_name, gender, date_of_birth, school, remark, tags")
     .eq("customer_id", customerId)
     .order("created_at", { ascending: true });
-  return data ?? [];
+  return (data ?? []).map((c) => ({ ...c, tags: c.tags ?? [] }));
 }
 
 export interface CustomerTimelineEntry {

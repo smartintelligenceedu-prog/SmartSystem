@@ -13,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { t } from "@/lib/i18n";
+import { TQC_TAG_I18N_KEY } from "@/lib/tqc-tags";
 
 export const dynamic = "force-dynamic";
 
@@ -138,10 +139,22 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
                   <p className="text-xs text-muted-foreground">
                     {c.school || "—"} {c.remark ? `· ${c.remark}` : ""}
                   </p>
+                  {c.tags.length > 0 && (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {c.tags.map((tag) => (
+                        <Badge key={tag} variant="secondary" className="text-[10px]">
+                          {t((TQC_TAG_I18N_KEY[tag] ?? tag) as Parameters<typeof t>[0])}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <span className="text-muted-foreground tabular-nums">
-                  {t("customer.child.age")}: {ageFromDob(c.date_of_birth)}
-                </span>
+                <div className="flex items-center gap-3">
+                  <span className="text-muted-foreground tabular-nums">
+                    {t("customer.child.age")}: {ageFromDob(c.date_of_birth)}
+                  </span>
+                  <Button size="sm" variant="ghost" render={<Link href={`/admin/customers/children/${c.id}/report`}>{t("tqc.report.view_link")}</Link>} />
+                </div>
               </div>
             ))}
           </div>

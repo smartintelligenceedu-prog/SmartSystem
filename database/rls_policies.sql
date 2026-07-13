@@ -118,6 +118,33 @@ create policy "analyst reads own customers' children, back office reads all"
 create policy "back office writes customer children" on customer_children for insert with check (is_back_office());
 create policy "back office updates customer children" on customer_children for update using (is_back_office());
 
+-- tqc_one_page_reports (migration 020, replacing the abandoned
+-- tqc_reports/migration 019): same read posture as customer_children
+-- (owning analyst / referring introducer / back office). Write RLS is
+-- back-office-only, same conservative default as customer_children — the
+-- owning analyst can still write via the Server Action's own permission
+-- check + admin client, same pattern as every other mutation in this app.
+alter table tqc_one_page_reports enable row level security;
+
+create policy "analyst reads own customers' children one-page reports, back office reads all"
+  on tqc_one_page_reports for select
+  using (
+    is_back_office()
+    or exists (
+      select 1 from customer_children cc
+      join customers c on c.id = cc.customer_id
+      where cc.id = tqc_one_page_reports.child_id and c.owner_analyst_id = current_analyst_id()
+    )
+    or exists (
+      select 1 from customer_children cc
+      join customers c on c.id = cc.customer_id
+      where cc.id = tqc_one_page_reports.child_id and c.acquired_via_introducer_id = current_introducer_id()
+    )
+  );
+
+create policy "back office writes tqc one-page reports" on tqc_one_page_reports for insert with check (is_back_office());
+create policy "back office updates tqc one-page reports" on tqc_one_page_reports for update using (is_back_office());
+
 alter table interactions enable row level security;
 
 create policy "analyst reads interactions on own customers"

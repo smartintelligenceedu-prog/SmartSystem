@@ -223,11 +223,60 @@ create table customer_children (
   date_of_birth date,
   school text,
   remark text,
+  -- Tag KEYS only ('owl_smart', 'learning_visual', ...), never display
+  -- text — translated at the UI layer via t(`tqc.tag.${key}`). Auto-derived
+  -- by derive_child_tags_one_page() (migration 020) from the child's most
+  -- recent tqc_one_page_reports row; never written to directly by the app.
+  tags text[] not null default '{}',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 create index idx_customer_children_customer on customer_children(customer_id);
 create trigger set_updated_at before update on customer_children for each row execute function set_updated_at();
+
+-- TQC one-page (A4 golden-layout) brain report (migration 020, replacing
+-- the abandoned radar-chart tqc_reports from migration 019). One row per
+-- assessment (a child can be retested); report page/tags always use the
+-- most recent row per child_id. Ten brain-zone columns renamed from the
+-- brief's A-E/a-e scheme (which would have collided under Postgres's
+-- lowercase identifier folding) to fully distinct names, preserving the
+-- original letter order 1:1 — see migration 020's header comment for the
+-- full mapping.
+create table tqc_one_page_reports (
+  id uuid primary key default gen_random_uuid(),
+  child_id uuid not null references customer_children(id),
+  created_by_analyst_id uuid references analysts(id),
+  recorded_at timestamptz not null default now(),
+
+  left_brain_pct numeric(5,2) not null check (left_brain_pct between 0 and 100),
+  right_brain_pct numeric(5,2) not null check (right_brain_pct between 0 and 100),
+
+  brain_zone_a_organization numeric(5,2) not null check (brain_zone_a_organization between 0 and 100),
+  brain_zone_b_logic numeric(5,2) not null check (brain_zone_b_logic between 0 and 100),
+  brain_zone_c_motor numeric(5,2) not null check (brain_zone_c_motor between 0 and 100),
+  brain_zone_d_language numeric(5,2) not null check (brain_zone_d_language between 0 and 100),
+  brain_zone_e_reading numeric(5,2) not null check (brain_zone_e_reading between 0 and 100),
+  brain_zone_f_creativity numeric(5,2) not null check (brain_zone_f_creativity between 0 and 100),
+  brain_zone_g_spatial numeric(5,2) not null check (brain_zone_g_spatial between 0 and 100),
+  brain_zone_h_artistic numeric(5,2) not null check (brain_zone_h_artistic between 0 and 100),
+  brain_zone_i_emotion numeric(5,2) not null check (brain_zone_i_emotion between 0 and 100),
+  brain_zone_j_visual numeric(5,2) not null check (brain_zone_j_visual between 0 and 100),
+
+  -- Plain text, not a checked enum — only 'owl_smart' has confirmed content
+  -- so far; tighten once the full animal/archetype list is provided.
+  personality_type text not null,
+
+  tqc_activity_score numeric(6,2) not null check (tqc_activity_score >= 0),
+  tqc_stars int not null check (tqc_stars between 0 and 5),
+
+  -- 'motivation' | 'thinking' | 'tactile' | 'auditory' | 'visual'
+  learning_styles text[] not null default '{}',
+
+  analyst_summary text,
+
+  created_at timestamptz not null default now()
+);
+create index idx_tqc_one_page_reports_child on tqc_one_page_reports(child_id);
 
 alter table leads add constraint fk_leads_converted_customer
   foreign key (converted_customer_id) references customers(id);
