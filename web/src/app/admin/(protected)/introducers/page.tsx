@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getPortalUserContext } from "@/lib/auth/context";
 import { isBackOfficeRole } from "@/lib/auth/roles";
-import { listIntroducers } from "./data";
+import { listIntroducers, listActiveIntroducersForSponsorPicker } from "./data";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { IntroducerLoginCell } from "./introducer-login-cell";
@@ -19,14 +19,14 @@ export default async function IntroducersPage() {
     redirect("/admin");
   }
 
-  const introducers = await listIntroducers();
+  const [introducers, sponsors] = await Promise.all([listIntroducers(), listActiveIntroducersForSponsorPicker()]);
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">
       <div>
         <h1 className="text-xl font-semibold">引荐人管理</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Introducer 不属于分析师体系，是外部顾客来源渠道；引荐奖金独立于分析师佣金计算。
+          Introducer 不属于分析师体系，是外部顾客来源渠道；引荐人也可以介绍别的引荐人，两层都能拿佣金。
         </p>
       </div>
 
@@ -36,6 +36,7 @@ export default async function IntroducersPage() {
             <TableRow>
               <TableHead>姓名</TableHead>
               <TableHead>联络方式</TableHead>
+              <TableHead>上线引荐人</TableHead>
               <TableHead>推荐码</TableHead>
               <TableHead>已引荐顾客</TableHead>
               <TableHead>累计奖金</TableHead>
@@ -46,7 +47,7 @@ export default async function IntroducersPage() {
           <TableBody>
             {introducers.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground">
+                <TableCell colSpan={8} className="text-center text-muted-foreground">
                   尚未建立任何引荐人
                 </TableCell>
               </TableRow>
@@ -58,6 +59,7 @@ export default async function IntroducersPage() {
                   <div>{row.email}</div>
                   <div>{row.phone}</div>
                 </TableCell>
+                <TableCell className="text-muted-foreground">{row.sponsor_name ?? "—"}</TableCell>
                 <TableCell className="font-mono text-xs text-muted-foreground">{row.referral_code}</TableCell>
                 <TableCell className="tabular-nums">{row.total_introduced_customers}</TableCell>
                 <TableCell className="tabular-nums">{formatMYR(row.total_bonus)}</TableCell>
@@ -77,7 +79,7 @@ export default async function IntroducersPage() {
 
       <div>
         <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">新增引荐人</h2>
-        <CreateIntroducerForm />
+        <CreateIntroducerForm sponsors={sponsors} />
       </div>
     </div>
   );

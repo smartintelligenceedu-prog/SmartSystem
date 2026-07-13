@@ -34,6 +34,7 @@ const createIntroducerSchema = z.object({
   bank_name: z.string().trim().optional(),
   bank_account_name: z.string().trim().optional(),
   bank_account_no: z.string().trim().optional(),
+  sponsor_id: z.string().uuid().optional().or(z.literal("")),
 });
 
 export type CreateIntroducerState =
@@ -55,6 +56,7 @@ export async function adminCreateIntroducer(
     bank_name: formData.get("bank_name") || undefined,
     bank_account_name: formData.get("bank_account_name") || undefined,
     bank_account_no: formData.get("bank_account_no") || undefined,
+    sponsor_id: formData.get("sponsor_id") || undefined,
   });
   if (!parsed.success) {
     return { status: "error", message: parsed.error.issues[0]?.message ?? "表单资料有误" };
@@ -78,6 +80,7 @@ export async function adminCreateIntroducer(
 
   const { error: introducerError } = await admin.from("introducers").insert({
     party_id: party.id,
+    sponsor_id: input.sponsor_id || null,
     referral_code: referralCode,
     bank_name: input.bank_name ?? null,
     bank_account_name: input.bank_account_name ?? null,

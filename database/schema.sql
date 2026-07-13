@@ -145,9 +145,13 @@ create index idx_analysts_assigned_leader_id on analysts(assigned_leader_id);
 
 create table introducers (
   -- NOT part of the analyst hierarchy: a pure external referral channel (e.g. a clinic contact).
-  -- No training, no downline, no rank — just identity + payout details.
+  -- No training, no rank — just identity + payout details. Introducers CAN
+  -- refer other introducers (sponsor_id, mirrors analysts.sponsor_id), which
+  -- pays a 2-level introducer commission — see introducer_sponsor_at_level()
+  -- in commission_engine.sql.
   id uuid primary key default gen_random_uuid(),
   party_id uuid not null references parties(id),
+  sponsor_id uuid references introducers(id),
   referral_code text not null unique,
   bank_name text,
   bank_account_name text,
@@ -156,6 +160,7 @@ create table introducers (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+create index idx_introducers_sponsor on introducers(sponsor_id);
 
 create table channel_campaigns (
   -- School / institution / roadshow outreach run by a PIC analyst.

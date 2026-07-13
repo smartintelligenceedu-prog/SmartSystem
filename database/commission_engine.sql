@@ -37,6 +37,24 @@ as $$
   select id from chain where lvl = target_level
 $$;
 
+-- Same shape as sponsor_at_level() above, but for introducers.sponsor_id
+-- (migration 014) — introducers can refer other introducers, paying a
+-- 2-level introducer commission instead of the 3-level analyst chain.
+create or replace function introducer_sponsor_at_level(start_introducer_id uuid, target_level int)
+returns uuid
+language sql stable
+as $$
+  with recursive chain as (
+    select sponsor_id as id, 1 as lvl from introducers where id = start_introducer_id
+    union all
+    select i.sponsor_id, chain.lvl + 1
+    from introducers i
+    join chain on i.id = chain.id
+    where chain.id is not null
+  )
+  select id from chain where lvl = target_level
+$$;
+
 -- ----------------------------------------------------------------------------
 -- Helper: look up the currently-effective rule for a trigger type + level.
 -- Pulls from the active compensation plan; a missing rule means "don't pay
@@ -188,8 +206,10 @@ declare
   v_campaign_id uuid;
   v_pic_analyst_id uuid;
   v_introducer_id uuid;
+  v_intro_payee uuid;
   v_item order_items%rowtype;
   i int;
+  j int;
 begin
   -- Only fire on the pending/other -> paid transition, and only once.
   -- OLD is not a valid record on INSERT, so it must never be referenced in
@@ -290,15 +310,27 @@ begin
       end if;
     end if;
 
-    -- Introducer referral fee stacks on top of whichever rule fired above.
+    -- Introducer referral fee: level 1 = the direct introducer, level 2 =
+    -- that introducer's own upline introducer (if any, via
+    -- introducer_sponsor_at_level() — migration 014). Stacks on top of
+    -- whichever personal_sale/pic_channel rule fired above.
     if v_introducer_id is not null then
-      select * into v_rule from get_active_rule('introducer', 1);
-      if v_rule.calculation_type is not null then
-        perform insert_item_commission(
-          'introducer', v_item.id, 1, null, v_introducer_id,
-          v_rule.calculation_type, v_rule.rate_percent, v_rule.flat_amount, v_rule.cap_amount, v_item.subtotal
-        );
-      end if;
+      for j in 1..2 loop
+        if j = 1 then
+          v_intro_payee := v_introducer_id;
+        else
+          v_intro_payee := introducer_sponsor_at_level(v_introducer_id, j - 1);
+        end if;
+        exit when v_intro_payee is null;
+
+        select * into v_rule from get_active_rule('introducer', j);
+        if v_rule.calculation_type is not null then
+          perform insert_item_commission(
+            'introducer', v_item.id, j, null, v_intro_payee,
+            v_rule.calculation_type, v_rule.rate_percent, v_rule.flat_amount, v_rule.cap_amount, v_item.subtotal
+          );
+        end if;
+      end loop;
     end if;
   end loop;
 

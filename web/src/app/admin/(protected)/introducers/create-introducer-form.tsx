@@ -5,11 +5,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { adminCreateIntroducer, type CreateIntroducerState } from "./actions";
 
 const initialState: CreateIntroducerState = { status: "idle" };
 
-export function CreateIntroducerForm() {
+export function CreateIntroducerForm({ sponsors }: { sponsors: { id: string; name: string }[] }) {
   const [state, formAction, isPending] = useActionState(adminCreateIntroducer, initialState);
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -37,6 +38,26 @@ export function CreateIntroducerForm() {
             <Label htmlFor="email">电邮</Label>
             <Input id="email" name="email" type="email" required />
           </div>
+          {sponsors.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="sponsor_id">上线引荐人（选填）</Label>
+              {/* Base UI's Select.Value shows the raw value unless Root gets an
+                  `items` map — see the same note in register-form.tsx. */}
+              <Select name="sponsor_id" items={sponsors.map((s) => ({ value: s.id, label: s.name }))}>
+                <SelectTrigger id="sponsor_id" className="w-full">
+                  <SelectValue placeholder="没有上线引荐人可留空" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sponsors.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">如果这位引荐人是被别的引荐人介绍进来的，选择上线可以让上线也拿到 Level 2 佣金。</p>
+            </div>
+          )}
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="bank_name">银行名称（选填）</Label>
