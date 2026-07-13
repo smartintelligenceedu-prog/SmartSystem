@@ -1,10 +1,12 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getPortalUserContext } from "@/lib/auth/context";
-import { isBackOfficeRole } from "@/lib/auth/roles";
+import { isBackOfficeRole, hasAnyRole } from "@/lib/auth/roles";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { listAllCommissions } from "./data";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { AdjustCommissionCell } from "./adjust-commission-cell";
 
 export const dynamic = "force-dynamic";
@@ -53,11 +55,16 @@ export default async function CommissionPage() {
     const rows = await listAllCommissions();
     return (
       <div className="mx-auto max-w-6xl space-y-6">
-        <div>
-          <h1 className="text-xl font-semibold">佣金</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            全公司最近 {rows.length} 笔佣金记录。金额可人工调整（保留原始计算金额与调整原因，供稽核）。
-          </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-semibold">佣金</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              全公司最近 {rows.length} 笔佣金记录。金额可人工调整（保留原始计算金额与调整原因，供稽核）。
+            </p>
+          </div>
+          {hasAnyRole(context, ["admin", "finance"]) && (
+            <Button size="sm" variant="outline" render={<Link href="/admin/commission/rules">佣金规则设定</Link>} />
+          )}
         </div>
         <div className="overflow-x-auto rounded-md border">
           <Table>
