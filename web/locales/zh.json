@@ -477,5 +477,32 @@
   "tqc.tag.learning_thinking": "思考导向学习者",
   "tqc.tag.learning_tactile": "动手型学习者",
   "tqc.tag.learning_auditory": "听觉型学习者",
-  "tqc.tag.learning_visual": "视觉型学习者"
+  "tqc.tag.learning_visual": "视觉型学习者",
+
+  "analytics.nav.label": "分析报表",
+  "analytics.title": "管理层财务分析",
+  "analytics.subtitle": "机构大单（B2B）营收与 Voucher 消耗总览",
+  "analytics.period.month": "本月",
+  "analytics.period.quarter": "本季度",
+  "analytics.metric.total_revenue": "Total Revenue 总营收",
+  "analytics.metric.accounts_receivable": "Accounts Receivable 待收尾款",
+  "analytics.metric.accounts_receivable_note": "已扣除已收定金/首付的即时未付余额",
+  "analytics.metric.recognized_revenue": "Recognized Revenue 已确认收入",
+  "analytics.metric.recognized_revenue_note": "按 Voucher 实际核销比例折算的落袋业绩",
+  "analytics.top_institutions.title": "机构消耗排行榜 Top 5",
+  "analytics.top_institutions.empty": "暂无机构订单资料",
+  "analytics.top_institutions.used_prefix": "已核销",
+  "analytics.trend.title": "月度开单量与核销速度趋势",
+  "analytics.trend.orders_label": "开单量",
+  "analytics.trend.vouchers_label": "Voucher 核销数",
+  "analytics.trend.empty": "近期尚无趋势资料",
+
+  "dashboard.agent.section.institutional": "机构大单进度",
+  "dashboard.agent.stat.institution_count": "我名下的机构总数",
+  "dashboard.agent.stat.assessed_children": "已测脑波儿童总数",
+  "dashboard.agent.stat.new_children_this_month": "本月新绑定儿童",
+  "dashboard.agent.followup.title": "待办跟进提醒",
+  "dashboard.agent.followup.empty": "目前没有需要跟进的儿童档案",
+  "dashboard.agent.followup.days_since_prefix": "距上次检测",
+  "dashboard.agent.followup.days_since_suffix": "天"
 }

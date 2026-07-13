@@ -477,5 +477,32 @@
   "tqc.tag.learning_thinking": "",
   "tqc.tag.learning_tactile": "",
   "tqc.tag.learning_auditory": "",
-  "tqc.tag.learning_visual": ""
+  "tqc.tag.learning_visual": "",
+
+  "analytics.nav.label": "",
+  "analytics.title": "",
+  "analytics.subtitle": "",
+  "analytics.period.month": "",
+  "analytics.period.quarter": "",
+  "analytics.metric.total_revenue": "",
+  "analytics.metric.accounts_receivable": "",
+  "analytics.metric.accounts_receivable_note": "",
+  "analytics.metric.recognized_revenue": "",
+  "analytics.metric.recognized_revenue_note": "",
+  "analytics.top_institutions.title": "",
+  "analytics.top_institutions.empty": "",
+  "analytics.top_institutions.used_prefix": "",
+  "analytics.trend.title": "",
+  "analytics.trend.orders_label": "",
+  "analytics.trend.vouchers_label": "",
+  "analytics.trend.empty": "",
+
+  "dashboard.agent.section.institutional": "",
+  "dashboard.agent.stat.institution_count": "",
+  "dashboard.agent.stat.assessed_children": "",
+  "dashboard.agent.stat.new_children_this_month": "",
+  "dashboard.agent.followup.title": "",
+  "dashboard.agent.followup.empty": "",
+  "dashboard.agent.followup.days_since_prefix": "",
+  "dashboard.agent.followup.days_since_suffix": ""
 }

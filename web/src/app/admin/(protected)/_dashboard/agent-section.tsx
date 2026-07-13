@@ -5,6 +5,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { t } from "@/lib/i18n";
 import type { AnalystStatus } from "@/lib/types/registration";
+import { VoucherProgressBar } from "../finance/institutional/voucher-progress-bar";
+import { getAgentInstitutionalStats, getFollowUpChildren } from "./agent-institutional-stats";
+import { TQC_TAG_I18N_KEY } from "@/lib/tqc-tags";
 
 function formatMYR(amount: number) {
   return new Intl.NumberFormat("ms-MY", { style: "currency", currency: "MYR" }).format(amount);
@@ -62,6 +65,11 @@ export async function AgentSection({ analystId }: { analystId: string }) {
     supabase.from("commission_records").select("id", { count: "exact", head: true }).eq("analyst_id", analystId).gte("calculated_at", sevenDaysAgo),
   ]);
 
+  const [institutionalStats, followUpChildren] = await Promise.all([
+    getAgentInstitutionalStats(analystId),
+    getFollowUpChildren(analystId),
+  ]);
+
   const itemOrderIds = [...new Set((analystItems ?? []).map((it) => it.order_id))];
   const { data: itemOrders } =
     itemOrderIds.length > 0
@@ -117,6 +125,57 @@ export async function AgentSection({ analystId }: { analystId: string }) {
         <StatCard label={t("dashboard.agent.stat.monthly_sales")} value={formatMYR(monthlySales)} />
         <StatCard label={t("dashboard.agent.stat.pending_orders")} value={String(pendingOrders ?? 0)} />
         <StatCard label={t("dashboard.agent.stat.commission_this_month")} value={formatMYR(commissionThisMonth)} />
+      </div>
+
+      <div>
+        <h3 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{t("dashboard.agent.section.institutional")}</h3>
+        <Card>
+          <CardContent className="flex flex-wrap items-center gap-6 pt-6">
+            <VoucherProgressBar total={institutionalStats.voucher_total} used={institutionalStats.voucher_used} />
+            <div className="grid flex-1 grid-cols-3 gap-4">
+              <div>
+                <p className="text-xs text-muted-foreground">{t("dashboard.agent.stat.institution_count")}</p>
+                <p className="mt-1 text-xl font-semibold tabular-nums">{institutionalStats.institution_count}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">{t("dashboard.agent.stat.assessed_children")}</p>
+                <p className="mt-1 text-xl font-semibold tabular-nums">{institutionalStats.assessed_children_count}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">{t("dashboard.agent.stat.new_children_this_month")}</p>
+                <p className="mt-1 text-xl font-semibold tabular-nums">{institutionalStats.new_children_this_month}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div>
+        <h3 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{t("dashboard.agent.followup.title")}</h3>
+        <div className="divide-y rounded-md border">
+          {followUpChildren.length === 0 && <p className="p-4 text-sm text-muted-foreground">{t("dashboard.agent.followup.empty")}</p>}
+          {followUpChildren.map((c) => (
+            <Link
+              key={c.child_id}
+              href={`/admin/customers/children/${c.child_id}/report`}
+              className="flex items-center justify-between px-4 py-3 text-sm hover:bg-accent/50"
+            >
+              <div>
+                <p className="font-medium">{c.full_name}</p>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {c.tags.map((tag) => (
+                    <Badge key={tag} variant="outline">
+                      {t((TQC_TAG_I18N_KEY[tag] ?? tag) as Parameters<typeof t>[0])}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+              <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                {t("dashboard.agent.followup.days_since_prefix")} {c.days_since_assessment} {t("dashboard.agent.followup.days_since_suffix")}
+              </span>
+            </Link>
+          ))}
+        </div>
       </div>
 
       <div>
