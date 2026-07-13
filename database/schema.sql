@@ -681,6 +681,24 @@ create table receipts (
   issued_at timestamptz not null default now()
 );
 
+-- Institutional bulk-order credits (migration 018) — distinct from
+-- detection_vouchers above (which is the analyst registration-kit
+-- self_use/resale voucher system). One row per credit purchased on an
+-- institutional order (orders.billing_mode = 'invoice'); auto-generated in
+-- bulk by generate_institutional_vouchers() (finance_engine.sql) the moment
+-- the order reaches 'paid'. used_by_child_id is only set on redemption.
+create table institutional_vouchers (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references orders(id),
+  voucher_code text not null unique,
+  status text not null default 'unused' check (status in ('unused', 'used', 'cancelled')),
+  used_by_child_id uuid references customer_children(id),
+  used_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index idx_institutional_vouchers_order on institutional_vouchers(order_id);
+create index idx_institutional_vouchers_status on institutional_vouchers(status);
+
 -- ============================================================================
 -- 11. PROCUREMENT & INVENTORY
 -- ============================================================================

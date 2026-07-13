@@ -22,6 +22,8 @@ export interface InstitutionalOrderRow {
   latest_payment_id: string | null;
   ar_balance: number;
   deposit_balance: number;
+  voucher_total: number;
+  voucher_used: number;
 }
 
 // Institutional/B2B orders (orders.billing_mode = 'invoice', migration 016)
@@ -42,10 +44,11 @@ export async function listInstitutionalOrders(): Promise<InstitutionalOrderRow[]
 
   const orderIds = orders.map((o) => o.id);
 
-  const [{ data: items }, { data: invoices }, { data: payments }] = await Promise.all([
+  const [{ data: items }, { data: invoices }, { data: payments }, { data: vouchers }] = await Promise.all([
     admin.from("order_items").select("order_id, description, analyst_id").in("order_id", orderIds),
     admin.from("invoices").select("id, order_id, invoice_no, invoice_type, status, amount").in("order_id", orderIds),
     admin.from("payments").select("id, order_id, amount, payment_type, paid_at").in("order_id", orderIds),
+    admin.from("institutional_vouchers").select("order_id, status").in("order_id", orderIds),
   ]);
 
   const itemByOrder = new Map((items ?? []).map((it) => [it.order_id, it]));
@@ -103,6 +106,9 @@ export async function listInstitutionalOrders(): Promise<InstitutionalOrderRow[]
 
     const latestPayment = [...orderPayments].sort((a, b) => new Date(b.paid_at).getTime() - new Date(a.paid_at).getTime())[0];
 
+    const orderVouchers = (vouchers ?? []).filter((v) => v.order_id === o.id);
+    const voucherUsed = orderVouchers.filter((v) => v.status === "used").length;
+
     return {
       order_id: o.id,
       description: item?.description ?? "—",
@@ -116,6 +122,8 @@ export async function listInstitutionalOrders(): Promise<InstitutionalOrderRow[]
       latest_payment_id: latestPayment?.id ?? null,
       ar_balance: arBalance,
       deposit_balance: depositBalance,
+      voucher_total: orderVouchers.length,
+      voucher_used: voucherUsed,
     };
   });
 }

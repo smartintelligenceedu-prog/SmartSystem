@@ -29,10 +29,14 @@ export function CreateInstitutionalOrderForm({ agents }: { agents: { id: string;
             <Label htmlFor="description">{t("finance.institutional.new_order.description_label")}</Label>
             <Input id="description" name="description" required />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="total_amount">{t("finance.institutional.new_order.amount_label")}</Label>
               <Input id="total_amount" name="total_amount" type="number" step="0.01" min="0.01" required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="quantity">{t("finance.institutional.new_order.quantity_label")}</Label>
+              <Input id="quantity" name="quantity" type="number" step="1" min="1" defaultValue="1" required />
             </div>
             <div className="space-y-2">
               <Label htmlFor="analyst_id">{t("finance.institutional.new_order.analyst_label")}</Label>

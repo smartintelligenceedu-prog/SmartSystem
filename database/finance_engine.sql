@@ -242,3 +242,77 @@ create trigger trg_payment_recorded
   after insert on payments
   for each row
   execute function handle_payment_recorded();
+
+-- ----------------------------------------------------------------------------
+-- Institutional voucher generation (Phase 2 Task 1, migration 018).
+--
+-- Fires on the same orders.status -> 'paid' transition as
+-- calculate_commissions_for_order() (commission_engine.sql) — Postgres runs
+-- multiple triggers on one table/event independently, so this coexists
+-- without touching that function. Covers both ways an institutional order
+-- reaches 'paid': handle_payment_recorded()'s full_payment/final_payment
+-- branches above, and handle_invoice_issued()'s deposit-fully-covers-total
+-- branch — both just UPDATE orders.status, which this trigger reacts to
+-- generically. Idempotent: skips generation if the order already has any
+-- vouchers, so firing more than once never double-issues credits.
+-- ----------------------------------------------------------------------------
+
+create or replace function generate_institutional_vouchers()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_item order_items%rowtype;
+  v_qty int;
+  i int;
+  v_code text;
+  v_attempts int;
+begin
+  if new.billing_mode <> 'invoice' then
+    return new;
+  end if;
+
+  if tg_op = 'INSERT' then
+    if new.status <> 'paid' then
+      return new;
+    end if;
+  elsif tg_op = 'UPDATE' then
+    if new.status <> 'paid' or old.status = 'paid' then
+      return new;
+    end if;
+  end if;
+
+  if exists (select 1 from institutional_vouchers where order_id = new.id) then
+    return new;
+  end if;
+
+  for v_item in select * from order_items where order_id = new.id loop
+    v_qty := greatest(coalesce(v_item.quantity, 1), 1);
+    for i in 1..v_qty loop
+      v_attempts := 0;
+      loop
+        v_code := upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 10));
+        begin
+          insert into institutional_vouchers (order_id, voucher_code) values (new.id, v_code);
+          exit;
+        exception when unique_violation then
+          v_attempts := v_attempts + 1;
+          if v_attempts > 5 then
+            raise exception 'failed to generate a unique voucher code after 5 attempts';
+          end if;
+        end;
+      end loop;
+    end loop;
+  end loop;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_generate_institutional_vouchers on orders;
+create trigger trg_generate_institutional_vouchers
+  after insert or update of status on orders
+  for each row
+  execute function generate_institutional_vouchers();

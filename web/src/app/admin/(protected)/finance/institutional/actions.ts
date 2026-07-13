@@ -24,6 +24,7 @@ async function requireBackOfficeUserId(): Promise<{ userId: string } | { error: 
 const createOrderSchema = z.object({
   description: z.string().trim().min(2, "请输入订单描述"),
   total_amount: z.coerce.number().positive("金额必须大于 0"),
+  quantity: z.coerce.number().int().positive("份数必须是大于 0 的整数"),
   analyst_id: z.string().uuid().optional().or(z.literal("")),
   institution_name: z.string().trim().min(2, "请输入机构名称"),
   ssm_number: z.string().trim().optional(),
@@ -57,6 +58,7 @@ export async function createInstitutionalOrder(
   const parsed = createOrderSchema.safeParse({
     description: formData.get("description"),
     total_amount: formData.get("total_amount"),
+    quantity: formData.get("quantity") || "1",
     analyst_id: formData.get("analyst_id") || undefined,
     institution_name: formData.get("institution_name"),
     ssm_number: formData.get("ssm_number") || undefined,
@@ -108,12 +110,16 @@ export async function createInstitutionalOrder(
     .single();
   if (orderError) return { status: "error", message: `建立订单失败：${orderError.message}` };
 
+  // unit_price is derived for display only (invoice line items) — subtotal
+  // stays the authoritative total_amount rather than unit_price * quantity,
+  // so a non-evenly-divisible split (e.g. RM1000 / 3) never drifts the
+  // revenue/AR amounts a cent off from what the invoice/journal entries use.
   const { error: itemError } = await admin.from("order_items").insert({
     order_id: order.id,
     item_type: "detection_session",
     description: input.description,
-    unit_price: input.total_amount,
-    quantity: 1,
+    unit_price: Math.round((input.total_amount / input.quantity) * 100) / 100,
+    quantity: input.quantity,
     subtotal: input.total_amount,
     analyst_id: input.analyst_id || null,
   });
