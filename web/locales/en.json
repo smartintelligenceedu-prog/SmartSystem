@@ -105,5 +105,32 @@
   "customer.error.no_permission": "You don't have permission to do this",
 
   "customer.status.active": "Active",
-  "customer.status.inactive": "Archived"
+  "customer.status.inactive": "Archived",
+
+  "dashboard.agent.title": "My Workspace (Agent)",
+  "dashboard.agent.status.pending": "Pending",
+  "dashboard.agent.status.approved": "Approved",
+  "dashboard.agent.status.suspended": "Suspended",
+  "dashboard.agent.status.rejected": "Rejected",
+  "dashboard.agent.status.terminated": "Terminated",
+  "dashboard.agent.field.agent_id": "Agent ID",
+  "dashboard.agent.stat.available_report_credit": "Available Report Credit",
+  "dashboard.agent.stat.total_customers": "Total Customers",
+  "dashboard.agent.stat.total_sales_orders": "Total Sales Orders",
+  "dashboard.agent.stat.monthly_sales": "Monthly Sales",
+  "dashboard.agent.stat.pending_orders": "Pending Orders",
+  "dashboard.agent.stat.commission_this_month": "Commission This Month",
+  "dashboard.agent.quick_actions": "Quick Actions",
+  "dashboard.agent.action.register_customer": "Register Customer",
+  "dashboard.agent.action.new_sales_order": "New Sales Order",
+  "dashboard.agent.action.view_customers": "View Customers",
+  "dashboard.agent.action.my_commission": "My Commission",
+  "dashboard.agent.action.my_reports": "My Reports",
+  "dashboard.agent.notifications": "Notifications",
+  "dashboard.agent.notifications.empty": "No notifications",
+  "dashboard.agent.notification.pending_approval.label": "Pending Approval",
+  "dashboard.agent.notification.pending_approval.suffix": "commission record(s) awaiting approval",
+  "dashboard.agent.notification.new_commission.label": "New Commission",
+  "dashboard.agent.notification.new_commission.prefix": "In the last 7 days,",
+  "dashboard.agent.notification.new_commission.suffix": "new commission record(s) posted"
 }

@@ -3,18 +3,19 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { t } from "@/lib/i18n";
 import type { AnalystStatus } from "@/lib/types/registration";
 
 function formatMYR(amount: number) {
   return new Intl.NumberFormat("ms-MY", { style: "currency", currency: "MYR" }).format(amount);
 }
 
-const STATUS_LABEL: Record<AnalystStatus, string> = {
-  pending: "待审核",
-  approved: "已核准",
-  suspended: "已暂停",
-  rejected: "已拒绝",
-  terminated: "已终止",
+const STATUS_LABEL_KEY: Record<AnalystStatus, Parameters<typeof t>[0]> = {
+  pending: "dashboard.agent.status.pending",
+  approved: "dashboard.agent.status.approved",
+  suspended: "dashboard.agent.status.suspended",
+  rejected: "dashboard.agent.status.rejected",
+  terminated: "dashboard.agent.status.terminated",
 };
 
 function StatCard({ label, value }: { label: string; value: string }) {
@@ -44,34 +45,56 @@ export async function AgentSection({ analystId }: { analystId: string }) {
   const [
     { count: availableCredit },
     { count: totalCustomers },
-    { count: totalSalesOrders },
-    { data: monthOrders },
-    { count: pendingOrders },
+    { data: analystItems },
     { data: monthCommission },
     { count: pendingApprovalCount },
     { count: newCommissionCount },
   ] = await Promise.all([
     supabase.from("detection_vouchers").select("id", { count: "exact", head: true }).eq("analyst_id", analystId).eq("status", "issued"),
     supabase.from("customers").select("id", { count: "exact", head: true }).eq("owner_analyst_id", analystId),
-    supabase.from("orders").select("id", { count: "exact", head: true }).eq("analyst_id", analystId).eq("order_type", "detection_service"),
-    supabase.from("orders").select("total_amount").eq("analyst_id", analystId).eq("status", "paid").gte("created_at", monthStart),
-    supabase.from("orders").select("id", { count: "exact", head: true }).eq("analyst_id", analystId).eq("status", "pending"),
+    // Multi-person orders (migration 012): a sale is credited per order_item,
+    // not per order, so "my sales" has to be scoped by order_items.analyst_id
+    // rather than orders.analyst_id (which is just whoever submitted the
+    // order). See the identical reasoning in reports/data.ts.
+    supabase.from("order_items").select("id, order_id, subtotal").eq("analyst_id", analystId),
     supabase.from("commission_records").select("commission_amount").eq("analyst_id", analystId).gte("calculated_at", monthStart),
     supabase.from("commission_records").select("id", { count: "exact", head: true }).eq("analyst_id", analystId).eq("status", "pending"),
     supabase.from("commission_records").select("id", { count: "exact", head: true }).eq("analyst_id", analystId).gte("calculated_at", sevenDaysAgo),
   ]);
 
-  const monthlySales = (monthOrders ?? []).reduce((total, o) => total + Number(o.total_amount), 0);
+  const itemOrderIds = [...new Set((analystItems ?? []).map((it) => it.order_id))];
+  const { data: itemOrders } =
+    itemOrderIds.length > 0
+      ? await supabase.from("orders").select("id, status, order_type, created_at").in("id", itemOrderIds)
+      : { data: [] };
+  const orderById = new Map((itemOrders ?? []).map((o) => [o.id, o]));
+
+  const totalSalesOrders = (analystItems ?? []).filter((it) => orderById.get(it.order_id)?.order_type === "detection_service").length;
+
+  const pendingOrders = (analystItems ?? []).filter((it) => orderById.get(it.order_id)?.status === "pending").length;
+
+  const monthlySales = (analystItems ?? []).reduce((total, it) => {
+    const order = orderById.get(it.order_id);
+    if (!order || order.status !== "paid" || order.created_at < monthStart) return total;
+    return total + Number(it.subtotal);
+  }, 0);
+
   const commissionThisMonth = (monthCommission ?? []).reduce((total, c) => total + Number(c.commission_amount), 0);
 
   const notifications = [
-    (pendingApprovalCount ?? 0) > 0 && { label: "Pending Approval", detail: `${pendingApprovalCount} 笔佣金待核准发放` },
-    (newCommissionCount ?? 0) > 0 && { label: "New Commission", detail: `近 7 天有 ${newCommissionCount} 笔新佣金入帐` },
+    (pendingApprovalCount ?? 0) > 0 && {
+      label: t("dashboard.agent.notification.pending_approval.label"),
+      detail: `${pendingApprovalCount} ${t("dashboard.agent.notification.pending_approval.suffix")}`,
+    },
+    (newCommissionCount ?? 0) > 0 && {
+      label: t("dashboard.agent.notification.new_commission.label"),
+      detail: `${t("dashboard.agent.notification.new_commission.prefix")} ${newCommissionCount} ${t("dashboard.agent.notification.new_commission.suffix")}`,
+    },
   ].filter((n): n is { label: string; detail: string } => !!n);
 
   return (
     <section className="space-y-4">
-      <h2 className="text-sm font-medium tracking-wide text-muted-foreground uppercase">我的工作台（Agent）</h2>
+      <h2 className="text-sm font-medium tracking-wide text-muted-foreground uppercase">{t("dashboard.agent.title")}</h2>
 
       <Card>
         <CardContent className="flex flex-wrap items-center justify-between gap-4 pt-6">
@@ -79,38 +102,40 @@ export async function AgentSection({ analystId }: { analystId: string }) {
             <p className="text-lg font-semibold">
               {identity?.full_name ?? "—"} <span className="text-sm font-normal text-muted-foreground">({identity?.nickname})</span>
             </p>
-            <p className="text-sm text-muted-foreground">Agent ID: {analyst?.referral_code}</p>
+            <p className="text-sm text-muted-foreground">
+              {t("dashboard.agent.field.agent_id")}: {analyst?.referral_code}
+            </p>
           </div>
-          <Badge variant="secondary">{STATUS_LABEL[(analyst?.status as AnalystStatus) ?? "pending"]}</Badge>
+          <Badge variant="secondary">{t(STATUS_LABEL_KEY[(analyst?.status as AnalystStatus) ?? "pending"])}</Badge>
         </CardContent>
       </Card>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-        <StatCard label="Available Report Credit" value={String(availableCredit ?? 0)} />
-        <StatCard label="Total Customers" value={String(totalCustomers ?? 0)} />
-        <StatCard label="Total Sales Orders" value={String(totalSalesOrders ?? 0)} />
-        <StatCard label="Monthly Sales" value={formatMYR(monthlySales)} />
-        <StatCard label="Pending Orders" value={String(pendingOrders ?? 0)} />
-        <StatCard label="Commission This Month" value={formatMYR(commissionThisMonth)} />
+        <StatCard label={t("dashboard.agent.stat.available_report_credit")} value={String(availableCredit ?? 0)} />
+        <StatCard label={t("dashboard.agent.stat.total_customers")} value={String(totalCustomers ?? 0)} />
+        <StatCard label={t("dashboard.agent.stat.total_sales_orders")} value={String(totalSalesOrders ?? 0)} />
+        <StatCard label={t("dashboard.agent.stat.monthly_sales")} value={formatMYR(monthlySales)} />
+        <StatCard label={t("dashboard.agent.stat.pending_orders")} value={String(pendingOrders ?? 0)} />
+        <StatCard label={t("dashboard.agent.stat.commission_this_month")} value={formatMYR(commissionThisMonth)} />
       </div>
 
       <div>
-        <h3 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">Quick Actions</h3>
+        <h3 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{t("dashboard.agent.quick_actions")}</h3>
         <div className="flex flex-wrap gap-2">
           {/* Base UI Button uses a `render` prop instead of Radix's asChild —
               see the same note in select.tsx. */}
-          <Button size="sm" render={<Link href="/admin/customers/new">Register Customer</Link>} />
-          <Button size="sm" variant="secondary" render={<Link href="/admin/sales-orders/new">New Sales Order</Link>} />
-          <Button size="sm" variant="secondary" render={<Link href="/admin/customers">View Customers</Link>} />
-          <Button size="sm" variant="secondary" render={<Link href="/admin/commission">My Commission</Link>} />
-          <Button size="sm" variant="secondary" render={<Link href="/admin/reports">My Reports</Link>} />
+          <Button size="sm" render={<Link href="/admin/customers/new">{t("dashboard.agent.action.register_customer")}</Link>} />
+          <Button size="sm" variant="secondary" render={<Link href="/admin/sales-orders/new">{t("dashboard.agent.action.new_sales_order")}</Link>} />
+          <Button size="sm" variant="secondary" render={<Link href="/admin/customers">{t("dashboard.agent.action.view_customers")}</Link>} />
+          <Button size="sm" variant="secondary" render={<Link href="/admin/commission">{t("dashboard.agent.action.my_commission")}</Link>} />
+          <Button size="sm" variant="secondary" render={<Link href="/admin/reports">{t("dashboard.agent.action.my_reports")}</Link>} />
         </div>
       </div>
 
       <div>
-        <h3 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">Notifications</h3>
+        <h3 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{t("dashboard.agent.notifications")}</h3>
         <div className="divide-y rounded-md border">
-          {notifications.length === 0 && <p className="p-4 text-sm text-muted-foreground">暂无通知</p>}
+          {notifications.length === 0 && <p className="p-4 text-sm text-muted-foreground">{t("dashboard.agent.notifications.empty")}</p>}
           {notifications.map((n) => (
             <div key={n.label} className="px-4 py-3 text-sm">
               <p className="font-medium">{n.label}</p>

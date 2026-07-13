@@ -105,5 +105,32 @@
   "customer.error.no_permission": "没有权限执行此操作",
 
   "customer.status.active": "启用中",
-  "customer.status.inactive": "已封存"
+  "customer.status.inactive": "已封存",
+
+  "dashboard.agent.title": "我的工作台（Agent）",
+  "dashboard.agent.status.pending": "待审核",
+  "dashboard.agent.status.approved": "已核准",
+  "dashboard.agent.status.suspended": "已暂停",
+  "dashboard.agent.status.rejected": "已拒绝",
+  "dashboard.agent.status.terminated": "已终止",
+  "dashboard.agent.field.agent_id": "推荐码",
+  "dashboard.agent.stat.available_report_credit": "可用报告额度",
+  "dashboard.agent.stat.total_customers": "顾客总数",
+  "dashboard.agent.stat.total_sales_orders": "销售订单总数",
+  "dashboard.agent.stat.monthly_sales": "本月销售额",
+  "dashboard.agent.stat.pending_orders": "待处理订单",
+  "dashboard.agent.stat.commission_this_month": "本月佣金",
+  "dashboard.agent.quick_actions": "快捷操作",
+  "dashboard.agent.action.register_customer": "登记顾客",
+  "dashboard.agent.action.new_sales_order": "新建销售订单",
+  "dashboard.agent.action.view_customers": "查看顾客",
+  "dashboard.agent.action.my_commission": "我的佣金",
+  "dashboard.agent.action.my_reports": "我的报告",
+  "dashboard.agent.notifications": "通知",
+  "dashboard.agent.notifications.empty": "暂无通知",
+  "dashboard.agent.notification.pending_approval.label": "待核准",
+  "dashboard.agent.notification.pending_approval.suffix": "笔佣金待核准发放",
+  "dashboard.agent.notification.new_commission.label": "新佣金入帐",
+  "dashboard.agent.notification.new_commission.prefix": "近 7 天有",
+  "dashboard.agent.notification.new_commission.suffix": "笔新佣金入帐"
 }
