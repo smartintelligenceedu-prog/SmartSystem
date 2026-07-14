@@ -13,7 +13,19 @@ import { BRAIN_ZONES, LEARNING_STYLES, PERSONALITY_TYPES, type LearningStyleValu
 
 const initialState: SaveOnePageReportState = { status: "idle" };
 
-export function ReportForm({ childId }: { childId: string }) {
+// Stage 2 ONLY — this form never books a device or picks a time slot; it
+// completes an appointment that Stage 1 (the schedule page) already
+// created. That appointment's summary is shown read-only for confirmation,
+// never as editable fields — see the 2026-07-14 decoupling fix.
+export function ReportForm({
+  childId,
+  appointmentId,
+  appointmentSummary,
+}: {
+  childId: string;
+  appointmentId: string;
+  appointmentSummary: string;
+}) {
   const [state, formAction, isPending] = useActionState(saveOnePageReport, initialState);
   const [selectedStyles, setSelectedStyles] = useState<LearningStyleValue[]>([]);
 
@@ -26,9 +38,14 @@ export function ReportForm({ childId }: { childId: string }) {
       <CardContent className="pt-6">
         <form action={formAction} className="space-y-6">
           <input type="hidden" name="child_id" value={childId} />
+          <input type="hidden" name="appointment_id" value={appointmentId} />
           {selectedStyles.map((style) => (
             <input key={style} type="hidden" name="learning_styles" value={style} />
           ))}
+
+          <div className="rounded-md border border-dashed border-neutral-300 p-3 text-sm text-muted-foreground">
+            {t("tqc.form.appointment_label")}: {appointmentSummary}
+          </div>
 
           <div>
             <p className="mb-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">{t("tqc.form.brain_balance_section")}</p>

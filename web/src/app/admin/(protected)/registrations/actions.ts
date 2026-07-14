@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { t } from "@/lib/i18n";
 
 /**
  * Every action here re-checks is_back_office() against the CALLER's own
@@ -283,4 +284,29 @@ export async function adminUpdateAnalystExtraRoles(
 
   revalidatePath(`/admin/registrations/${analystId}`);
   return { ok: true, message: "已更新角色" };
+}
+
+/**
+ * Minimal TRN-02 patch — there's no training-course/exam tracking system
+ * yet, so certification is a single manual admin action. Setting
+ * certification_passed_at fires trg_unlock_resale_voucher_on_certification
+ * (certification_engine.sql / migration 021), which unlocks the analyst's
+ * locked resale detection_voucher atomically — this action itself only
+ * touches analysts, never detection_vouchers directly.
+ */
+export async function adminApproveCertification(analystId: string): Promise<{ ok: boolean; message: string }> {
+  const auth = await requireBackOfficeUserId();
+  if ("error" in auth) return { ok: false, message: auth.error };
+
+  const admin = createAdminClient();
+  const { data: analyst } = await admin.from("analysts").select("status, certification_passed_at").eq("id", analystId).maybeSingle();
+  if (!analyst) return { ok: false, message: t("registrations.certification.error.not_found") };
+  if (analyst.status !== "approved") return { ok: false, message: t("registrations.certification.error.not_approved") };
+  if (analyst.certification_passed_at) return { ok: false, message: t("registrations.certification.error.already_certified") };
+
+  const { error } = await admin.from("analysts").update({ certification_passed_at: new Date().toISOString() }).eq("id", analystId);
+  if (error) return { ok: false, message: `${t("registrations.certification.error.update_failed")}${error.message}` };
+
+  revalidatePath(`/admin/registrations/${analystId}`);
+  return { ok: true, message: t("registrations.certification.success") };
 }

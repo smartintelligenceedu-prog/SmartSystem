@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  adminApproveCertification,
   adminApproveRegistration,
   adminRejectRegistration,
   adminSetAssignedLeader,
@@ -23,6 +24,7 @@ import {
 import type { RegistrationDetail } from "../data";
 import type { AnalystStatus } from "@/lib/types/registration";
 import { LoginAccountCard } from "./login-account-card";
+import { t } from "@/lib/i18n";
 
 const STATUS_LABEL: Record<AnalystStatus, string> = {
   pending: "待审核",
@@ -63,9 +65,11 @@ function DocumentLink({ label, url }: { label: string; url: string | null }) {
 export function ReviewPanel({
   detail,
   leaders,
+  isAdmin,
 }: {
   detail: RegistrationDetail;
   leaders: { id: string; name: string }[];
+  isAdmin: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -164,6 +168,29 @@ export function ReviewPanel({
       </Card>
 
       {detail.status === "approved" && <LoginAccountCard detail={detail} />}
+
+      {isAdmin && detail.status === "approved" && (
+        <Card>
+          <CardContent className="space-y-3 pt-6">
+            <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{t("registrations.certification.section_title")}</p>
+            {detail.certification_passed_at ? (
+              <p className="text-sm">
+                {t("registrations.certification.passed_label")}{" "}
+                {new Date(detail.certification_passed_at).toLocaleString("zh-CN")}
+              </p>
+            ) : detail.resale_voucher_locked ? (
+              <>
+                <p className="text-sm text-muted-foreground">{t("registrations.certification.pending_description")}</p>
+                <Button disabled={isPending} onClick={() => run(() => adminApproveCertification(detail.analyst_id))}>
+                  {t("registrations.certification.approve_button")}
+                </Button>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">{t("registrations.certification.no_locked_voucher")}</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {detail.status === "rejected" && detail.rejection_reason && (
         <Card>

@@ -153,6 +153,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
                   <span className="text-muted-foreground tabular-nums">
                     {t("customer.child.age")}: {ageFromDob(c.date_of_birth)}
                   </span>
+                  <Button size="sm" variant="ghost" render={<Link href={`/admin/customers/children/${c.id}/schedule`}>{t("schedule.appointment.nav_link")}</Link>} />
                   <Button size="sm" variant="ghost" render={<Link href={`/admin/customers/children/${c.id}/report`}>{t("tqc.report.view_link")}</Link>} />
                 </div>
               </div>

@@ -5,7 +5,8 @@ import { getChildContext, getLatestOnePageReport } from "./data";
 import { t } from "@/lib/i18n";
 import { ReportPrintButton } from "./print-button";
 import { ReportView } from "./report-view";
-import { ReportForm } from "./report-form";
+import { ReportEntrySection } from "./report-entry-section";
+import { listPendingAppointmentsForChild } from "@/app/admin/(protected)/_scheduling/data";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,7 @@ export default async function ChildReportPage({ params }: { params: Promise<{ id
   const canView = isBackOfficeRole(context) || context.analystId === child.owner_analyst_id;
   if (!canView) redirect("/admin");
 
-  const report = await getLatestOnePageReport(id);
+  const [report, pendingAppointments] = await Promise.all([getLatestOnePageReport(id), listPendingAppointmentsForChild(id)]);
 
   return (
     <div className="mx-auto max-w-3xl bg-white text-black print:max-w-none">
@@ -47,7 +48,7 @@ export default async function ChildReportPage({ params }: { params: Promise<{ id
 
       <div className="print-hidden mt-8">
         <h2 className="mb-3 text-sm font-bold tracking-wide text-neutral-500 uppercase">{t("tqc.form.new_assessment_title")}</h2>
-        <ReportForm childId={id} />
+        <ReportEntrySection childId={id} pendingAppointments={pendingAppointments} />
       </div>
     </div>
   );

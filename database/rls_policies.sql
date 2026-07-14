@@ -159,25 +159,40 @@ create policy "analyst reads interactions on own customers"
   );
 
 -- ----------------------------------------------------------------------------
--- Detection sessions / appointments — visible to the performing analyst
+-- Detection sessions / appointments (migration 021) — readable by ANY
+-- authenticated portal user, not just the performing analyst. This is a
+-- deliberate departure from this file's original own-records-only draft:
+-- the whole point of the shared device schedule view is letting every
+-- analyst see who's booked what, so they can coordinate and avoid double-
+-- booking a device — that's impossible if each analyst can only see their
+-- own bookings. Writes stay back-office-only by policy; the Server Action's
+-- app layer additionally allows the child's owning analyst via the admin
+-- client, matching the report-entry permission convention.
 -- ----------------------------------------------------------------------------
 
 alter table detection_appointments enable row level security;
 
-create policy "analyst reads own appointments, back office reads all"
+create policy "authenticated can read appointments"
   on detection_appointments for select
-  using (analyst_id = current_analyst_id() or is_back_office());
+  using (auth.role() = 'authenticated');
 
-create policy "analyst manages own appointments, back office manages all"
-  on detection_appointments for all
-  using (analyst_id = current_analyst_id() or is_back_office())
-  with check (analyst_id = current_analyst_id() or is_back_office());
+create policy "back office writes appointments"
+  on detection_appointments for insert
+  with check (is_back_office());
+
+create policy "back office updates appointments"
+  on detection_appointments for update
+  using (is_back_office());
 
 alter table detection_sessions enable row level security;
 
-create policy "analyst reads own sessions, back office reads all"
+create policy "authenticated can read sessions"
   on detection_sessions for select
-  using (analyst_id = current_analyst_id() or is_back_office());
+  using (auth.role() = 'authenticated');
+
+create policy "back office writes sessions"
+  on detection_sessions for insert
+  with check (is_back_office());
 
 -- ----------------------------------------------------------------------------
 -- Commission records — the payee (analyst or introducer) sees only their own
@@ -195,17 +210,44 @@ create policy "self or back office reads commission records"
   );
 
 -- ----------------------------------------------------------------------------
--- Devices — an analyst can see devices currently assigned to them
+-- Commission payout automation (migration 022) — same self-or-back-office
+-- read shape as commission_records itself; only back office ever writes.
+-- ----------------------------------------------------------------------------
+
+alter table commission_payout_runs enable row level security;
+create policy "back office manages payout runs" on commission_payout_runs for all
+  using (is_back_office()) with check (is_back_office());
+
+alter table analyst_payslips enable row level security;
+create policy "analyst reads own payslips, back office reads all" on analyst_payslips for select
+  using (analyst_id = current_analyst_id() or is_back_office());
+create policy "back office writes payslips" on analyst_payslips for insert
+  with check (is_back_office());
+
+alter table introducer_commission_statements enable row level security;
+create policy "introducer reads own statements, back office reads all" on introducer_commission_statements for select
+  using (introducer_id = current_introducer_id() or is_back_office());
+create policy "back office writes statements" on introducer_commission_statements for insert
+  with check (is_back_office());
+
+-- ----------------------------------------------------------------------------
+-- Devices (migration 021) — readable by any authenticated portal user, same
+-- reasoning as detection_appointments/detection_sessions above: the device
+-- picker on the detection entry form and the shared schedule view both need
+-- to see the full active device list, not just "my assigned device". Writes
+-- (adding/editing devices) stay back-office-only.
 -- ----------------------------------------------------------------------------
 
 alter table devices enable row level security;
 
--- note: devices.current_analyst_id (column) vs current_analyst_id() (function)
--- are distinguishable by the parentheses, but qualify the column explicitly
--- to keep the policy readable.
-create policy "analyst reads own assigned device, back office reads all"
+create policy "authenticated can read devices"
   on devices for select
-  using (devices.current_analyst_id = current_analyst_id() or is_back_office());
+  using (auth.role() = 'authenticated');
+
+create policy "back office manages devices"
+  on devices for all
+  using (is_back_office())
+  with check (is_back_office());
 
 -- ----------------------------------------------------------------------------
 -- Analysts table — an analyst can read their own record and their direct

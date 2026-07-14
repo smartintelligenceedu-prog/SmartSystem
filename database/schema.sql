@@ -108,6 +108,12 @@ create table detection_centers (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+-- Migration 023 seeds the real two-option location list here ('Office' and
+-- '外访') — modeled as real (virtual) center rows rather than a nullable
+-- center_id special-case, so the location dropdown on the detection entry
+-- form stays a single uniform select while still covering on-site/outcall
+-- detections. (Migration 021 originally seeded a single combined
+-- placeholder row here; migration 023 renamed/split it into these two.)
 
 -- ============================================================================
 -- 3. ANALYST NETWORK (core of the compensation structure)
@@ -136,6 +142,11 @@ create table analysts (
   status text not null default 'pending' check (status in ('pending', 'approved', 'suspended', 'rejected', 'terminated')),
   joined_at timestamptz not null default now(),
   terminated_at timestamptz,
+  -- Migration 021 — minimal TRN-02 patch: set by an admin's manual "Approve
+  -- Certification" action (no training-course/exam tracking exists yet).
+  -- A trigger unlocks the analyst's locked resale detection_voucher the
+  -- moment this transitions from null to non-null.
+  certification_passed_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -369,6 +380,8 @@ create table devices (
     not (current_center_id is not null and current_analyst_id is not null)
   )
 );
+-- Migration 023 seeds the three real detection devices here (serial_no
+-- 'SIXG105', 'SIXG108', 'SIXG110').
 
 create table device_assignments (
   id uuid primary key default gen_random_uuid(),
@@ -413,13 +426,22 @@ create table device_incidents (
 create table detection_appointments (
   id uuid primary key default gen_random_uuid(),
   customer_id uuid not null references customers(id),
+  -- Migration 022 — which child this booking is for. Lets the report page
+  -- list "this child's outstanding appointments" so scheduling (before the
+  -- test) and score entry (after) stay two independent steps instead of one
+  -- combined form (a family visiting together can have several children,
+  -- each with their own booking).
+  child_id uuid references customer_children(id),
   analyst_id uuid not null references analysts(id),
   device_id uuid not null references devices(id),
   center_id uuid references detection_centers(id), -- null = outcall/on-site visit
   scheduled_at timestamptz not null,
   duration_minutes int not null default 30,
   time_range tstzrange, -- populated by trg_set_appointment_time_range below
-  status text not null default 'booked' check (status in ('booked', 'confirmed', 'completed', 'cancelled', 'no_show')),
+  -- 'pending_assessment' (migration 022) = device slot reserved, assessment
+  -- not yet performed / scores not yet entered — the gate between the
+  -- Stage 1 booking form and the Stage 2 score-entry form.
+  status text not null default 'booked' check (status in ('booked', 'confirmed', 'pending_assessment', 'completed', 'cancelled', 'no_show')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -456,6 +478,11 @@ create table detection_sessions (
   id uuid primary key default gen_random_uuid(),
   appointment_id uuid references detection_appointments(id),
   customer_id uuid not null references customers(id),
+  -- Added in migration 021, beyond this doc's original column set (which
+  -- predates customer_children, migration 011) — a customer can have
+  -- several children, so the session needs to record which one was
+  -- actually tested, not just which family it belongs to.
+  child_id uuid references customer_children(id),
   analyst_id uuid not null references analysts(id),
   device_id uuid not null references devices(id),
   performed_at timestamptz not null default now(),
@@ -465,6 +492,7 @@ create table detection_sessions (
 );
 create index idx_sessions_analyst on detection_sessions(analyst_id);
 create index idx_sessions_customer on detection_sessions(customer_id);
+create index idx_sessions_device on detection_sessions(device_id);
 
 -- ============================================================================
 -- 8. SALES & ORDER
@@ -656,6 +684,9 @@ create table commission_records (
   adjusted_by uuid references users(id),
   adjusted_at timestamptz,
   adjustment_reason text,
+  -- Migration 022 — tags exactly which payout run paid this record out; the
+  -- audit trail from a payslip/statement line back to this transaction.
+  payout_run_id uuid references commission_payout_runs(id),
   constraint chk_commission_payee check (
     (analyst_id is not null and introducer_id is null) or
     (analyst_id is null and introducer_id is not null)
@@ -663,6 +694,44 @@ create table commission_records (
 );
 create index idx_commission_records_analyst on commission_records(analyst_id);
 create index idx_commission_records_introducer on commission_records(introducer_id);
+create index idx_commission_records_payout_run on commission_records(payout_run_id);
+
+-- Migration 022 — minimal HR-09 patch: monthly commission payout
+-- automation. Deliberately NOT reusing payroll_runs/payslips below (those
+-- are FK'd to employees(id), i.e. internal salaried staff) — analysts are
+-- commission-based partners, never an employees row (see the Party-model
+-- HR/Agent split rationale). Dedicated tables instead, same run/statement
+-- shape, generated from already-'approved' commission_records.
+create table commission_payout_runs (
+  id uuid primary key default gen_random_uuid(),
+  period_start date not null,
+  period_end date not null,
+  status text not null default 'completed' check (status in ('completed', 'voided')),
+  processed_by uuid references users(id),
+  processed_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  unique (period_start, period_end)
+);
+
+create table analyst_payslips (
+  id uuid primary key default gen_random_uuid(),
+  payout_run_id uuid not null references commission_payout_runs(id),
+  analyst_id uuid not null references analysts(id),
+  gross_amount numeric(12,2) not null,
+  created_at timestamptz not null default now(),
+  unique (payout_run_id, analyst_id)
+);
+create index idx_analyst_payslips_analyst on analyst_payslips(analyst_id);
+
+create table introducer_commission_statements (
+  id uuid primary key default gen_random_uuid(),
+  payout_run_id uuid not null references commission_payout_runs(id),
+  introducer_id uuid not null references introducers(id),
+  gross_amount numeric(12,2) not null,
+  created_at timestamptz not null default now(),
+  unique (payout_run_id, introducer_id)
+);
+create index idx_introducer_statements_introducer on introducer_commission_statements(introducer_id);
 
 -- ============================================================================
 -- 10. FINANCE

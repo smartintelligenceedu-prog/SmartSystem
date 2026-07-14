@@ -32,6 +32,8 @@ export interface RegistrationDetail extends RegistrationListRow {
   payment_screenshot_signed_url: string | null;
   has_login: boolean;
   portal_roles: PortalRole[];
+  certification_passed_at: string | null;
+  resale_voucher_locked: boolean;
 }
 
 // Not an embedded PostgREST select on purpose: analysts <-> individuals have
@@ -116,10 +118,20 @@ export async function getRegistrationDetail(analystId: string): Promise<Registra
   const admin = createAdminClient();
   const { data: analyst } = await admin
     .from("analysts")
-    .select("id, party_id, sponsor_id, assigned_leader_id, registration_order_id, status, created_at, bank_name, bank_account_name, bank_account_no")
+    .select(
+      "id, party_id, sponsor_id, assigned_leader_id, registration_order_id, status, created_at, bank_name, bank_account_name, bank_account_no, certification_passed_at"
+    )
     .eq("id", analystId)
     .maybeSingle();
   if (!analyst || !analyst.registration_order_id) return null;
+
+  const { data: lockedVoucher } = await admin
+    .from("detection_vouchers")
+    .select("id")
+    .eq("analyst_id", analystId)
+    .eq("voucher_type", "resale")
+    .eq("status", "locked")
+    .maybeSingle();
 
   const { data: identity } = await admin
     .from("individuals")
@@ -185,6 +197,8 @@ export async function getRegistrationDetail(analystId: string): Promise<Registra
     payment_screenshot_signed_url: paymentUrl,
     has_login: !!userRow,
     portal_roles: portalRoles,
+    certification_passed_at: analyst.certification_passed_at,
+    resale_voucher_locked: !!lockedVoucher,
   };
 }
 
