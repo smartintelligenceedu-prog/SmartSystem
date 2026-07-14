@@ -23,7 +23,7 @@ async function requireBackOfficeUserId(): Promise<{ userId: string } | { error: 
 
 const updateRuleSchema = z
   .object({
-    trigger_type: z.enum(["personal_sale", "pic_channel", "introducer", "recruitment", "voucher_resale"]),
+    trigger_type: z.enum(["personal_sale", "pic_channel", "introducer", "recruitment", "voucher_resale", "report_override", "analyst_report_fee"]),
     level_number: z.coerce.number().int(),
     calculation_type: z.enum(["percentage", "flat"]),
     rate_percent: z.coerce.number().min(0).max(100).optional(),

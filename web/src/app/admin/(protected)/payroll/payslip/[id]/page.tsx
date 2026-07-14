@@ -22,6 +22,7 @@ const TRIGGER_TYPE_KEY: Record<string, Parameters<typeof t>[0]> = {
   recruitment: "payroll.trigger_type.recruitment",
   voucher_resale: "payroll.trigger_type.voucher_resale",
   report_override: "payroll.trigger_type.report_override",
+  analyst_report_fee: "payroll.trigger_type.analyst_report_fee",
 };
 
 export default async function AnalystPayslipPage({ params }: { params: Promise<{ id: string }> }) {

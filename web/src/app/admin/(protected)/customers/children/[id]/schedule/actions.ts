@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getChildContext } from "../report/data";
+import { getChildContext, getCustomerSelfContext } from "../report/data";
 import { t } from "@/lib/i18n";
 
 async function requireCallerContext(): Promise<{ analystId: string | null; isBackOffice: boolean } | { error: string }> {
@@ -24,7 +24,8 @@ async function requireCallerContext(): Promise<{ analystId: string | null; isBac
 }
 
 const scheduleSchema = z.object({
-  child_id: z.string().uuid(),
+  child_id: z.string().uuid().optional(),
+  customer_id: z.string().uuid().optional(),
   center_id: z.string().uuid(t("schedule.form.error.center_required")),
   device_id: z.string().uuid(t("schedule.form.error.device_required")),
   detection_date: z.string().min(1, t("schedule.form.error.date_required")),
@@ -51,18 +52,25 @@ export async function scheduleAppointment(_prev: ScheduleAppointmentState, formD
   const auth = await requireCallerContext();
   if ("error" in auth) return { status: "error", message: auth.error };
 
-  const childId = formData.get("child_id");
-  if (typeof childId !== "string" || !childId) return { status: "error", message: "找不到这位儿童的资料" };
+  const childIdRaw = formData.get("child_id");
+  const childId = typeof childIdRaw === "string" && childIdRaw ? childIdRaw : null;
+  const customerIdRaw = formData.get("customer_id");
+  const customerIdInput = typeof customerIdRaw === "string" && customerIdRaw ? customerIdRaw : null;
+  if (!childId && !customerIdInput) return { status: "error", message: "找不到受测者的资料" };
 
-  const child = await getChildContext(childId);
-  if (!child) return { status: "error", message: "找不到这位儿童的资料" };
+  // Migration 028 — the subject is either a customer_children row or the
+  // customer themselves (adult self-assessment); exactly one of
+  // childId/customerIdInput is set by the form.
+  const subject = childId ? await getChildContext(childId) : await getCustomerSelfContext(customerIdInput as string);
+  if (!subject) return { status: "error", message: "找不到受测者的资料" };
 
-  if (!auth.isBackOffice && auth.analystId !== child.owner_analyst_id) {
+  if (!auth.isBackOffice && auth.analystId !== subject.owner_analyst_id) {
     return { status: "error", message: "没有权限执行此操作" };
   }
 
   const parsed = scheduleSchema.safeParse({
-    child_id: childId,
+    child_id: childId ?? undefined,
+    customer_id: childId ? undefined : (customerIdInput ?? undefined),
     center_id: formData.get("center_id"),
     device_id: formData.get("device_id"),
     detection_date: formData.get("detection_date"),
@@ -83,13 +91,13 @@ export async function scheduleAppointment(_prev: ScheduleAppointmentState, formD
   }
 
   const admin = createAdminClient();
-  const performingAnalystId = auth.analystId ?? child.owner_analyst_id;
+  const performingAnalystId = auth.analystId ?? subject.owner_analyst_id;
 
   // Device double-booking lock: detection_appointments has a GiST exclusion
   // constraint on (device_id, time_range) — Postgres itself rejects any
   // overlapping active booking for the same device (SQLSTATE 23P01).
   const { error: appointmentError } = await admin.from("detection_appointments").insert({
-    customer_id: child.customer_id,
+    customer_id: subject.customer_id,
     child_id: childId,
     analyst_id: performingAnalystId,
     device_id,
@@ -105,8 +113,13 @@ export async function scheduleAppointment(_prev: ScheduleAppointmentState, formD
     return { status: "error", message: `${t("schedule.form.error.save_failed")}${appointmentError.message}` };
   }
 
-  revalidatePath(`/admin/customers/children/${childId}/report`);
-  revalidatePath(`/admin/customers/children/${childId}/schedule`);
+  if (childId) {
+    revalidatePath(`/admin/customers/children/${childId}/report`);
+    revalidatePath(`/admin/customers/children/${childId}/schedule`);
+  } else {
+    revalidatePath(`/admin/customers/${subject.customer_id}/self-report`);
+    revalidatePath(`/admin/customers/${subject.customer_id}/self-schedule`);
+  }
   revalidatePath("/admin/schedule");
   return { status: "success" };
 }

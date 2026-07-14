@@ -2,7 +2,7 @@ import { redirect, notFound } from "next/navigation";
 import { getPortalUserContext } from "@/lib/auth/context";
 import { hasAnyRole } from "@/lib/auth/roles";
 import { getPaymentDetail } from "../../data";
-import { ISSUER } from "../../company-info";
+import { getCompanyInfo } from "../../../../settings/data";
 import { t } from "@/lib/i18n";
 import { PrintButton } from "../../print-button";
 
@@ -31,6 +31,8 @@ export default async function ReceiptPrintPage({ params }: { params: Promise<{ i
 
   const payment = await getPaymentDetail(id);
   if (!payment) notFound();
+
+  const ISSUER = await getCompanyInfo();
 
   return (
     <div className="mx-auto max-w-3xl bg-white text-black print:max-w-none">

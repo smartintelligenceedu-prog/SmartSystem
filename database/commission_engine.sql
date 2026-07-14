@@ -204,9 +204,9 @@ declare
   v_sponsor uuid;
   v_rule record;
   v_campaign_id uuid;
-  v_introducer_id uuid;
   v_intro_payee uuid;
   v_item order_items%rowtype;
+  v_intro_row record;
   i int;
   j int;
 begin
@@ -280,10 +280,8 @@ begin
     end if;
 
     v_campaign_id := null;
-    v_introducer_id := null;
     if v_item.customer_id is not null then
-      select acquired_via_campaign_id, acquired_via_introducer_id
-        into v_campaign_id, v_introducer_id
+      select acquired_via_campaign_id into v_campaign_id
       from customers where id = v_item.customer_id;
     end if;
 
@@ -295,6 +293,15 @@ begin
     -- stacking with) what pic_channel used to pay here. commission_rules
     -- keeps the 'pic_channel' rows for historical/audit purposes but the
     -- trigger no longer calls get_active_rule('pic_channel', ...).
+    -- 2026-07-14: the CTO decided the sponsor override at sale time is
+    -- redundant with the new RM200 analyst_report_fee (paid to whoever
+    -- actually completes the report — see calculate_report_override_commission()
+    -- below) and closed out the 'personal_sale' commission_rules row with no
+    -- replacement (effective_to set, no new row inserted). get_active_rule()
+    -- returning no row makes v_rule.calculation_type null, so this branch is
+    -- a no-op today — no code change was needed to disable it. The branch is
+    -- kept (not deleted) so a future compensation plan can re-enable it by
+    -- simply inserting a new active 'personal_sale' rule again.
     if v_campaign_id is not null then
       null; -- intentionally no sale-time commission for PIC-channel items
     else
@@ -307,29 +314,59 @@ begin
         );
       end if;
     end if;
+  end loop;
 
-    -- Introducer referral fee: level 1 = the direct introducer, level 2 =
-    -- that introducer's own upline introducer (if any, via
-    -- introducer_sponsor_at_level() — migration 014). Stacks on top of
-    -- whichever personal_sale/pic_channel rule fired above.
-    if v_introducer_id is not null then
-      for j in 1..2 loop
-        if j = 1 then
-          v_intro_payee := v_introducer_id;
-        else
-          v_intro_payee := introducer_sponsor_at_level(v_introducer_id, j - 1);
-        end if;
-        exit when v_intro_payee is null;
-
-        select * into v_rule from get_active_rule('introducer', j);
-        if v_rule.calculation_type is not null then
-          perform insert_item_commission(
-            'introducer', v_item.id, j, null, v_intro_payee,
-            v_rule.calculation_type, v_rule.rate_percent, v_rule.flat_amount, v_rule.cap_amount, v_item.subtotal
-          );
-        end if;
-      end loop;
+  -- --------------------------------------------------------------------
+  -- Introducer referral fee (v1.4, migration 024) — ONE-TIME per customer,
+  -- paid only on that customer's first-ever paid detection_service order,
+  -- never again on later orders no matter how many more children/sessions
+  -- they bring. Base amount = sum of THIS (first) order's detection_session
+  -- item subtotals for that customer — a family's first visit with 2
+  -- children pays one referral fee sized to both sessions combined, not two
+  -- separate fees. (Previously this fired per order_item inside the loop
+  -- above, so a 2-child order paid the introducer twice — the CTO flagged
+  -- this as wrong after reviewing live demo data.) Level 1 = the direct
+  -- introducer, level 2 = that introducer's own upline introducer (if any,
+  -- via introducer_sponsor_at_level() — migration 014).
+  -- --------------------------------------------------------------------
+  for v_intro_row in
+    select oi.customer_id, c.acquired_via_introducer_id as introducer_id, sum(oi.subtotal) as total_subtotal
+    from order_items oi
+    join customers c on c.id = oi.customer_id
+    where oi.order_id = new.id
+      and oi.item_type = 'detection_session'
+      and c.acquired_via_introducer_id is not null
+    group by oi.customer_id, c.acquired_via_introducer_id
+  loop
+    -- Skip if this customer already has an earlier paid detection_service order.
+    if exists (
+      select 1
+      from orders o
+      join order_items oi2 on oi2.order_id = o.id
+      where oi2.customer_id = v_intro_row.customer_id
+        and o.order_type = 'detection_service'
+        and o.status = 'paid'
+        and o.id <> new.id
+    ) then
+      continue;
     end if;
+
+    for j in 1..2 loop
+      if j = 1 then
+        v_intro_payee := v_intro_row.introducer_id;
+      else
+        v_intro_payee := introducer_sponsor_at_level(v_intro_row.introducer_id, j - 1);
+      end if;
+      exit when v_intro_payee is null;
+
+      select * into v_rule from get_active_rule('introducer', j);
+      if v_rule.calculation_type is not null then
+        perform insert_commission(
+          'introducer', new.id, j, null, v_intro_payee,
+          v_rule.calculation_type, v_rule.rate_percent, v_rule.flat_amount, v_rule.cap_amount, v_intro_row.total_subtotal
+        );
+      end if;
+    end loop;
   end loop;
 
   return new;
@@ -378,6 +415,8 @@ as $$
 declare
   v_campaign_id uuid;
   v_pic_analyst_id uuid;
+  v_pic_report_override_amount numeric;
+  v_pic_analyst_report_fee_amount numeric;
   v_leader_id uuid;
   v_rule record;
   v_cost numeric;
@@ -392,26 +431,44 @@ begin
     return new;
   end if;
 
-  -- ---- 1. RM40 report override commission ----
+  -- ---- 1. Report override commission (to the leader, or the PIC if this
+  -- item came through a channel campaign) ----
   v_campaign_id := null;
   v_pic_analyst_id := null;
+  v_pic_report_override_amount := null;
+  v_pic_analyst_report_fee_amount := null;
   if new.customer_id is not null then
     select acquired_via_campaign_id into v_campaign_id from customers where id = new.customer_id;
   end if;
   if v_campaign_id is not null then
-    select pic_analyst_id into v_pic_analyst_id from channel_campaigns where id = v_campaign_id;
+    select pic_analyst_id, pic_report_override_amount, pic_analyst_report_fee_amount
+      into v_pic_analyst_id, v_pic_report_override_amount, v_pic_analyst_report_fee_amount
+    from channel_campaigns where id = v_campaign_id;
   end if;
 
-  select * into v_rule from get_active_rule('report_override', 1);
-  if v_rule.calculation_type is not null then
-    if v_pic_analyst_id is not null then
+  if v_pic_analyst_id is not null then
+    -- Migration 026: a project-fixed amount set on the campaign itself
+    -- always wins over the global rule, and never changes even if the
+    -- global default rate changes later.
+    if v_pic_report_override_amount is not null then
       perform insert_item_commission(
         'report_override', new.id, 1, v_pic_analyst_id, null,
-        v_rule.calculation_type, v_rule.rate_percent, v_rule.flat_amount, v_rule.cap_amount, new.subtotal
+        'flat', null, v_pic_report_override_amount, null, new.subtotal
       );
-    elsif new.analyst_id is not null then
-      select assigned_leader_id into v_leader_id from analysts where id = new.analyst_id;
-      if v_leader_id is not null then
+    else
+      select * into v_rule from get_active_rule('report_override', 1);
+      if v_rule.calculation_type is not null then
+        perform insert_item_commission(
+          'report_override', new.id, 1, v_pic_analyst_id, null,
+          v_rule.calculation_type, v_rule.rate_percent, v_rule.flat_amount, v_rule.cap_amount, new.subtotal
+        );
+      end if;
+    end if;
+  elsif new.analyst_id is not null then
+    select assigned_leader_id into v_leader_id from analysts where id = new.analyst_id;
+    if v_leader_id is not null then
+      select * into v_rule from get_active_rule('report_override', 1);
+      if v_rule.calculation_type is not null then
         perform insert_item_commission(
           'report_override', new.id, 1, v_leader_id, null,
           v_rule.calculation_type, v_rule.rate_percent, v_rule.flat_amount, v_rule.cap_amount, new.subtotal
@@ -420,7 +477,28 @@ begin
     end if;
   end if;
 
-  -- ---- 2. Report cost (COGS), auto-posted immediately ----
+  -- ---- 2. Analyst report fee (migration 025) — to the performing analyst
+  -- directly. Migration 026: uses the campaign's fixed
+  -- pic_analyst_report_fee_amount when this item came through a PIC channel
+  -- campaign that has one set; otherwise falls back to the global rule. ----
+  if new.analyst_id is not null then
+    if v_campaign_id is not null and v_pic_analyst_report_fee_amount is not null then
+      perform insert_item_commission(
+        'analyst_report_fee', new.id, 1, new.analyst_id, null,
+        'flat', null, v_pic_analyst_report_fee_amount, null, new.subtotal
+      );
+    else
+      select * into v_rule from get_active_rule('analyst_report_fee', 1);
+      if v_rule.calculation_type is not null then
+        perform insert_item_commission(
+          'analyst_report_fee', new.id, 1, new.analyst_id, null,
+          v_rule.calculation_type, v_rule.rate_percent, v_rule.flat_amount, v_rule.cap_amount, new.subtotal
+        );
+      end if;
+    end if;
+  end if;
+
+  -- ---- 3. Report cost (COGS), auto-posted immediately ----
   if new.report_tier is not null then
     v_cost := case new.report_tier when 'standard' then 25.00 when 'upgrade' then 125.00 else 0 end;
     select id into v_expense_account from chart_of_accounts where code = '5600';

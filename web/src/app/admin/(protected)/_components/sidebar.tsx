@@ -36,6 +36,7 @@ export function Sidebar({ context }: { context: PortalUserContext }) {
     ...(hasAnalyst || context.introducerId || isFinance ? [{ href: "/admin/payroll", label: t("payroll.nav.label") }] : []),
     ...(isLeader ? [{ href: "/admin/team", label: "团队" }] : []),
     ...(isFinance ? [{ href: "/admin/finance", label: "财务" }] : []),
+    ...(isFinance ? [{ href: "/admin/pic-campaigns", label: t("pic_campaigns.nav.label") }] : []),
     ...(isFinance ? [{ href: "/admin/analytics", label: t("analytics.nav.label") }] : []),
     ...(isBackOffice ? [{ href: "/admin/registrations", label: "注册审核" }] : []),
     ...(isBackOffice ? [{ href: "/admin/introducers", label: "引荐人管理" }] : []),
@@ -49,7 +50,7 @@ export function Sidebar({ context }: { context: PortalUserContext }) {
 
   return (
     <aside className="flex w-56 shrink-0 flex-col border-r px-4 py-5">
-      <Logo className="mb-6 px-2" />
+      <Logo className="mb-6" />
       <nav className="flex flex-col gap-1">
         {items.map((item) => (
           <Link

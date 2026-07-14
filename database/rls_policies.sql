@@ -140,6 +140,16 @@ create policy "analyst reads own customers' children one-page reports, back offi
       join customers c on c.id = cc.customer_id
       where cc.id = tqc_one_page_reports.child_id and c.acquired_via_introducer_id = current_introducer_id()
     )
+    -- Migration 028 — same read posture, but for reports where the customer
+    -- themselves (not a child) is the subject.
+    or exists (
+      select 1 from customers c
+      where c.id = tqc_one_page_reports.customer_id and c.owner_analyst_id = current_analyst_id()
+    )
+    or exists (
+      select 1 from customers c
+      where c.id = tqc_one_page_reports.customer_id and c.acquired_via_introducer_id = current_introducer_id()
+    )
   );
 
 create policy "back office writes tqc one-page reports" on tqc_one_page_reports for insert with check (is_back_office());
@@ -635,3 +645,53 @@ $$;
 
 revoke all on function introducer_summary(uuid) from public;
 grant execute on function introducer_summary(uuid) to authenticated;
+
+-- Migration 027 — same aggregate-only posture as introducer_summary() above,
+-- but broken down per month (new customer count + bonus total) for the
+-- introducer self-service dashboard's monthly history view.
+create function introducer_monthly_summary(for_introducer_id uuid default null)
+returns table (
+  month date,
+  new_customers bigint,
+  bonus_total numeric
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  requester_id uuid := current_introducer_id();
+  target_id uuid := coalesce(for_introducer_id, requester_id);
+begin
+  if requester_id is null and not is_back_office() then
+    raise exception 'not authorized';
+  end if;
+  if not is_back_office() and target_id <> requester_id then
+    raise exception 'not authorized to view this introducer''s summary';
+  end if;
+
+  return query
+    with customer_months as (
+      select date_trunc('month', created_at)::date as m, count(*) as cnt
+      from customers
+      where acquired_via_introducer_id = target_id
+      group by 1
+    ),
+    bonus_months as (
+      select date_trunc('month', calculated_at)::date as m, sum(commission_amount) as total
+      from commission_records
+      where introducer_id = target_id
+      group by 1
+    )
+    select
+      coalesce(cm.m, bm.m) as month,
+      coalesce(cm.cnt, 0) as new_customers,
+      coalesce(bm.total, 0) as bonus_total
+    from customer_months cm
+    full outer join bonus_months bm on cm.m = bm.m
+    order by month desc;
+end;
+$$;
+
+revoke all on function introducer_monthly_summary(uuid) from public;
+grant execute on function introducer_monthly_summary(uuid) to authenticated;

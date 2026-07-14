@@ -2,7 +2,7 @@ import { redirect, notFound } from "next/navigation";
 import { getPortalUserContext } from "@/lib/auth/context";
 import { hasAnyRole } from "@/lib/auth/roles";
 import { getInvoiceDetail } from "../../data";
-import { ISSUER } from "../../company-info";
+import { getCompanyInfo } from "../../../../settings/data";
 import { t } from "@/lib/i18n";
 import { PrintButton } from "../../print-button";
 
@@ -30,6 +30,8 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
 
   const invoice = await getInvoiceDetail(id);
   if (!invoice) notFound();
+
+  const ISSUER = await getCompanyInfo();
 
   const isPaid = invoice.status === "paid";
 

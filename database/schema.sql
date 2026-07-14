@@ -183,6 +183,11 @@ create table channel_campaigns (
   start_date date,
   end_date date,
   status text not null default 'active' check (status in ('active', 'completed', 'cancelled')),
+  -- Migration 026 — optional per-project fixed commission, set once at
+  -- campaign creation and never affected by later changes to the global
+  -- commission_rules defaults. Null = fall back to the global rule.
+  pic_report_override_amount numeric(12,2),
+  pic_analyst_report_fee_amount numeric(12,2),
   created_at timestamptz not null default now()
 );
 create index idx_channel_campaigns_pic on channel_campaigns(pic_analyst_id);
@@ -213,6 +218,11 @@ create table customers (
   status text not null default 'active' check (status in ('active', 'inactive')), -- "Archive" in the UI sets this to 'inactive'
   occupation text,
   marital_status text check (marital_status is null or marital_status in ('single', 'married', 'divorced', 'widowed', 'other')),
+  -- Migration 028 — CRM tags for when the customer THEMSELVES is the TQC
+  -- assessment subject (not just their children). Mirrors
+  -- customer_children.tags; derive_child_tags_one_page() writes to whichever
+  -- one applies based on tqc_one_page_reports.child_id vs .customer_id.
+  tags text[] not null default '{}',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -255,7 +265,11 @@ create trigger set_updated_at before update on customer_children for each row ex
 -- full mapping.
 create table tqc_one_page_reports (
   id uuid primary key default gen_random_uuid(),
-  child_id uuid not null references customer_children(id),
+  -- Migration 028 — the subject is either a customer_children row OR the
+  -- customer themselves (an adult assessed directly, not via a child).
+  -- chk_tqc_report_subject enforces exactly one is set.
+  child_id uuid references customer_children(id),
+  customer_id uuid references customers(id),
   created_by_analyst_id uuid references analysts(id),
   recorded_at timestamptz not null default now(),
 
@@ -285,9 +299,14 @@ create table tqc_one_page_reports (
 
   analyst_summary text,
 
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+
+  constraint chk_tqc_report_subject check (
+    (child_id is not null and customer_id is null) or (child_id is null and customer_id is not null)
+  )
 );
 create index idx_tqc_one_page_reports_child on tqc_one_page_reports(child_id);
+create index idx_tqc_one_page_reports_customer on tqc_one_page_reports(customer_id);
 
 alter table leads add constraint fk_leads_converted_customer
   foreign key (converted_customer_id) references customers(id);
@@ -642,7 +661,7 @@ create table commission_rules (
   id uuid primary key default gen_random_uuid(),
   plan_id uuid not null references compensation_plans(id),
   trigger_type text not null check (
-    trigger_type in ('personal_sale', 'pic_channel', 'introducer', 'recruitment', 'voucher_resale', 'report_override')
+    trigger_type in ('personal_sale', 'pic_channel', 'introducer', 'recruitment', 'voucher_resale', 'report_override', 'analyst_report_fee')
   ),
   level_number int not null default 1, -- 1 = direct sponsor, 2 = sponsor's sponsor, etc.
   calculation_type text not null default 'percentage' check (calculation_type in ('percentage', 'flat')),
@@ -661,7 +680,7 @@ create index idx_commission_rules_plan on commission_rules(plan_id, trigger_type
 create table commission_records (
   id uuid primary key default gen_random_uuid(),
   trigger_type text not null check (
-    trigger_type in ('personal_sale', 'pic_channel', 'introducer', 'recruitment', 'voucher_resale', 'report_override')
+    trigger_type in ('personal_sale', 'pic_channel', 'introducer', 'recruitment', 'voucher_resale', 'report_override', 'analyst_report_fee')
   ),
   -- polymorphic reference to the originating transaction (order, registration_order, ...);
   -- intentionally not FK-constrained since it can point at more than one table

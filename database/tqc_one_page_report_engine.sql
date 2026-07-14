@@ -13,6 +13,11 @@
 -- Narrower than the old engine: only personality_type and learning_styles
 -- derive tags now (no brain-zone-score thresholds — that was specific to
 -- the abandoned 8-intelligence model).
+--
+-- v1.1 (migration 028): the subject can now be a customer_children row OR
+-- the customer themselves directly (adult self-assessment) — exactly one of
+-- child_id/customer_id is set (chk_tqc_report_subject), and tags land on
+-- whichever one applies.
 -- ============================================================================
 
 create or replace function derive_child_tags_one_page()
@@ -26,13 +31,19 @@ declare
   v_latest_recorded_at timestamptz;
   v_style text;
 begin
-  select max(recorded_at) into v_latest_recorded_at
-  from tqc_one_page_reports
-  where child_id = new.child_id;
+  if new.child_id is not null then
+    select max(recorded_at) into v_latest_recorded_at
+    from tqc_one_page_reports
+    where child_id = new.child_id;
+  else
+    select max(recorded_at) into v_latest_recorded_at
+    from tqc_one_page_reports
+    where customer_id = new.customer_id;
+  end if;
 
   -- Only recompute tags if this save is (or ties) the most recent report
-  -- for the child — editing/backfilling an older historical row should not
-  -- override tags already derived from a newer assessment.
+  -- for the subject — editing/backfilling an older historical row should
+  -- not override tags already derived from a newer assessment.
   if new.recorded_at < v_latest_recorded_at then
     return new;
   end if;
@@ -43,7 +54,11 @@ begin
     v_tags := array_append(v_tags, 'learning_' || v_style);
   end loop;
 
-  update customer_children set tags = v_tags, updated_at = now() where id = new.child_id;
+  if new.child_id is not null then
+    update customer_children set tags = v_tags, updated_at = now() where id = new.child_id;
+  else
+    update customers set tags = v_tags, updated_at = now() where id = new.customer_id;
+  end if;
 
   return new;
 end;

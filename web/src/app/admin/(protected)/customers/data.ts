@@ -185,13 +185,14 @@ export interface CustomerDetail {
   occupation: string | null;
   marital_status: string | null;
   created_at: string;
+  tags: string[];
 }
 
 export async function getCustomerDetail(customerId: string): Promise<CustomerDetail | null> {
   const admin = createAdminClient();
   const { data: customer } = await admin
     .from("customers")
-    .select("id, party_id, owner_analyst_id, acquired_via_introducer_id, status, occupation, marital_status, created_at")
+    .select("id, party_id, owner_analyst_id, acquired_via_introducer_id, status, occupation, marital_status, created_at, tags")
     .eq("id", customerId)
     .maybeSingle();
   if (!customer) return null;
@@ -225,6 +226,7 @@ export async function getCustomerDetail(customerId: string): Promise<CustomerDet
     occupation: customer.occupation,
     marital_status: customer.marital_status,
     created_at: customer.created_at,
+    tags: customer.tags ?? [],
   };
 }
 

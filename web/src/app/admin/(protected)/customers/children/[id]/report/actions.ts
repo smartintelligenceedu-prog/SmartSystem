@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getChildContext } from "./data";
+import { getChildContext, getCustomerSelfContext } from "./data";
 import { BRAIN_ZONES, LEARNING_STYLES, PERSONALITY_TYPE_VALUES } from "./brain-zones";
 import { t } from "@/lib/i18n";
 
@@ -28,7 +28,8 @@ const scoreSchema = z.coerce.number().min(0, "分数必须介于 0-100 之间").
 const learningStyleValues = LEARNING_STYLES.map((s) => s.value) as [string, ...string[]];
 
 const saveReportSchema = z.object({
-  child_id: z.string().uuid(),
+  child_id: z.string().uuid().optional(),
+  customer_id: z.string().uuid().optional(),
   appointment_id: z.string().uuid(t("tqc.form.error.appointment_required")),
   left_brain_pct: scoreSchema,
   right_brain_pct: scoreSchema,
@@ -56,20 +57,27 @@ export async function saveOnePageReport(_prev: SaveOnePageReportState, formData:
   const auth = await requireCallerContext();
   if ("error" in auth) return { status: "error", message: auth.error };
 
-  const childId = formData.get("child_id");
-  if (typeof childId !== "string" || !childId) return { status: "error", message: "找不到这位儿童的资料" };
+  const childIdRaw = formData.get("child_id");
+  const childId = typeof childIdRaw === "string" && childIdRaw ? childIdRaw : null;
+  const customerIdRaw = formData.get("customer_id");
+  const customerId = typeof customerIdRaw === "string" && customerIdRaw ? customerIdRaw : null;
+  if (!childId && !customerId) return { status: "error", message: "找不到受测者的资料" };
 
-  const child = await getChildContext(childId);
-  if (!child) return { status: "error", message: "找不到这位儿童的资料" };
+  // Migration 028 — the subject is either a customer_children row or the
+  // customer themselves (adult self-assessment); exactly one of
+  // childId/customerId is set by the form.
+  const subject = childId ? await getChildContext(childId) : await getCustomerSelfContext(customerId as string);
+  if (!subject) return { status: "error", message: "找不到受测者的资料" };
 
-  if (!auth.isBackOffice && auth.analystId !== child.owner_analyst_id) {
+  if (!auth.isBackOffice && auth.analystId !== subject.owner_analyst_id) {
     return { status: "error", message: "没有权限执行此操作" };
   }
 
   const learningStyles = formData.getAll("learning_styles");
 
   const parsed = saveReportSchema.safeParse({
-    child_id: childId,
+    child_id: childId ?? undefined,
+    customer_id: childId ? undefined : (customerId ?? undefined),
     appointment_id: formData.get("appointment_id"),
     left_brain_pct: formData.get("left_brain_pct"),
     right_brain_pct: formData.get("right_brain_pct"),
@@ -84,19 +92,21 @@ export async function saveOnePageReport(_prev: SaveOnePageReportState, formData:
     return { status: "error", message: parsed.error.issues[0]?.message ?? "表单资料有误" };
   }
 
-  const { child_id, appointment_id, ...rest } = parsed.data;
+  const { child_id, customer_id, appointment_id, ...rest } = parsed.data;
   const admin = createAdminClient();
 
-  // The appointment must exist, belong to this child, and still be waiting
-  // for its result — this is the only thing standing in for "the machine
-  // was actually booked and used", so it can't be skipped or faked from
-  // this form (there are no device/date/time fields here to fake it with).
-  const { data: appointment } = await admin
+  // The appointment must exist, belong to this subject, and still be
+  // waiting for its result — this is the only thing standing in for "the
+  // machine was actually booked and used", so it can't be skipped or faked
+  // from this form (there are no device/date/time fields here to fake it with).
+  let appointmentQuery = admin
     .from("detection_appointments")
     .select("id, analyst_id, device_id, customer_id, status")
-    .eq("id", appointment_id)
-    .eq("child_id", child_id)
-    .maybeSingle();
+    .eq("id", appointment_id);
+  appointmentQuery = child_id
+    ? appointmentQuery.eq("child_id", child_id)
+    : appointmentQuery.eq("customer_id", subject.customer_id).is("child_id", null);
+  const { data: appointment } = await appointmentQuery.maybeSingle();
   if (!appointment) return { status: "error", message: t("tqc.form.error.appointment_not_found") };
   if (appointment.status !== "pending_assessment") {
     return { status: "error", message: t("tqc.form.error.appointment_already_completed") };
@@ -118,19 +128,24 @@ export async function saveOnePageReport(_prev: SaveOnePageReportState, formData:
   });
   if (sessionError) return { status: "error", message: `登记检测纪录失败：${sessionError.message}` };
 
-  // A new historical row every save (a child can be retested); the
+  // A new historical row every save (a subject can be retested); the
   // tag-derivation trigger only acts on whichever row is currently the
-  // most recent for this child.
+  // most recent for this subject.
   const { error } = await admin.from("tqc_one_page_reports").insert({
     child_id,
+    customer_id: child_id ? null : customer_id,
     created_by_analyst_id: auth.analystId,
     ...rest,
     analyst_summary: rest.analyst_summary || null,
   });
   if (error) return { status: "error", message: `保存报告失败：${error.message}` };
 
-  revalidatePath(`/admin/customers/children/${childId}/report`);
-  revalidatePath(`/admin/customers/${child.customer_id}`);
+  if (child_id) {
+    revalidatePath(`/admin/customers/children/${child_id}/report`);
+  } else {
+    revalidatePath(`/admin/customers/${subject.customer_id}/self-report`);
+  }
+  revalidatePath(`/admin/customers/${subject.customer_id}`);
   revalidatePath("/admin/schedule");
   return { status: "success" };
 }

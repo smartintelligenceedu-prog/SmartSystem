@@ -151,6 +151,38 @@ async function describeSourceTransactions(
       const name = nameByParty.get(regOrder.party_id) ?? "—";
       descByKey.set(`order:${regOrder.order_id}`, `${t("payroll.line_item.recruited_prefix")} ${name} ${t("payroll.line_item.recruited_suffix")}`);
     }
+
+    // Non-registration orders reaching here are migration-024 one-time
+    // introducer referral fees (source_transaction_type = 'order' at the
+    // whole-order level, grouped by customer) — resolve via the order's
+    // items' customer, same identity lookup as the order_item branch above.
+    // If an order somehow spans multiple distinct introducer-attributed
+    // customers, only one representative name is shown — not expected in
+    // practice since each customer's referral fee only fires on their own
+    // first order.
+    const registeredOrderIds = new Set((regOrders ?? []).map((r) => r.order_id));
+    const detectionOrderIds = orderIds.filter((id) => !registeredOrderIds.has(id));
+    if (detectionOrderIds.length > 0) {
+      const { data: items } = await admin.from("order_items").select("order_id, customer_id").in("order_id", detectionOrderIds);
+      const custIds = [...new Set((items ?? []).map((i) => i.customer_id).filter((id): id is string => !!id))];
+      const { data: customers } = custIds.length > 0 ? await admin.from("customers").select("id, party_id").in("id", custIds) : { data: [] };
+      const custPartyById = new Map((customers ?? []).map((c) => [c.id, c.party_id]));
+      const detectionPartyIds = [...new Set([...custPartyById.values()].filter((id): id is string => !!id))];
+      const { data: detectionIndividuals } =
+        detectionPartyIds.length > 0 ? await admin.from("individuals").select("party_id, full_name").in("party_id", detectionPartyIds) : { data: [] };
+      const nameByPartyDetection = new Map((detectionIndividuals ?? []).map((i) => [i.party_id, i.full_name]));
+
+      const nameByOrder = new Map<string, string>();
+      for (const item of items ?? []) {
+        if (nameByOrder.has(item.order_id)) continue; // first customer wins
+        const party = item.customer_id ? custPartyById.get(item.customer_id) : null;
+        const name = party ? nameByPartyDetection.get(party) : null;
+        if (name) nameByOrder.set(item.order_id, name);
+      }
+      for (const orderId of detectionOrderIds) {
+        descByKey.set(`order:${orderId}`, `${t("payroll.line_item.referral_prefix")}${nameByOrder.get(orderId) ?? "—"}`);
+      }
+    }
   }
 
   return descByKey;

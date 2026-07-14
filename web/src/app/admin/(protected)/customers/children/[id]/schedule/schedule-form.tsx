@@ -16,14 +16,24 @@ function todayDateString() {
   return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kuala_Lumpur" });
 }
 
-export function ScheduleForm({ childId, centers, devices }: { childId: string; centers: CenterOption[]; devices: DeviceOption[] }) {
+export function ScheduleForm({
+  childId,
+  customerId,
+  centers,
+  devices,
+}: {
+  childId: string | null;
+  customerId?: string;
+  centers: CenterOption[];
+  devices: DeviceOption[];
+}) {
   const [state, formAction, isPending] = useActionState(scheduleAppointment, initialState);
 
   return (
     <Card>
       <CardContent className="pt-6">
         <form action={formAction} className="space-y-4">
-          <input type="hidden" name="child_id" value={childId} />
+          {childId ? <input type="hidden" name="child_id" value={childId} /> : <input type="hidden" name="customer_id" value={customerId} />}
 
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <div className="space-y-2">

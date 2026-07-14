@@ -19,10 +19,12 @@ const initialState: SaveOnePageReportState = { status: "idle" };
 // never as editable fields — see the 2026-07-14 decoupling fix.
 export function ReportForm({
   childId,
+  customerId,
   appointmentId,
   appointmentSummary,
 }: {
-  childId: string;
+  childId: string | null;
+  customerId?: string;
   appointmentId: string;
   appointmentSummary: string;
 }) {
@@ -37,7 +39,7 @@ export function ReportForm({
     <Card>
       <CardContent className="pt-6">
         <form action={formAction} className="space-y-6">
-          <input type="hidden" name="child_id" value={childId} />
+          {childId ? <input type="hidden" name="child_id" value={childId} /> : <input type="hidden" name="customer_id" value={customerId} />}
           <input type="hidden" name="appointment_id" value={appointmentId} />
           {selectedStyles.map((style) => (
             <input key={style} type="hidden" name="learning_styles" value={style} />

@@ -48,7 +48,18 @@ export async function listActiveCommissionRules(): Promise<CommissionRuleRow[]> 
     });
   }
 
-  const order = ["recruitment:1", "recruitment:2", "recruitment:3", "personal_sale:1", "pic_channel:1", "introducer:1", "voucher_resale:0"];
+  const order = [
+    "recruitment:1",
+    "recruitment:2",
+    "recruitment:3",
+    "personal_sale:1",
+    "analyst_report_fee:1",
+    "report_override:1",
+    "pic_channel:1",
+    "introducer:1",
+    "introducer:2",
+    "voucher_resale:0",
+  ];
   active.sort((a, b) => {
     const ai = order.indexOf(`${a.trigger_type}:${a.level_number}`);
     const bi = order.indexOf(`${b.trigger_type}:${b.level_number}`);

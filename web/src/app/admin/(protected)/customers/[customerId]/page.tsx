@@ -51,6 +51,8 @@ const TRIGGER_LABEL: Record<string, string> = {
   introducer: "引荐人佣金",
   recruitment: "招募佣金",
   voucher_resale: "兑换券转售",
+  report_override: "报告上线抽成",
+  analyst_report_fee: "分析师解读费",
 };
 
 function Field({ label, value }: { label: string; value: string }) {
@@ -122,6 +124,30 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
             />
             <Field label={t("customer.list.column.agent")} value={detail.owner_name} />
             <Field label={t("customer.list.column.introducer")} value={detail.introducer_name ?? ""} />
+          </CardContent>
+        </Card>
+      </div>
+
+      <div>
+        <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{t("customer.detail.section.self_assessment")}</h2>
+        <Card>
+          <CardContent className="flex items-center justify-between pt-6 text-sm">
+            <div>
+              <p className="text-xs text-muted-foreground">{t("customer.detail.self_assessment_hint")}</p>
+              {detail.tags.length > 0 && (
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {detail.tags.map((tag) => (
+                    <Badge key={tag} variant="secondary" className="text-[10px]">
+                      {t((TQC_TAG_I18N_KEY[tag] ?? tag) as Parameters<typeof t>[0])}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              <Button size="sm" variant="ghost" render={<Link href={`/admin/customers/${customerId}/self-schedule`}>{t("schedule.appointment.nav_link")}</Link>} />
+              <Button size="sm" variant="ghost" render={<Link href={`/admin/customers/${customerId}/self-report`}>{t("tqc.report.view_link")}</Link>} />
+            </div>
           </CardContent>
         </Card>
       </div>

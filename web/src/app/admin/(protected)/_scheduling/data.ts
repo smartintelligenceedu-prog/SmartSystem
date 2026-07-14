@@ -36,17 +36,17 @@ export interface PendingAppointment {
 }
 
 // Stage 1 (schedule/actions.ts) creates these as 'pending_assessment'; this
-// lists a single child's outstanding ones so the report page can offer
+// lists a single subject's outstanding ones so the report page can offer
 // "enter this appointment's result" instead of ever letting scores be typed
 // without a real booking behind them.
-export async function listPendingAppointmentsForChild(childId: string): Promise<PendingAppointment[]> {
+async function listPendingAppointments(filter: { child_id: string } | { customer_id_self: string }): Promise<PendingAppointment[]> {
   const admin = createAdminClient();
-  const { data: appointments } = await admin
+  let query = admin
     .from("detection_appointments")
     .select("id, scheduled_at, duration_minutes, device_id, center_id")
-    .eq("child_id", childId)
-    .eq("status", "pending_assessment")
-    .order("scheduled_at", { ascending: true });
+    .eq("status", "pending_assessment");
+  query = "child_id" in filter ? query.eq("child_id", filter.child_id) : query.eq("customer_id", filter.customer_id_self).is("child_id", null);
+  const { data: appointments } = await query.order("scheduled_at", { ascending: true });
   if (!appointments || appointments.length === 0) return [];
 
   const deviceIds = [...new Set(appointments.map((a) => a.device_id))];
@@ -68,6 +68,60 @@ export async function listPendingAppointmentsForChild(childId: string): Promise<
       duration_minutes: a.duration_minutes,
     };
   });
+}
+
+export function listPendingAppointmentsForChild(childId: string): Promise<PendingAppointment[]> {
+  return listPendingAppointments({ child_id: childId });
+}
+
+// Migration 028 — same as listPendingAppointmentsForChild but for a customer
+// assessed directly (child_id is null on these appointments).
+export function listPendingAppointmentsForCustomerSelf(customerId: string): Promise<PendingAppointment[]> {
+  return listPendingAppointments({ customer_id_self: customerId });
+}
+
+export interface CustomerChildOption {
+  customer_id: string;
+  customer_name: string;
+  children: { id: string; name: string }[];
+}
+
+// Powers the inline booking form on the shared /admin/schedule timeline
+// (2026-07-14 request: let staff book directly from that page instead of
+// only from a customer's own detail page). Scoped the same way the
+// customers list already is — an analyst only sees their own customers,
+// back office sees everyone — so this doesn't leak any customer identity
+// beyond what that analyst could already see on their Customer list.
+export async function listCustomersWithChildrenForBooking(isBackOffice: boolean, analystId: string | null): Promise<CustomerChildOption[]> {
+  const admin = createAdminClient();
+
+  let query = admin.from("customers").select("id, party_id, owner_analyst_id").eq("status", "active");
+  if (!isBackOffice && analystId) query = query.eq("owner_analyst_id", analystId);
+  const { data: customers } = await query;
+  if (!customers || customers.length === 0) return [];
+
+  const partyIds = customers.map((c) => c.party_id);
+  const customerIds = customers.map((c) => c.id);
+  const [{ data: individuals }, { data: children }] = await Promise.all([
+    partyIds.length > 0 ? admin.from("individuals").select("party_id, full_name").in("party_id", partyIds) : Promise.resolve({ data: [] }),
+    admin.from("customer_children").select("id, customer_id, full_name").in("customer_id", customerIds),
+  ]);
+  const nameByParty = new Map((individuals ?? []).map((i) => [i.party_id, i.full_name]));
+
+  const childrenByCustomer = new Map<string, { id: string; name: string }[]>();
+  for (const ch of children ?? []) {
+    const arr = childrenByCustomer.get(ch.customer_id) ?? [];
+    arr.push({ id: ch.id, name: ch.full_name });
+    childrenByCustomer.set(ch.customer_id, arr);
+  }
+
+  return customers
+    .map((c) => ({
+      customer_id: c.id,
+      customer_name: nameByParty.get(c.party_id) ?? "—",
+      children: childrenByCustomer.get(c.id) ?? [],
+    }))
+    .sort((a, b) => a.customer_name.localeCompare(b.customer_name));
 }
 
 export interface DeviceScheduleSlot {

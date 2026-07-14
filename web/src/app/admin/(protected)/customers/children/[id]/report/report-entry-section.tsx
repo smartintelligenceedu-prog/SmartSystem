@@ -17,7 +17,17 @@ function formatSlot(a: PendingAppointment) {
   return `${a.device_label} · ${a.center_name} · ${dateLabel} ${startLabel}-${endLabel}`;
 }
 
-export function ReportEntrySection({ childId, pendingAppointments }: { childId: string; pendingAppointments: PendingAppointment[] }) {
+export function ReportEntrySection({
+  childId,
+  customerId,
+  scheduleHref,
+  pendingAppointments,
+}: {
+  childId: string | null;
+  customerId?: string;
+  scheduleHref: string;
+  pendingAppointments: PendingAppointment[];
+}) {
   const [selectedId, setSelectedId] = useState<string | null>(pendingAppointments.length === 1 ? pendingAppointments[0].appointment_id : null);
 
   if (pendingAppointments.length === 0) {
@@ -25,7 +35,7 @@ export function ReportEntrySection({ childId, pendingAppointments }: { childId: 
       <Card>
         <CardContent className="space-y-3 pt-6 text-center">
           <p className="text-sm text-muted-foreground">{t("tqc.form.no_pending_appointment")}</p>
-          <Button size="sm" render={<Link href={`/admin/customers/children/${childId}/schedule`}>{t("tqc.form.schedule_link")}</Link>} />
+          <Button size="sm" render={<Link href={scheduleHref}>{t("tqc.form.schedule_link")}</Link>} />
         </CardContent>
       </Card>
     );
@@ -57,11 +67,11 @@ export function ReportEntrySection({ childId, pendingAppointments }: { childId: 
       )}
 
       {selected && (
-        <ReportForm childId={childId} appointmentId={selected.appointment_id} appointmentSummary={formatSlot(selected)} />
+        <ReportForm childId={childId} customerId={customerId} appointmentId={selected.appointment_id} appointmentSummary={formatSlot(selected)} />
       )}
 
       <div className="text-right">
-        <Button size="sm" variant="ghost" render={<Link href={`/admin/customers/children/${childId}/schedule`}>{t("tqc.form.schedule_link")}</Link>} />
+        <Button size="sm" variant="ghost" render={<Link href={scheduleHref}>{t("tqc.form.schedule_link")}</Link>} />
       </div>
     </div>
   );

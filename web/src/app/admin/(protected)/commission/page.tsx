@@ -21,6 +21,8 @@ const TRIGGER_LABEL: Record<string, string> = {
   introducer: "引荐人佣金",
   recruitment: "招募佣金",
   voucher_resale: "兑换券转售",
+  report_override: "报告上线抽成",
+  analyst_report_fee: "分析师解读费",
 };
 
 const STATUS_LABEL: Record<string, string> = {

@@ -35,7 +35,7 @@ export function ReportView({ child, report }: { child: ChildContext; report: One
         </div>
         <div className="text-right text-sm text-neutral-600">
           <p>
-            {t("tqc.report.child_id_label")}: <span className="font-mono">{child.child_id.slice(0, 8)}</span>
+            {t("tqc.report.child_id_label")}: <span className="font-mono">{(child.child_id ?? child.customer_id).slice(0, 8)}</span>
           </p>
           <p>
             {t("tqc.report.dob_label")}: {formatDate(child.date_of_birth)}

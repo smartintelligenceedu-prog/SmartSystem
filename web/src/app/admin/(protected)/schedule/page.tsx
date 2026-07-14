@@ -1,12 +1,18 @@
 import { redirect } from "next/navigation";
 import { getPortalUserContext } from "@/lib/auth/context";
 import { isBackOfficeRole } from "@/lib/auth/roles";
-import { listDeviceScheduleForDate } from "@/app/admin/(protected)/_scheduling/data";
+import {
+  listDeviceScheduleForDate,
+  listActiveCenters,
+  listActiveDevices,
+  listCustomersWithChildrenForBooking,
+} from "@/app/admin/(protected)/_scheduling/data";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { t } from "@/lib/i18n";
+import { InlineBookingForm } from "./inline-booking-form";
 
 export const dynamic = "force-dynamic";
 
@@ -26,14 +32,24 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
   const { date } = await searchParams;
   const selectedDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : todayDateString();
 
-  const groups = await listDeviceScheduleForDate(selectedDate);
+  const isBackOffice = isBackOfficeRole(context);
+  const [groups, centers, devices, customers] = await Promise.all([
+    listDeviceScheduleForDate(selectedDate),
+    listActiveCenters(),
+    listActiveDevices(),
+    listCustomersWithChildrenForBooking(isBackOffice, context.analystId),
+  ]);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">{t("schedule.title")}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{t("schedule.subtitle")}</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold">{t("schedule.title")}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t("schedule.subtitle")}</p>
+        </div>
       </div>
+
+      <InlineBookingForm customers={customers} centers={centers} devices={devices} />
 
       <form className="flex items-end gap-2">
         <div className="space-y-2">

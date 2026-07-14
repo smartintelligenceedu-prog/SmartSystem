@@ -1,10 +1,9 @@
-// Text wordmark placeholder — swap for an <Image src="/logo.svg" .../> once
-// there's a real brand asset. Kept as one shared component so that swap only
-// has to happen in one place.
+import Image from "next/image";
+
 export function Logo({ className }: { className?: string }) {
   return (
     <div className={className}>
-      <span className="text-xl font-bold tracking-tight">TQC</span>
+      <Image src="/logo.png" alt="Smart Intelligence Edu" width={295} height={100} className="h-auto w-full" priority />
     </div>
   );
 }

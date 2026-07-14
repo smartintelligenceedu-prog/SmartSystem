@@ -3,13 +3,16 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { BRAIN_ZONES, type BrainZoneField } from "./brain-zones";
 
 export interface ChildContext {
-  child_id: string;
+  // Migration 028 — null when the subject is the customer themselves
+  // (adult self-assessment), not a customer_children row.
+  child_id: string | null;
   child_name: string;
   date_of_birth: string | null;
   customer_id: string;
   customer_name: string;
   owner_analyst_id: string;
   tags: string[];
+  is_self: boolean;
 }
 
 export async function getChildContext(childId: string): Promise<ChildContext | null> {
@@ -35,6 +38,31 @@ export async function getChildContext(childId: string): Promise<ChildContext | n
     customer_name: identity?.full_name ?? "—",
     owner_analyst_id: customer.owner_analyst_id,
     tags: child.tags ?? [],
+    is_self: false,
+  };
+}
+
+// Migration 028 — same shape as getChildContext(), but for a customer
+// assessed directly. subject_name/child_name is the customer's own name;
+// date of birth comes from their individuals row (customer_children has its
+// own date_of_birth column, but an adult customer's lives on individuals).
+export async function getCustomerSelfContext(customerId: string): Promise<ChildContext | null> {
+  const admin = createAdminClient();
+
+  const { data: customer } = await admin.from("customers").select("id, party_id, owner_analyst_id, tags").eq("id", customerId).maybeSingle();
+  if (!customer) return null;
+
+  const { data: identity } = await admin.from("individuals").select("full_name, date_of_birth").eq("party_id", customer.party_id).maybeSingle();
+
+  return {
+    child_id: null,
+    child_name: identity?.full_name ?? "—",
+    date_of_birth: identity?.date_of_birth ?? null,
+    customer_id: customer.id,
+    customer_name: identity?.full_name ?? "—",
+    owner_analyst_id: customer.owner_analyst_id,
+    tags: customer.tags ?? [],
+    is_self: true,
   };
 }
 
@@ -63,15 +91,11 @@ const SELECT_COLUMNS = [
   ...BRAIN_ZONES.map((z) => z.field),
 ].join(", ");
 
-export async function getLatestOnePageReport(childId: string): Promise<OnePageReport | null> {
+async function getLatestOnePageReportBy(filter: { child_id: string } | { customer_id_self: string }): Promise<OnePageReport | null> {
   const admin = createAdminClient();
-  const { data } = await admin
-    .from("tqc_one_page_reports")
-    .select(SELECT_COLUMNS)
-    .eq("child_id", childId)
-    .order("recorded_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  let query = admin.from("tqc_one_page_reports").select(SELECT_COLUMNS);
+  query = "child_id" in filter ? query.eq("child_id", filter.child_id) : query.eq("customer_id", filter.customer_id_self).is("child_id", null);
+  const { data } = await query.order("recorded_at", { ascending: false }).limit(1).maybeSingle();
   if (!data) return null;
 
   const row = data as unknown as Record<string, unknown>;
@@ -90,4 +114,14 @@ export async function getLatestOnePageReport(childId: string): Promise<OnePageRe
     result[zone.field] = Number(row[zone.field]);
   }
   return result as OnePageReport;
+}
+
+export function getLatestOnePageReport(childId: string): Promise<OnePageReport | null> {
+  return getLatestOnePageReportBy({ child_id: childId });
+}
+
+// Migration 028 — same as getLatestOnePageReport() but for a customer
+// assessed directly.
+export function getLatestOnePageReportForCustomerSelf(customerId: string): Promise<OnePageReport | null> {
+  return getLatestOnePageReportBy({ customer_id_self: customerId });
 }

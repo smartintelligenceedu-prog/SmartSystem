@@ -48,7 +48,7 @@ export default async function ChildReportPage({ params }: { params: Promise<{ id
 
       <div className="print-hidden mt-8">
         <h2 className="mb-3 text-sm font-bold tracking-wide text-neutral-500 uppercase">{t("tqc.form.new_assessment_title")}</h2>
-        <ReportEntrySection childId={id} pendingAppointments={pendingAppointments} />
+        <ReportEntrySection childId={id} scheduleHref={`/admin/customers/children/${id}/schedule`} pendingAppointments={pendingAppointments} />
       </div>
     </div>
   );
