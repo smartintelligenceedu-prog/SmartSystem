@@ -30,6 +30,10 @@ const companyInfoSchema = z.object({
   addressLine2: z.string().trim(),
   phone: z.string().trim(),
   email: z.string().trim().email(t("settings.error.invalid_email")).or(z.literal("")),
+  bankName: z.string().trim(),
+  bankAccountName: z.string().trim(),
+  bankAccountNumber: z.string().trim(),
+  invoiceTerms: z.string().trim(),
 });
 
 export type UpdateCompanyInfoState = { status: "idle" } | { status: "error"; message: string } | { status: "success" };
@@ -45,6 +49,10 @@ export async function updateCompanyInfo(_prev: UpdateCompanyInfoState, formData:
     addressLine2: formData.get("addressLine2"),
     phone: formData.get("phone"),
     email: formData.get("email"),
+    bankName: formData.get("bankName"),
+    bankAccountName: formData.get("bankAccountName"),
+    bankAccountNumber: formData.get("bankAccountNumber"),
+    invoiceTerms: formData.get("invoiceTerms"),
   });
   if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message ?? t("settings.error.invalid_form") };
 

@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { t } from "@/lib/i18n";
 import { updateCompanyInfo, type UpdateCompanyInfoState } from "./actions";
 import type { CompanyInfo } from "./data";
@@ -37,6 +38,22 @@ export function CompanyInfoForm({ companyInfo }: { companyInfo: CompanyInfo }) {
       <div className="space-y-1">
         <label className="text-xs text-muted-foreground">{t("settings.company.email_label")}</label>
         <Input name="email" type="email" defaultValue={companyInfo.email} />
+      </div>
+      <div className="space-y-1">
+        <label className="text-xs text-muted-foreground">{t("settings.company.bank_name_label")}</label>
+        <Input name="bankName" defaultValue={companyInfo.bankName} />
+      </div>
+      <div className="space-y-1">
+        <label className="text-xs text-muted-foreground">{t("settings.company.bank_account_name_label")}</label>
+        <Input name="bankAccountName" defaultValue={companyInfo.bankAccountName} />
+      </div>
+      <div className="space-y-1">
+        <label className="text-xs text-muted-foreground">{t("settings.company.bank_account_number_label")}</label>
+        <Input name="bankAccountNumber" defaultValue={companyInfo.bankAccountNumber} />
+      </div>
+      <div className="space-y-1">
+        <label className="text-xs text-muted-foreground">{t("settings.company.invoice_terms_label")}</label>
+        <Textarea name="invoiceTerms" defaultValue={companyInfo.invoiceTerms} rows={4} placeholder={t("settings.company.invoice_terms_placeholder")} />
       </div>
 
       {state.status === "error" && (

@@ -50,16 +50,6 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
       </div>
 
       <div className="relative rounded-md border border-neutral-300 bg-white p-10 print:border-0 print:p-0">
-        {invoice.status !== "void" && (
-          <div
-            className={`absolute top-8 right-10 -rotate-12 rounded border-4 px-4 py-1 text-2xl font-black tracking-widest ${
-              isPaid ? "border-emerald-600 text-emerald-600" : "border-red-600 text-red-600"
-            }`}
-          >
-            {isPaid ? t("finance.institutional.print.paid_stamp") : t("finance.institutional.print.outstanding_stamp")}
-          </div>
-        )}
-
         <div className="flex items-start justify-between border-b-4 border-black pb-6">
           <div>
             <h1 className="text-2xl font-extrabold tracking-tight">{ISSUER.name}</h1>
@@ -161,6 +151,35 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
             )}
           </div>
         </div>
+
+        {(ISSUER.bankAccountNumber || ISSUER.invoiceTerms) && (
+          <div className="mt-10 grid grid-cols-2 gap-8 border-t border-neutral-200 pt-6 text-xs">
+            {ISSUER.bankAccountNumber && (
+              <div>
+                <p className="mb-1 font-bold text-neutral-500 uppercase">{t("finance.institutional.print.bank_details_title")}</p>
+                {ISSUER.bankName && (
+                  <p className="text-neutral-600">
+                    {t("finance.institutional.print.bank_name")}: {ISSUER.bankName}
+                  </p>
+                )}
+                {ISSUER.bankAccountName && (
+                  <p className="text-neutral-600">
+                    {t("finance.institutional.print.bank_account_name")}: {ISSUER.bankAccountName}
+                  </p>
+                )}
+                <p className="text-neutral-600">
+                  {t("finance.institutional.print.bank_account_number")}: {ISSUER.bankAccountNumber}
+                </p>
+              </div>
+            )}
+            {ISSUER.invoiceTerms && (
+              <div>
+                <p className="mb-1 font-bold text-neutral-500 uppercase">{t("finance.institutional.print.terms_title")}</p>
+                <p className="whitespace-pre-line text-neutral-600">{ISSUER.invoiceTerms}</p>
+              </div>
+            )}
+          </div>
+        )}
 
         <p className="mt-12 text-center text-xs text-neutral-500">{t("finance.institutional.print.thank_you")}</p>
       </div>

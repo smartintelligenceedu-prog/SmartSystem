@@ -8,6 +8,10 @@ export interface CompanyInfo {
   addressLine2: string;
   phone: string;
   email: string;
+  bankName: string;
+  bankAccountName: string;
+  bankAccountNumber: string;
+  invoiceTerms: string;
 }
 
 const DEFAULT_COMPANY_INFO: CompanyInfo = {
@@ -17,6 +21,10 @@ const DEFAULT_COMPANY_INFO: CompanyInfo = {
   addressLine2: "Kajang, Selangor, Malaysia",
   phone: "",
   email: "info@smartintelligenceedu.com",
+  bankName: "",
+  bankAccountName: "",
+  bankAccountNumber: "",
+  invoiceTerms: "",
 };
 
 export const COMPANY_INFO_SETTINGS_KEY = "company_info";

@@ -2,8 +2,10 @@ import { redirect, notFound } from "next/navigation";
 import { getPortalUserContext } from "@/lib/auth/context";
 import { isBackOfficeRole } from "@/lib/auth/roles";
 import { getAnalystPayslipDetail } from "../../data";
+import { getCompanyInfo } from "../../../settings/data";
 import { t } from "@/lib/i18n";
 import { PayrollPrintButton } from "../../print-button";
+import { Logo } from "@/components/logo";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +39,8 @@ export default async function AnalystPayslipPage({ params }: { params: Promise<{
   const canView = isBackOfficeRole(context) || context.analystId === payslip.analyst_id;
   if (!canView) redirect("/admin/payroll");
 
+  const ISSUER = await getCompanyInfo();
+
   return (
     <div className="mx-auto max-w-3xl bg-white text-black print:max-w-none">
       <style>{`
@@ -54,11 +58,13 @@ export default async function AnalystPayslipPage({ params }: { params: Promise<{
       <div className="rounded-md border border-neutral-300 bg-white p-10 print:border-0 print:p-0">
         <div className="flex items-start justify-between border-b-4 border-black pb-6">
           <div>
+            <Logo className="mb-2 w-40" />
+            <p className="text-sm text-neutral-600">{ISSUER.name}</p>
+          </div>
+          <div className="text-right">
             <h1 className="text-2xl font-extrabold tracking-tight">{t("payroll.payslip.title")}</h1>
             <p className="mt-1 text-sm text-neutral-600">{payslip.analyst_name}</p>
-          </div>
-          <div className="text-right text-sm text-neutral-600">
-            <p>
+            <p className="mt-2 text-sm text-neutral-600">
               {t("payroll.payslip.period_label")}: {formatDate(payslip.period_start)} – {formatDate(payslip.period_end)}
             </p>
           </div>
