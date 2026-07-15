@@ -2,10 +2,18 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getPortalUserContext } from "@/lib/auth/context";
 import { hasAnyRole } from "@/lib/auth/roles";
-import { getUnpostedSummary, getProfitAndLossThisMonth, listRecentJournalEntries, getReportDeliverySummaryThisMonth } from "./data";
+import {
+  getUnpostedSummary,
+  listUnpostedTransactions,
+  getProfitAndLossThisMonth,
+  listRecentJournalEntries,
+  getReportDeliverySummaryThisMonth,
+} from "./data";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PostToLedgerButton } from "./post-to-ledger-button";
+import { UnpostedTransactionsList } from "./unposted-transactions-list";
+import { RecordExpenseForm } from "./record-expense-form";
 import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
@@ -30,8 +38,9 @@ export default async function FinancePage() {
   if (!context) redirect("/admin/login");
   if (!hasAnyRole(context, ["admin", "finance"])) redirect("/admin");
 
-  const [unposted, pnl, recentEntries, reportSummary] = await Promise.all([
+  const [unposted, unpostedTransactions, pnl, recentEntries, reportSummary] = await Promise.all([
     getUnpostedSummary(),
+    listUnpostedTransactions(),
     getProfitAndLossThisMonth(),
     listRecentJournalEntries(),
     getReportDeliverySummaryThisMonth(),
@@ -59,11 +68,23 @@ export default async function FinancePage() {
         </CardContent>
       </Card>
 
+      {unpostedTransactions.length > 0 && (
+        <div>
+          <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">待过帐明细</h2>
+          <UnpostedTransactionsList transactions={unpostedTransactions} />
+        </div>
+      )}
+
+      <div>
+        <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">公司开销</h2>
+        <RecordExpenseForm />
+      </div>
+
       <div>
         <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">本月损益（依据已过帐总帐资料）</h2>
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
           <StatCard label="Total Revenue" value={formatMYR(pnl.totalRevenue)} />
-          <StatCard label="Total Commission" value={formatMYR(pnl.totalExpense)} />
+          <StatCard label="Total Expense" value={formatMYR(pnl.totalExpense)} />
           <StatCard label="Net Profit" value={formatMYR(pnl.netProfit)} />
         </div>
         <p className="mt-2 text-xs text-muted-foreground">

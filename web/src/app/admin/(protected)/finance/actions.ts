@@ -31,19 +31,95 @@ const EXPENSE_ACCOUNT_CODE_BY_TRIGGER: Record<string, string> = {
   pic_channel: "5200",
   introducer: "5300",
   voucher_resale: "5400",
+  report_override: "5500",
+  analyst_report_fee: "5700",
 };
+
+const OPERATING_EXPENSE_CATEGORIES = ["software", "office", "other"] as const;
+type OperatingExpenseCategory = (typeof OPERATING_EXPENSE_CATEGORIES)[number];
+const OPERATING_EXPENSE_ACCOUNT_CODE: Record<OperatingExpenseCategory, string> = {
+  software: "6000",
+  office: "6100",
+  other: "6900",
+};
+
+export type RecordExpenseState = { status: "idle" } | { status: "error"; message: string } | { status: "success" };
+
+// Quick manual entry for company operating spending (software subscriptions,
+// office supplies, etc.) — every journal_entries row before this was
+// auto-derived from a paid order or a commission_record, so there was
+// nowhere to record a plain one-off company expense. Posts straight to the
+// ledger (Cash/Bank credit, chosen expense account debit) — no separate
+// review/approval queue, matching the user's explicit choice.
+//
+// Reads from FormData via a <form action={...}> + useActionState, same
+// pattern as every other Select-bearing form in this codebase (see
+// create-introducer-form.tsx) — NOT manual useState + a plain onClick call,
+// which the category Select was originally wired through and silently
+// submitted the wrong value.
+export async function recordOperatingExpense(_prev: RecordExpenseState, formData: FormData): Promise<RecordExpenseState> {
+  const auth = await requireBackOfficeUserId();
+  if ("error" in auth) return { status: "error", message: auth.error };
+
+  const category = formData.get("category");
+  const description = String(formData.get("description") ?? "");
+  const amount = Number(formData.get("amount"));
+  const entryDate = String(formData.get("expense_date") ?? "");
+
+  if (!OPERATING_EXPENSE_CATEGORIES.includes(category as OperatingExpenseCategory)) {
+    return { status: "error", message: "请选择支出类别" };
+  }
+  if (!description.trim()) return { status: "error", message: "请填写说明" };
+  if (!Number.isFinite(amount) || amount <= 0) return { status: "error", message: "请输入正确的金额" };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(entryDate)) return { status: "error", message: "请选择有效的日期" };
+
+  const admin = createAdminClient();
+
+  const { data: accounts } = await admin.from("chart_of_accounts").select("id, code");
+  const accountIdByCode = new Map((accounts ?? []).map((a) => [a.code, a.id]));
+  const cashAccountId = accountIdByCode.get("1000");
+  const expenseAccountId = accountIdByCode.get(OPERATING_EXPENSE_ACCOUNT_CODE[category as OperatingExpenseCategory]);
+  if (!cashAccountId || !expenseAccountId) {
+    return { status: "error", message: "找不到必要的会计科目，请先确认 Chart of Accounts 已建立" };
+  }
+
+  const { data: entry, error: entryError } = await admin
+    .from("journal_entries")
+    .insert({
+      entry_date: entryDate,
+      source_type: "manual_expense",
+      source_id: null,
+      description: description.trim(),
+      posted_by: auth.userId,
+    })
+    .select("id")
+    .single();
+  if (entryError || !entry) return { status: "error", message: `记录失败：${entryError?.message ?? "未知错误"}` };
+
+  const { error: linesError } = await admin.from("journal_lines").insert([
+    { journal_entry_id: entry.id, account_id: expenseAccountId, debit: amount, credit: 0 },
+    { journal_entry_id: entry.id, account_id: cashAccountId, debit: 0, credit: amount },
+  ]);
+  if (linesError) return { status: "error", message: `记录失败：${linesError.message}` };
+
+  revalidatePath("/admin/finance");
+  return { status: "success" };
+}
 
 /**
  * Manual/periodic posting (the user's explicit choice over automatic
- * per-transaction posting): back office reviews the unposted count on
- * /admin/finance and calls this to post everything in one batch. Posts
- * gross for every paid order — including voucher-redemption orders, where
- * the customer paid the analyst directly and no cash reached the company
- * bank account — because the offsetting 100% commission expense nets Net
- * Profit to zero either way, and this keeps the posting logic uniform
- * rather than special-casing one order type (confirmed with the user).
+ * per-transaction posting): back office reviews the unposted count/list on
+ * /admin/finance and calls this to post either everything (no `selection`
+ * argument — the original bulk button) or just the checked rows (`selection`
+ * — lets an unconfirmed/pending commission be left out while everything else
+ * still gets posted). Posts gross for every paid order — including
+ * voucher-redemption orders, where the customer paid the analyst directly
+ * and no cash reached the company bank account — because the offsetting
+ * 100% commission expense nets Net Profit to zero either way, and this keeps
+ * the posting logic uniform rather than special-casing one order type
+ * (confirmed with the user).
  */
-export async function postToLedger(): Promise<{ ok: boolean; message: string }> {
+export async function postToLedger(selection?: { orderIds: string[]; commissionIds: string[] }): Promise<{ ok: boolean; message: string }> {
   const auth = await requireBackOfficeUserId();
   if ("error" in auth) return { ok: false, message: auth.error };
 
@@ -69,8 +145,19 @@ export async function postToLedger(): Promise<{ ok: boolean; message: string }> 
   ]);
   const postedOrderIds = new Set((postedOrderEntries ?? []).map((e) => e.source_id));
   const postedCommissionIds = new Set((postedCommissionEntries ?? []).map((e) => e.source_id));
-  const unpostedOrders = (paidOrders ?? []).filter((o) => !postedOrderIds.has(o.id));
-  const unpostedCommissions = (commissions ?? []).filter((c) => !postedCommissionIds.has(c.id));
+  let unpostedOrders = (paidOrders ?? []).filter((o) => !postedOrderIds.has(o.id));
+  let unpostedCommissions = (commissions ?? []).filter((c) => !postedCommissionIds.has(c.id));
+
+  // Re-filter against the caller's checked rows server-side rather than
+  // trusting the client list outright — a stale/tampered selection can only
+  // narrow what gets posted, never post something already posted or not
+  // actually unposted.
+  if (selection) {
+    const selectedOrderIds = new Set(selection.orderIds);
+    const selectedCommissionIds = new Set(selection.commissionIds);
+    unpostedOrders = unpostedOrders.filter((o) => selectedOrderIds.has(o.id));
+    unpostedCommissions = unpostedCommissions.filter((c) => selectedCommissionIds.has(c.id));
+  }
 
   if (unpostedOrders.length === 0 && unpostedCommissions.length === 0) {
     return { ok: true, message: "没有需要过帐的交易" };

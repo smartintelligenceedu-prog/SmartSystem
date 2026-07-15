@@ -689,5 +689,19 @@
   "payroll.run_detail.title": "结算明细",
   "payroll.run_detail.analyst_section": "分析师薪资单",
   "payroll.run_detail.introducer_section": "介绍人收益结算单",
-  "payroll.run_detail.empty": "这次结算没有产生任何单据"
+  "payroll.run_detail.empty": "这次结算没有产生任何单据",
+  "payroll.staff.section_title": "员工薪资单",
+  "payroll.staff.my_title": "我的员工薪资单",
+  "payroll.staff.recipient_label": "员工",
+  "payroll.staff.recipient_placeholder": "请选择员工",
+  "payroll.staff.amount_label": "金额 (RM)",
+  "payroll.staff.description_label": "说明（选填）",
+  "payroll.staff.description_placeholder": "例如：7月份薪资",
+  "payroll.staff.submit": "建立薪资单",
+  "payroll.staff.submitting": "建立中…",
+  "payroll.staff.success": "已建立薪资单",
+  "payroll.staff.history_empty": "尚未建立过任何员工薪资单",
+  "payroll.staff.payslip_title": "员工薪资单",
+  "payroll.staff.error.select_recipient": "请选择员工",
+  "payroll.staff.error.invalid_amount": "请输入正确的金额"
 }

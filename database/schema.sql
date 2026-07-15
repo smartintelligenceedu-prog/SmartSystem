@@ -774,6 +774,21 @@ create table introducer_commission_statements (
 );
 create index idx_introducer_statements_introducer on introducer_commission_statements(introducer_id);
 
+create table staff_payslips (
+  -- Manual, one-off payslip for plain staff (e.g. admin/finance) who are
+  -- neither an analyst nor an introducer — no commission engine to derive
+  -- an amount from, so back office just types it each time (migration 032).
+  id uuid primary key default gen_random_uuid(),
+  party_id uuid not null references parties(id),
+  period_start date not null,
+  period_end date not null,
+  gross_amount numeric(12,2) not null check (gross_amount >= 0),
+  description text,
+  created_by uuid references users(id),
+  created_at timestamptz not null default now()
+);
+create index idx_staff_payslips_party on staff_payslips(party_id);
+
 -- ============================================================================
 -- 10. FINANCE
 -- ============================================================================

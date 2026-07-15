@@ -1,5 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
 
 export interface PayoutRunRow {
@@ -348,4 +349,89 @@ export async function getIntroducerStatementDetail(statementId: string): Promise
     introducer_name: identity?.full_name ?? "—",
     line_items: await buildLineItems(admin, records ?? []),
   };
+}
+
+// Manual, one-off payslips for staff who are neither an analyst nor an
+// introducer (e.g. an admin/finance employee) — migration 032. No
+// commission engine to derive an amount from, so back office types it.
+export interface StaffPayslipRow {
+  id: string;
+  party_id: string;
+  full_name: string;
+  period_start: string;
+  period_end: string;
+  gross_amount: number;
+  description: string | null;
+  created_at: string;
+}
+
+async function resolveStaffPayslips(
+  admin: ReturnType<typeof createAdminClient>,
+  rows: { id: string; party_id: string; period_start: string; period_end: string; gross_amount: number; description: string | null; created_at: string }[]
+): Promise<StaffPayslipRow[]> {
+  if (rows.length === 0) return [];
+  const partyIds = [...new Set(rows.map((r) => r.party_id))];
+  const { data: identities } = await admin.from("individuals").select("party_id, full_name").in("party_id", partyIds);
+  const nameByParty = new Map((identities ?? []).map((i) => [i.party_id, i.full_name]));
+  return rows.map((r) => ({
+    id: r.id,
+    party_id: r.party_id,
+    full_name: nameByParty.get(r.party_id) ?? "—",
+    period_start: r.period_start,
+    period_end: r.period_end,
+    gross_amount: Number(r.gross_amount),
+    description: r.description,
+    created_at: r.created_at,
+  }));
+}
+
+// Back-office listing: every staff payslip ever issued.
+export async function listAllStaffPayslips(): Promise<StaffPayslipRow[]> {
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("staff_payslips")
+    .select("id, party_id, period_start, period_end, gross_amount, description, created_at")
+    .order("created_at", { ascending: false });
+  return resolveStaffPayslips(admin, data ?? []);
+}
+
+// Self-view: explicitly filtered by the caller's own party_id, NOT relying
+// on RLS alone — the staff_payslips policy's "or is_back_office()" clause
+// means an unfiltered read would silently return everyone's payslips for
+// any back-office caller. Same explicit-filter pattern as
+// listAnalystPayslips(analystId)/listIntroducerStatements(introducerId)
+// above, just keyed by party_id since staff have neither id.
+export async function listMyStaffPayslips(partyId: string): Promise<StaffPayslipRow[]> {
+  const supabase = await createServerSupabaseClient();
+  const { data } = await supabase
+    .from("staff_payslips")
+    .select("id, party_id, period_start, period_end, gross_amount, description, created_at")
+    .eq("party_id", partyId)
+    .order("created_at", { ascending: false });
+  const admin = createAdminClient();
+  return resolveStaffPayslips(admin, data ?? []);
+}
+
+export async function getStaffPayslipDetail(payslipId: string): Promise<StaffPayslipRow | null> {
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("staff_payslips")
+    .select("id, party_id, period_start, period_end, gross_amount, description, created_at")
+    .eq("id", payslipId)
+    .maybeSingle();
+  if (!data) return null;
+  const rows = await resolveStaffPayslips(admin, [data]);
+  return rows[0] ?? null;
+}
+
+// Candidate list for the "issue a staff payslip" create form — every portal
+// user, not just ones with neither an analyst nor introducer row, since an
+// analyst could in principle also draw a fixed staff salary component.
+export async function listStaffPayslipRecipients(): Promise<{ party_id: string; name: string }[]> {
+  const admin = createAdminClient();
+  const { data: users } = await admin.from("users").select("party_id");
+  if (!users || users.length === 0) return [];
+  const partyIds = [...new Set(users.map((u) => u.party_id))];
+  const { data: identities } = await admin.from("individuals").select("party_id, full_name").in("party_id", partyIds);
+  return (identities ?? []).map((i) => ({ party_id: i.party_id, name: i.full_name })).sort((a, b) => a.name.localeCompare(b.name));
 }

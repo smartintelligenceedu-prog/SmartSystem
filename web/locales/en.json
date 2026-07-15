@@ -689,5 +689,19 @@
   "payroll.run_detail.title": "",
   "payroll.run_detail.analyst_section": "",
   "payroll.run_detail.introducer_section": "",
-  "payroll.run_detail.empty": ""
+  "payroll.run_detail.empty": "",
+  "payroll.staff.section_title": "",
+  "payroll.staff.my_title": "",
+  "payroll.staff.recipient_label": "",
+  "payroll.staff.recipient_placeholder": "",
+  "payroll.staff.amount_label": "",
+  "payroll.staff.description_label": "",
+  "payroll.staff.description_placeholder": "",
+  "payroll.staff.submit": "",
+  "payroll.staff.submitting": "",
+  "payroll.staff.success": "",
+  "payroll.staff.history_empty": "",
+  "payroll.staff.payslip_title": "",
+  "payroll.staff.error.select_recipient": "",
+  "payroll.staff.error.invalid_amount": ""
 }

@@ -129,3 +129,51 @@ export async function runMonthlyPayout(_prev: RunPayoutState, formData: FormData
     message: `${t("payroll.run.success_prefix")}${analystTotals.size}${t("payroll.run.success_analysts")}${introducerTotals.size}${t("payroll.run.success_introducers")}`,
   };
 }
+
+const createStaffPayslipSchema = z.object({
+  party_id: z.string().uuid(t("payroll.staff.error.select_recipient")),
+  period_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, t("payroll.error.invalid_period")),
+  period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, t("payroll.error.invalid_period")),
+  gross_amount: z.coerce.number().positive(t("payroll.staff.error.invalid_amount")),
+  description: z.string().trim().optional(),
+});
+
+export type CreateStaffPayslipState = { status: "idle" } | { status: "error"; message: string } | { status: "success" };
+
+// Deliberately manual (the user's explicit choice over a stored monthly
+// salary + auto-run): back office types an amount each time a plain staff
+// member (neither analyst nor introducer) gets paid, same posture as
+// adminAdjustCommission's manual override.
+export async function createStaffPayslip(_prev: CreateStaffPayslipState, formData: FormData): Promise<CreateStaffPayslipState> {
+  const auth = await requireFinanceUserId();
+  if ("error" in auth) return { status: "error", message: auth.error };
+
+  const parsed = createStaffPayslipSchema.safeParse({
+    party_id: formData.get("party_id"),
+    period_start: formData.get("period_start"),
+    period_end: formData.get("period_end"),
+    gross_amount: formData.get("gross_amount"),
+    description: formData.get("description") || undefined,
+  });
+  if (!parsed.success) {
+    return { status: "error", message: parsed.error.issues[0]?.message ?? t("payroll.error.invalid_period") };
+  }
+  const input = parsed.data;
+  if (input.period_end < input.period_start) {
+    return { status: "error", message: t("payroll.error.invalid_period_range") };
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("staff_payslips").insert({
+    party_id: input.party_id,
+    period_start: input.period_start,
+    period_end: input.period_end,
+    gross_amount: input.gross_amount,
+    description: input.description ?? null,
+    created_by: auth.userId,
+  });
+  if (error) return { status: "error", message: `${t("payroll.error.run_failed")}${error.message}` };
+
+  revalidatePath("/admin/payroll");
+  return { status: "success" };
+}

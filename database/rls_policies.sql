@@ -240,6 +240,15 @@ create policy "introducer reads own statements, back office reads all" on introd
 create policy "back office writes statements" on introducer_commission_statements for insert
   with check (is_back_office());
 
+-- Manual staff payslips (migration 032) — scoped by party_id like every
+-- other identity table here, not user_id, so current_party_id() covers
+-- self-view for free.
+alter table staff_payslips enable row level security;
+create policy "self or back office reads staff payslips" on staff_payslips for select
+  using (party_id = current_party_id() or is_back_office());
+create policy "back office writes staff payslips" on staff_payslips for insert
+  with check (is_back_office());
+
 -- ----------------------------------------------------------------------------
 -- Devices (migration 021) — readable by any authenticated portal user, same
 -- reasoning as detection_appointments/detection_sessions above: the device

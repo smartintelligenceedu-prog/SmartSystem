@@ -2,11 +2,19 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getPortalUserContext } from "@/lib/auth/context";
 import { hasAnyRole } from "@/lib/auth/roles";
-import { listPayoutRuns, listAnalystPayslips, listIntroducerStatements } from "./data";
+import {
+  listPayoutRuns,
+  listAnalystPayslips,
+  listIntroducerStatements,
+  listAllStaffPayslips,
+  listMyStaffPayslips,
+  listStaffPayslipRecipients,
+} from "./data";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { t } from "@/lib/i18n";
 import { RunPayoutForm } from "./run-payout-form";
+import { CreateStaffPayslipForm } from "./create-staff-payslip-form";
 
 export const dynamic = "force-dynamic";
 
@@ -28,10 +36,13 @@ export default async function PayrollPage() {
 
   if (!isFinance && !hasAnalyst && !hasIntroducer) redirect("/admin");
 
-  const [runs, payslips, statements] = await Promise.all([
+  const [runs, payslips, statements, staffPayslips, myStaffPayslips, staffRecipients] = await Promise.all([
     isFinance ? listPayoutRuns() : Promise.resolve([]),
     hasAnalyst ? listAnalystPayslips(context.analystId!) : Promise.resolve([]),
     hasIntroducer ? listIntroducerStatements(context.introducerId!) : Promise.resolve([]),
+    isFinance ? listAllStaffPayslips() : Promise.resolve([]),
+    listMyStaffPayslips(context.partyId),
+    isFinance ? listStaffPayslipRecipients() : Promise.resolve([]),
   ]);
 
   return (
@@ -66,6 +77,64 @@ export default async function PayrollPage() {
                   ))}
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          <h2 className="text-sm font-medium tracking-wide text-muted-foreground uppercase">{t("payroll.staff.section_title")}</h2>
+          <CreateStaffPayslipForm recipients={staffRecipients} />
+          <Card>
+            <CardContent className="pt-6">
+              {staffPayslips.length === 0 ? (
+                <p className="text-sm text-muted-foreground">{t("payroll.staff.history_empty")}</p>
+              ) : (
+                <div className="divide-y">
+                  {staffPayslips.map((p) => (
+                    <div key={p.id} className="flex items-center justify-between py-3 text-sm">
+                      <div>
+                        <p>{p.full_name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatDate(p.period_start)} – {formatDate(p.period_end)}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="tabular-nums font-medium">{formatMYR(p.gross_amount)}</span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          render={<Link href={`/admin/payroll/staff-payslip/${p.id}`}>{t("payroll.view_detail_link")}</Link>}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {myStaffPayslips.length > 0 && (
+        <>
+          <h2 className="text-sm font-medium tracking-wide text-muted-foreground uppercase">{t("payroll.staff.my_title")}</h2>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="divide-y">
+                {myStaffPayslips.map((p) => (
+                  <div key={p.id} className="flex items-center justify-between py-3 text-sm">
+                    <span>
+                      {formatDate(p.period_start)} – {formatDate(p.period_end)}
+                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className="tabular-nums font-medium">{formatMYR(p.gross_amount)}</span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        render={<Link href={`/admin/payroll/staff-payslip/${p.id}`}>{t("payroll.view_detail_link")}</Link>}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         </>

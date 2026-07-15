@@ -54,6 +54,22 @@ insert into chart_of_accounts (code, name, account_type) values
   ('2100', '应计报告成本', 'liability')
 on conflict (code) do nothing;
 
+-- report_override (migration 015) and analyst_report_fee (migration 025)
+-- commissions had no matching expense account until migration 030 — see
+-- that migration's comment for why this went unnoticed.
+insert into chart_of_accounts (code, name, account_type) values
+  ('5500', 'Commission Expense - Report Override', 'expense'),
+  ('5700', 'Commission Expense - Analyst Report Fee', 'expense')
+on conflict (code) do nothing;
+
+-- Manual company operating expenses (software subscriptions, office
+-- supplies, etc.) — migration 031.
+insert into chart_of_accounts (code, name, account_type) values
+  ('6000', 'Operating Expense - Software & Subscriptions', 'expense'),
+  ('6100', 'Operating Expense - Office & General', 'expense'),
+  ('6900', 'Operating Expense - Other', 'expense')
+on conflict (code) do nothing;
+
 -- Institutional/B2B invoicing accounts (migration 016).
 insert into chart_of_accounts (code, name, account_type) values
   ('1100', '应收账款 (Accounts Receivable)', 'asset'),
