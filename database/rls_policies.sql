@@ -249,6 +249,13 @@ create policy "self or back office reads staff payslips" on staff_payslips for s
 create policy "back office writes staff payslips" on staff_payslips for insert
   with check (is_back_office());
 
+-- Sales item / price catalog (migration 033) — back office only, same as
+-- commission_rules/chart_of_accounts; analyst-facing pages read this through
+-- the admin client (bypasses RLS), matching listOwnCustomersForPicker().
+alter table sales_items enable row level security;
+create policy "back office only" on sales_items for all
+  using (is_back_office()) with check (is_back_office());
+
 -- ----------------------------------------------------------------------------
 -- Devices (migration 021) — readable by any authenticated portal user, same
 -- reasoning as detection_appointments/detection_sessions above: the device

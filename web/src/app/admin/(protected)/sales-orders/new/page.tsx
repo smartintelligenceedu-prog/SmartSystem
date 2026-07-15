@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getPortalUserContext } from "@/lib/auth/context";
-import { listOwnCustomersForPicker, listOwnRedeemableVouchers, listApprovedAgents } from "../data";
+import { listOwnCustomersForPicker, listOwnRedeemableVouchers, listApprovedAgents, listActiveSalesItems } from "../data";
 import { NewSalesOrderForm } from "./new-sales-order-form";
 
 export const dynamic = "force-dynamic";
@@ -10,10 +10,11 @@ export default async function NewSalesOrderPage() {
   if (!context) redirect("/admin/login");
   if (!context.analystId) redirect("/admin");
 
-  const [customers, vouchers, agents] = await Promise.all([
+  const [customers, vouchers, agents, salesItems] = await Promise.all([
     listOwnCustomersForPicker(context.analystId),
     listOwnRedeemableVouchers(context.analystId),
     listApprovedAgents(),
+    listActiveSalesItems(),
   ]);
 
   return (
@@ -28,6 +29,7 @@ export default async function NewSalesOrderPage() {
         customers={customers}
         agents={agents}
         vouchers={vouchers}
+        salesItems={salesItems}
       />
     </div>
   );

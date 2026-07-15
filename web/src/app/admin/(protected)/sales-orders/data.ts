@@ -245,6 +245,35 @@ export async function getReceiptDetail(orderId: string): Promise<ReceiptDetail |
   };
 }
 
+export interface SalesItemRow {
+  id: string;
+  name: string;
+  price: number;
+  item_kind: "item" | "discount";
+  is_active: boolean;
+}
+
+// For the new-order form's per-line item picker — active items only, both
+// kinds (a discount shows in the same dropdown as a second line, per the
+// CTO's choice).
+export async function listActiveSalesItems(): Promise<SalesItemRow[]> {
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("sales_items")
+    .select("id, name, price, item_kind, is_active")
+    .eq("is_active", true)
+    .order("item_kind")
+    .order("name");
+  return (data ?? []).map((i) => ({ ...i, price: Number(i.price) }));
+}
+
+// Back-office catalog management — every item, active or not.
+export async function listSalesItems(): Promise<SalesItemRow[]> {
+  const admin = createAdminClient();
+  const { data } = await admin.from("sales_items").select("id, name, price, item_kind, is_active").order("item_kind").order("name");
+  return (data ?? []).map((i) => ({ ...i, price: Number(i.price) }));
+}
+
 export async function listOwnCustomersForPicker(analystId: string): Promise<{ id: string; name: string }[]> {
   const admin = createAdminClient();
   const { data: customers } = await admin.from("customers").select("id, party_id").eq("owner_analyst_id", analystId).eq("status", "active");

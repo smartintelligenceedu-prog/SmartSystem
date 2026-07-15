@@ -47,7 +47,10 @@ export default async function SalesOrdersPage({
             {status === "pending" ? "待审核付款的订单" : isBackOffice ? "全公司检测服务订单" : "你的检测服务订单"}
           </p>
         </div>
-        {context.analystId && <Button size="sm" render={<Link href="/admin/sales-orders/new">新增销售订单</Link>} />}
+        <div className="flex items-center gap-2">
+          {isBackOffice && <Button size="sm" variant="outline" render={<Link href="/admin/sales-orders/items">销售项目 / 价目表</Link>} />}
+          {context.analystId && <Button size="sm" render={<Link href="/admin/sales-orders/new">新增销售订单</Link>} />}
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-md border">

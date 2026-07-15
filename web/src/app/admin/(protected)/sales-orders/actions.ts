@@ -43,10 +43,17 @@ async function requireBackOfficeUserId(): Promise<{ userId: string } | { error: 
   return { userId: userRow.id };
 }
 
+const lineSchema = z.object({
+  item_id: z.string().uuid(),
+  // Can be negative for a discount line — sign/kind is re-derived
+  // server-side from the catalog row, never trusted from the client.
+  amount: z.coerce.number(),
+});
+
 const memberSchema = z.object({
   customer_id: z.string().uuid(),
   analyst_id: z.string().uuid(),
-  amount: z.coerce.number().positive(),
+  lines: z.array(lineSchema).min(1),
 });
 
 const redeemSchema = z.object({
@@ -66,7 +73,7 @@ export type CreateSalesOrderState =
   | { status: "error"; message: string }
   | { status: "success"; paid: boolean };
 
-function parseMembers(membersJson: string): { customer_id: string; analyst_id: string; amount: number }[] | null {
+function parseMembers(membersJson: string): z.infer<typeof memberSchema>[] | null {
   try {
     const raw = JSON.parse(membersJson);
     if (!Array.isArray(raw) || raw.length === 0) return null;
@@ -184,7 +191,22 @@ export async function createSalesOrder(_prev: CreateSalesOrderState, formData: F
   const fileError = validateUploadFile(screenshot, "缴费截图", true);
   if (fileError) return { status: "error", message: fileError };
 
-  const totalAmount = members.reduce((sum, m) => sum + m.amount, 0);
+  // item_kind/name are re-derived from the catalog here, never trusted from
+  // the client — only the per-line amount (pre-filled from item.price but
+  // editable) is client-authoritative, matching the "confirm what was
+  // actually received" philosophy this form already had.
+  const itemIds = [...new Set(members.flatMap((m) => m.lines.map((l) => l.item_id)))];
+  const { data: catalogItems } = await admin.from("sales_items").select("id, name, item_kind, is_active").in("id", itemIds);
+  const catalogById = new Map((catalogItems ?? []).map((i) => [i.id, i]));
+  for (const itemId of itemIds) {
+    const item = catalogById.get(itemId);
+    if (!item || !item.is_active) {
+      return { status: "error", message: "有销售项目已下架或不存在，请重新选择" };
+    }
+  }
+
+  const totalAmount = members.reduce((sum, m) => sum + m.lines.reduce((s, l) => s + l.amount, 0), 0);
+  if (totalAmount <= 0) return { status: "error", message: "订单总额必须大于零" };
 
   const { data: order, error: orderError } = await admin
     .from("orders")
@@ -194,16 +216,21 @@ export async function createSalesOrder(_prev: CreateSalesOrderState, formData: F
   if (orderError) return { status: "error", message: `建立订单失败：${orderError.message}` };
 
   const { error: itemError } = await admin.from("order_items").insert(
-    members.map((m) => ({
-      order_id: order.id,
-      item_type: "detection_session",
-      description: "脑波检测服务",
-      unit_price: m.amount,
-      quantity: 1,
-      subtotal: m.amount,
-      customer_id: m.customer_id,
-      analyst_id: m.analyst_id,
-    }))
+    members.flatMap((m) =>
+      m.lines.map((l) => {
+        const item = catalogById.get(l.item_id)!;
+        return {
+          order_id: order.id,
+          item_type: item.item_kind === "discount" ? "other" : "detection_session",
+          description: item.name,
+          unit_price: l.amount,
+          quantity: 1,
+          subtotal: l.amount,
+          customer_id: m.customer_id,
+          analyst_id: m.analyst_id,
+        };
+      })
+    )
   );
   if (itemError) return { status: "error", message: `建立订单明细失败：${itemError.message}` };
 
@@ -244,6 +271,64 @@ export async function adminApproveSalesOrder(orderId: string): Promise<{ ok: boo
   revalidatePath("/admin/sales-orders");
   revalidatePath("/admin");
   return { ok: true, message: "已核准，佣金已计算" };
+}
+
+const salesItemSchema = z.object({
+  name: z.string().trim().min(1, "请输入项目名称"),
+  price: z.coerce.number(),
+  item_kind: z.enum(["item", "discount"]),
+});
+
+export type CreateSalesItemState = { status: "idle" } | { status: "error"; message: string } | { status: "success" };
+
+export async function createSalesItem(_prev: CreateSalesItemState, formData: FormData): Promise<CreateSalesItemState> {
+  const auth = await requireBackOfficeUserId();
+  if ("error" in auth) return { status: "error", message: auth.error };
+
+  const parsed = salesItemSchema.safeParse({
+    name: formData.get("name"),
+    price: formData.get("price"),
+    item_kind: formData.get("item_kind"),
+  });
+  if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message ?? "表单资料有误" };
+  const input = parsed.data;
+
+  if (input.item_kind === "item" && input.price < 0) {
+    return { status: "error", message: "一般项目的价格不能是负数，折扣类型才可以" };
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("sales_items").insert({ name: input.name, price: input.price, item_kind: input.item_kind });
+  if (error) return { status: "error", message: `建立失败：${error.message}` };
+
+  revalidatePath("/admin/sales-orders/items");
+  return { status: "success" };
+}
+
+export async function updateSalesItem(itemId: string, name: string, price: number): Promise<{ ok: boolean; message: string }> {
+  const auth = await requireBackOfficeUserId();
+  if ("error" in auth) return { ok: false, message: auth.error };
+  if (!name.trim()) return { ok: false, message: "请输入项目名称" };
+  if (!Number.isFinite(price)) return { ok: false, message: "请输入正确的价格" };
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("sales_items").update({ name: name.trim(), price, updated_at: new Date().toISOString() }).eq("id", itemId);
+  if (error) return { ok: false, message: `更新失败：${error.message}` };
+
+  revalidatePath("/admin/sales-orders/items");
+  return { ok: true, message: "已更新" };
+}
+
+export async function toggleSalesItemActive(itemId: string, isActive: boolean): Promise<{ ok: boolean; message: string }> {
+  const auth = await requireBackOfficeUserId();
+  if ("error" in auth) return { ok: false, message: auth.error };
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("sales_items").update({ is_active: isActive, updated_at: new Date().toISOString() }).eq("id", itemId);
+  if (error) return { ok: false, message: `更新失败：${error.message}` };
+
+  revalidatePath("/admin/sales-orders/items");
+  return { ok: true, message: isActive ? "已启用" : "已停用" };
 }
 
 export async function adminRejectSalesOrder(orderId: string, reason: string): Promise<{ ok: boolean; message: string }> {

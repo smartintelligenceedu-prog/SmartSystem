@@ -599,6 +599,23 @@ create index idx_order_items_analyst on order_items(analyst_id);
 alter table detection_sessions add constraint fk_sessions_order_item
   foreign key (order_item_id) references order_items(id);
 
+create table sales_items (
+  -- Price catalog for consumer sales orders (migration 033) — previously
+  -- every order_item's unit_price was a free-typed amount with no list to
+  -- pick from. item_kind='discount' rows (typically a negative price) map
+  -- to order_items.item_type 'other' at order-creation time, which the
+  -- commission engine already excludes from every payout path, so a
+  -- discount line reduces revenue without reducing analyst commission.
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  price numeric(12,2) not null,
+  item_kind text not null default 'item' check (item_kind in ('item', 'discount')),
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index idx_sales_items_active on sales_items(is_active);
+
 create table registration_kits (
   id uuid primary key default gen_random_uuid(),
   name text not null,
