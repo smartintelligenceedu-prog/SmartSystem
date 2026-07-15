@@ -40,6 +40,7 @@ export function Sidebar({ context }: { context: PortalUserContext }) {
     ...(isFinance ? [{ href: "/admin/analytics", label: t("analytics.nav.label") }] : []),
     ...(isBackOffice ? [{ href: "/admin/registrations", label: "注册审核" }] : []),
     ...(isBackOffice ? [{ href: "/admin/introducers", label: "引荐人管理" }] : []),
+    ...(isBackOffice ? [{ href: "/admin/introducer-applications", label: "引荐人申请" }] : []),
     ...(isBackOffice ? [{ href: "/admin/devices", label: t("devices.nav.label") }] : []),
     ...(isAdmin ? [{ href: "/admin/users", label: "帐号管理" }] : []),
     ...(isAdmin ? [{ href: "/admin/settings", label: "设定" }] : []),

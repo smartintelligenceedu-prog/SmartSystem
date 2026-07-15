@@ -309,6 +309,12 @@ create policy "self or back office reads introducers" on introducers for select
 create policy "back office manages introducers" on introducers for insert with check (is_back_office());
 create policy "back office updates introducers" on introducers for update using (is_back_office());
 
+-- Public submission goes through a Server Action using the admin client
+-- (bypasses RLS) — anon has zero direct table access by design, same as
+-- registration_orders / analysts.
+alter table introducer_applications enable row level security;
+create policy "back office only" on introducer_applications for all using (is_back_office()) with check (is_back_office());
+
 -- ----------------------------------------------------------------------------
 -- Remaining tables that were left without RLS above. Without an explicit
 -- policy, Supabase's auto-generated API would expose these completely

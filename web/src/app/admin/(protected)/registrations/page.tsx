@@ -13,6 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { AnalystStatus } from "@/lib/types/registration";
+import { CopyLinkButton } from "../_components/copy-link-button";
 
 export const dynamic = "force-dynamic";
 
@@ -65,7 +66,10 @@ export default async function RegistrationsListPage({
 
   return (
     <div className="mx-auto max-w-5xl">
-      <h1 className="text-xl font-semibold">分析师注册审核</h1>
+      <div className="flex items-start justify-between gap-4">
+        <h1 className="text-xl font-semibold">分析师注册审核</h1>
+        <CopyLinkButton path="/register" label="复制注册连结" />
+      </div>
 
       <nav className="mt-4 flex gap-1 border-b">
         {TABS.map((tab) => (

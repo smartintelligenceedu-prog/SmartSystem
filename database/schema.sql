@@ -173,6 +173,28 @@ create table introducers (
 );
 create index idx_introducers_sponsor on introducers(sponsor_id);
 
+create table introducer_applications (
+  -- Public self-application queue mirroring the analyst /register flow, but
+  -- lighter — no kit purchase, no document upload. Approval creates the real
+  -- party/individual/introducers rows (see migration 029).
+  id uuid primary key default gen_random_uuid(),
+  full_name text not null,
+  email text not null,
+  phone text not null,
+  bank_name text,
+  bank_account_name text,
+  bank_account_no text,
+  sponsor_referral_code text,
+  sponsor_id uuid references introducers(id),
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  rejection_reason text,
+  resulting_introducer_id uuid references introducers(id),
+  reviewed_by uuid references users(id),
+  reviewed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index idx_introducer_applications_status on introducer_applications(status);
+
 create table channel_campaigns (
   -- School / institution / roadshow outreach run by a PIC analyst.
   id uuid primary key default gen_random_uuid(),

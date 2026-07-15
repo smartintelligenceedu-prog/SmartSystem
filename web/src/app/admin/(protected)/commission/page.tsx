@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AdjustCommissionCell } from "./adjust-commission-cell";
+import { ApproveCommissionButton } from "./approve-commission-button";
 
 export const dynamic = "force-dynamic";
 
@@ -115,7 +116,10 @@ export default async function CommissionPage() {
                     <Badge variant={r.status === "paid" ? "secondary" : "outline"}>{STATUS_LABEL[r.status] ?? r.status}</Badge>
                   </TableCell>
                   <TableCell>
-                    <AdjustCommissionCell recordId={r.id} currentAmount={r.commission_amount} />
+                    <div className="flex items-start gap-2">
+                      {r.status === "pending" && <ApproveCommissionButton recordId={r.id} />}
+                      <AdjustCommissionCell recordId={r.id} currentAmount={r.commission_amount} />
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

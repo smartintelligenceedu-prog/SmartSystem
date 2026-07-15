@@ -203,6 +203,9 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
                 <div className="flex items-center gap-3">
                   <span className="tabular-nums">{formatMYR(o.total_amount)}</span>
                   <Badge variant={o.status === "paid" ? "secondary" : "outline"}>{ORDER_STATUS_LABEL[o.status] ?? o.status}</Badge>
+                  {o.status === "paid" && (
+                    <Button size="sm" variant="ghost" render={<Link href={`/admin/sales-orders/${o.order_id}/receipt`}>打印收据</Link>} />
+                  )}
                 </div>
               </div>
             ))}

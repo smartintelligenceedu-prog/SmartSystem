@@ -167,6 +167,84 @@ export async function getSalesOrderDetail(orderId: string): Promise<SalesOrderDe
   };
 }
 
+export interface ReceiptLineItem {
+  description: string;
+  customer_name: string | null;
+  subtotal: number;
+}
+
+export interface ReceiptDetail {
+  order_id: string;
+  order_analyst_id: string | null;
+  item_analyst_ids: string[];
+  analyst_name: string;
+  customer_name: string; // single name, or "N 位顾客" for a multi-person order
+  total_amount: number;
+  status: string;
+  created_at: string;
+  items: ReceiptLineItem[];
+}
+
+// Printable receipt for a regular (non-institutional) detection_service
+// order — analysts couldn't get one anywhere before this; the only
+// printable document in the whole system was the institutional (B2B)
+// invoice/receipt, which is back-office/finance only.
+export async function getReceiptDetail(orderId: string): Promise<ReceiptDetail | null> {
+  const admin = createAdminClient();
+  const { data: order } = await admin
+    .from("orders")
+    .select("id, analyst_id, total_amount, status, created_at, order_type")
+    .eq("id", orderId)
+    .maybeSingle();
+  if (!order || order.order_type !== "detection_service") return null;
+
+  const { data: items } = await admin.from("order_items").select("id, description, customer_id, analyst_id, subtotal").eq("order_id", orderId);
+
+  const itemCustomerIds = [...new Set((items ?? []).map((i) => i.customer_id).filter((id): id is string => !!id))];
+  const itemAnalystIds = [...new Set((items ?? []).map((i) => i.analyst_id).filter((id): id is string => !!id))];
+  const analystIds = [...new Set([order.analyst_id, ...itemAnalystIds].filter((id): id is string => !!id))];
+
+  const [{ data: customers }, { data: analysts }] = await Promise.all([
+    itemCustomerIds.length > 0 ? admin.from("customers").select("id, party_id").in("id", itemCustomerIds) : Promise.resolve({ data: [] }),
+    analystIds.length > 0 ? admin.from("analysts").select("id, party_id").in("id", analystIds) : Promise.resolve({ data: [] }),
+  ]);
+  const customerPartyById = new Map((customers ?? []).map((c) => [c.id, c.party_id]));
+  const analystPartyById = new Map((analysts ?? []).map((a) => [a.id, a.party_id]));
+  const partyIds = [...new Set([...customerPartyById.values(), ...analystPartyById.values()])];
+  const { data: identities } =
+    partyIds.length > 0 ? await admin.from("individuals").select("party_id, full_name").in("party_id", partyIds) : { data: [] };
+  const nameByParty = new Map((identities ?? []).map((i) => [i.party_id, i.full_name]));
+
+  const orderAnalystParty = order.analyst_id ? analystPartyById.get(order.analyst_id) : null;
+
+  let customerName = "—";
+  if (itemCustomerIds.length === 1) {
+    const party = customerPartyById.get(itemCustomerIds[0]);
+    customerName = (party && nameByParty.get(party)) ?? "—";
+  } else if (itemCustomerIds.length > 1) {
+    customerName = `${itemCustomerIds.length} 位顾客`;
+  }
+
+  return {
+    order_id: order.id,
+    order_analyst_id: order.analyst_id,
+    item_analyst_ids: itemAnalystIds,
+    analyst_name: (orderAnalystParty && nameByParty.get(orderAnalystParty)) ?? "—",
+    customer_name: customerName,
+    total_amount: Number(order.total_amount),
+    status: order.status,
+    created_at: order.created_at,
+    items: (items ?? []).map((it) => {
+      const party = it.customer_id ? customerPartyById.get(it.customer_id) : null;
+      return {
+        description: it.description ?? "—",
+        customer_name: party ? (nameByParty.get(party) ?? null) : null,
+        subtotal: Number(it.subtotal),
+      };
+    }),
+  };
+}
+
 export async function listOwnCustomersForPicker(analystId: string): Promise<{ id: string; name: string }[]> {
   const admin = createAdminClient();
   const { data: customers } = await admin.from("customers").select("id, party_id").eq("owner_analyst_id", analystId).eq("status", "active");
