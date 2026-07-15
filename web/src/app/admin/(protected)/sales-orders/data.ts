@@ -178,7 +178,7 @@ export interface ReceiptDetail {
   order_analyst_id: string | null;
   item_analyst_ids: string[];
   analyst_name: string;
-  customer_name: string; // single name, or "N 位顾客" for a multi-person order
+  customer_name: string; // single name, or "N customers" for a multi-person order
   total_amount: number;
   status: string;
   created_at: string;
@@ -222,7 +222,7 @@ export async function getReceiptDetail(orderId: string): Promise<ReceiptDetail |
     const party = customerPartyById.get(itemCustomerIds[0]);
     customerName = (party && nameByParty.get(party)) ?? "—";
   } else if (itemCustomerIds.length > 1) {
-    customerName = `${itemCustomerIds.length} 位顾客`;
+    customerName = `${itemCustomerIds.length} customers`;
   }
 
   return {
