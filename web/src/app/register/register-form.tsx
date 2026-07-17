@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,9 +23,23 @@ function formatMYR(amount: number) {
   return new Intl.NumberFormat("ms-MY", { style: "currency", currency: "MYR" }).format(amount);
 }
 
-export function RegisterForm({ kits }: { kits: RegistrationKit[] }) {
+export function RegisterForm({
+  kits,
+  agreementUrl,
+  sponsorReferralCode,
+}: {
+  kits: RegistrationKit[];
+  agreementUrl: string;
+  sponsorReferralCode?: string;
+}) {
   const router = useRouter();
   const [state, formAction, isPending] = useActionState(submitRegistration, initialState);
+  // The checkbox stays disabled until the agreement link has actually been
+  // opened — ticking "I've read it" without ever opening the document isn't
+  // meaningful consent. agreement_link_opened travels to the server as a
+  // hidden field so submitRegistration() can re-check it rather than trust
+  // client state alone.
+  const [linkOpened, setLinkOpened] = useState(false);
 
   useEffect(() => {
     if (state.status === "success") {
@@ -107,7 +121,11 @@ export function RegisterForm({ kits }: { kits: RegistrationKit[] }) {
                 id="sponsor_referral_code"
                 name="sponsor_referral_code"
                 placeholder="没有推荐人可留空"
+                defaultValue={sponsorReferralCode ?? ""}
               />
+              {sponsorReferralCode && (
+                <p className="text-xs text-muted-foreground">已透过推荐连结自动带入，如有需要仍可自行修改。</p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -153,6 +171,41 @@ export function RegisterForm({ kits }: { kits: RegistrationKit[] }) {
               </p>
             </div>
           </section>
+
+          {agreementUrl && (
+            <>
+              <Separator />
+              <input type="hidden" name="agreement_link_opened" value={linkOpened ? "true" : "false"} />
+              <div className="space-y-2 text-sm">
+                <p>
+                  请先阅读{" "}
+                  <a
+                    href={agreementUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setLinkOpened(true)}
+                    className="font-medium underline"
+                  >
+                    Agent Agreement / Terms and Conditions
+                  </a>
+                  ，才可以勾选同意并完成注册。
+                </p>
+                <label className="flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    name="agree_to_terms"
+                    required
+                    disabled={!linkOpened}
+                    className="mt-0.5 size-4 shrink-0"
+                  />
+                  <span className={linkOpened ? undefined : "text-muted-foreground"}>
+                    我已阅读并同意 Agent Agreement / Terms and Conditions
+                    {!linkOpened && "（请先点击上方链接）"}
+                  </span>
+                </label>
+              </div>
+            </>
+          )}
 
           {state.status === "error" && (
             <p className="text-sm text-destructive" role="alert">

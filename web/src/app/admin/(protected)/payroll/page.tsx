@@ -3,7 +3,7 @@ import Link from "next/link";
 import { getPortalUserContext } from "@/lib/auth/context";
 import { hasAnyRole } from "@/lib/auth/roles";
 import {
-  listPayoutRuns,
+  listPayeeSettlementRows,
   listAnalystPayslips,
   listIntroducerStatements,
   listAllStaffPayslips,
@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { t } from "@/lib/i18n";
 import { RunPayoutForm } from "./run-payout-form";
 import { CreateStaffPayslipForm } from "./create-staff-payslip-form";
+import { PayeeSettlementList } from "./payee-settlement-list";
 
 export const dynamic = "force-dynamic";
 
@@ -36,8 +37,8 @@ export default async function PayrollPage() {
 
   if (!isFinance && !hasAnalyst && !hasIntroducer) redirect("/admin");
 
-  const [runs, payslips, statements, staffPayslips, myStaffPayslips, staffRecipients] = await Promise.all([
-    isFinance ? listPayoutRuns() : Promise.resolve([]),
+  const [payeeRows, payslips, statements, staffPayslips, myStaffPayslips, staffRecipients] = await Promise.all([
+    isFinance ? listPayeeSettlementRows() : Promise.resolve([]),
     hasAnalyst ? listAnalystPayslips(context.analystId!) : Promise.resolve([]),
     hasIntroducer ? listIntroducerStatements(context.introducerId!) : Promise.resolve([]),
     isFinance ? listAllStaffPayslips() : Promise.resolve([]),
@@ -55,30 +56,7 @@ export default async function PayrollPage() {
           <RunPayoutForm />
 
           <h2 className="text-sm font-medium tracking-wide text-muted-foreground uppercase">{t("payroll.run.history_title")}</h2>
-          <Card>
-            <CardContent className="pt-6">
-              {runs.length === 0 ? (
-                <p className="text-sm text-muted-foreground">{t("payroll.run.history_empty")}</p>
-              ) : (
-                <div className="divide-y">
-                  {runs.map((r) => (
-                    <div key={r.id} className="flex items-center justify-between py-3 text-sm">
-                      <span>
-                        {formatDate(r.period_start)} – {formatDate(r.period_end)}
-                      </span>
-                      <div className="flex items-center gap-3">
-                        <span className="tabular-nums text-muted-foreground">
-                          {t("payroll.run.analyst_total_label")} {formatMYR(r.analyst_payout_total)} · {t("payroll.run.introducer_total_label")}{" "}
-                          {formatMYR(r.introducer_payout_total)}
-                        </span>
-                        <Button size="sm" variant="ghost" render={<Link href={`/admin/payroll/run/${r.id}`}>{t("payroll.view_detail_link")}</Link>} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <PayeeSettlementList rows={payeeRows} />
 
           <h2 className="text-sm font-medium tracking-wide text-muted-foreground uppercase">{t("payroll.staff.section_title")}</h2>
           <CreateStaffPayslipForm recipients={staffRecipients} />

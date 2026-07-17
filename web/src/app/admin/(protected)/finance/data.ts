@@ -150,21 +150,37 @@ export interface ProfitAndLoss {
   netProfit: number;
 }
 
+// "YYYY-MM" -> the month's [start, end) date bounds, end exclusive (first
+// day of the next month) so a query never has to guess how many days are in
+// the month.
+function monthBounds(month: string): { start: string; end: string } {
+  const [year, mon] = month.split("-").map(Number);
+  const start = `${month}-01`;
+  const endDate = new Date(year, mon, 1); // mon is 1-indexed already, so this is the 1st of next month
+  const end = endDate.toISOString().slice(0, 10);
+  return { start, end };
+}
+
+export function currentMonth(): string {
+  return new Date().toISOString().slice(0, 7);
+}
+
 // Real P&L computed from posted journal_lines — distinct from the Admin
 // Dashboard's "Monthly Sales - commission expense" estimate, which reads
 // orders/commission_records directly and includes unposted transactions.
 // The two will diverge until back office posts everything; that's expected
-// during the transition, not a bug.
-export async function getProfitAndLossThisMonth(): Promise<ProfitAndLoss> {
+// during the transition, not a bug. `month` is "YYYY-MM"; a back-dated
+// expense entered today for an earlier month shows up when that month is
+// selected, not in whichever month happens to be open right now.
+export async function getProfitAndLoss(month: string): Promise<ProfitAndLoss> {
   const admin = createAdminClient();
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+  const { start: monthStart, end: monthEnd } = monthBounds(month);
 
   const { data: accounts } = await admin
     .from("chart_of_accounts")
     .select("id, code, name, account_type")
     .in("account_type", ["revenue", "expense"]);
-  const { data: entries } = await admin.from("journal_entries").select("id").gte("entry_date", monthStart);
+  const { data: entries } = await admin.from("journal_entries").select("id").gte("entry_date", monthStart).lt("entry_date", monthEnd);
   const entryIds = (entries ?? []).map((e) => e.id);
   const { data: lines } =
     entryIds.length > 0
@@ -203,20 +219,20 @@ export interface ReportDeliverySummary {
   totalCost: number;
 }
 
-// Report cost itself already flows into getProfitAndLossThisMonth()'s
-// expense breakdown automatically (account 5600, auto-posted by
+// Report cost itself already flows into getProfitAndLoss()'s expense
+// breakdown automatically (account 5600, auto-posted by
 // calculate_report_override_commission() — see commission_engine.sql). This
 // is just the count-by-tier the user separately asked for alongside the P&L.
-export async function getReportDeliverySummaryThisMonth(): Promise<ReportDeliverySummary> {
+export async function getReportDeliverySummary(month: string): Promise<ReportDeliverySummary> {
   const admin = createAdminClient();
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const { start: monthStart, end: monthEnd } = monthBounds(month);
 
   const { data: items } = await admin
     .from("order_items")
     .select("report_tier")
     .not("report_delivered_at", "is", null)
-    .gte("report_delivered_at", monthStart);
+    .gte("report_delivered_at", monthStart)
+    .lt("report_delivered_at", monthEnd);
 
   const standardCount = (items ?? []).filter((i) => i.report_tier === "standard").length;
   const upgradeCount = (items ?? []).filter((i) => i.report_tier === "upgrade").length;
@@ -235,13 +251,20 @@ export interface JournalEntryRow {
   lines: { account_code: string; account_name: string; debit: number; credit: number }[];
 }
 
-export async function listRecentJournalEntries(limit = 20): Promise<JournalEntryRow[]> {
+// Lists every entry posted for the given month (not just the most recent
+// N) — a back-dated expense entered late should still show up when the
+// user is reviewing that month's books, no matter how many entries were
+// posted after it. `month` is "YYYY-MM".
+export async function listJournalEntriesForMonth(month: string): Promise<JournalEntryRow[]> {
   const admin = createAdminClient();
+  const { start: monthStart, end: monthEnd } = monthBounds(month);
   const { data: entries } = await admin
     .from("journal_entries")
     .select("id, entry_date, description")
-    .order("posted_at", { ascending: false })
-    .limit(limit);
+    .gte("entry_date", monthStart)
+    .lt("entry_date", monthEnd)
+    .order("entry_date", { ascending: false })
+    .order("posted_at", { ascending: false });
   if (!entries || entries.length === 0) return [];
 
   const [{ data: lines }, { data: accounts }] = await Promise.all([

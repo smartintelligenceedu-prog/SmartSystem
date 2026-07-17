@@ -5,15 +5,17 @@ import { hasAnyRole } from "@/lib/auth/roles";
 import {
   getUnpostedSummary,
   listUnpostedTransactions,
-  getProfitAndLossThisMonth,
-  listRecentJournalEntries,
-  getReportDeliverySummaryThisMonth,
+  getProfitAndLoss,
+  listJournalEntriesForMonth,
+  getReportDeliverySummary,
+  currentMonth,
 } from "./data";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PostToLedgerButton } from "./post-to-ledger-button";
 import { UnpostedTransactionsList } from "./unposted-transactions-list";
 import { RecordExpenseForm } from "./record-expense-form";
+import { MonthPicker } from "./month-picker";
 import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
@@ -33,17 +35,25 @@ function StatCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default async function FinancePage() {
+export default async function FinancePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ month?: string }>;
+}) {
   const context = await getPortalUserContext();
   if (!context) redirect("/admin/login");
   if (!hasAnyRole(context, ["admin", "finance"])) redirect("/admin");
 
+  const { month: monthParam } = await searchParams;
+  const month = monthParam || currentMonth();
+  const isCurrentMonth = month === currentMonth();
+
   const [unposted, unpostedTransactions, pnl, recentEntries, reportSummary] = await Promise.all([
     getUnpostedSummary(),
     listUnpostedTransactions(),
-    getProfitAndLossThisMonth(),
-    listRecentJournalEntries(),
-    getReportDeliverySummaryThisMonth(),
+    getProfitAndLoss(month),
+    listJournalEntriesForMonth(month),
+    getReportDeliverySummary(month),
   ]);
 
   return (
@@ -51,9 +61,12 @@ export default async function FinancePage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold">财务</h1>
-          <p className="mt-1 text-sm text-muted-foreground">总帐（Chart of Accounts）与本月损益。</p>
+          <p className="mt-1 text-sm text-muted-foreground">总帐（Chart of Accounts）与所选月份损益。</p>
         </div>
-        <Button size="sm" variant="secondary" render={<Link href="/admin/finance/institutional">{t("finance.institutional.nav_link")}</Link>} />
+        <div className="flex items-center gap-2">
+          <MonthPicker month={month} />
+          <Button size="sm" variant="secondary" render={<Link href="/admin/finance/institutional">{t("finance.institutional.nav_link")}</Link>} />
+        </div>
       </div>
 
       <Card>
@@ -81,7 +94,9 @@ export default async function FinancePage() {
       </div>
 
       <div>
-        <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">本月损益（依据已过帐总帐资料）</h2>
+        <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">
+          {month} 损益（依据已过帐总帐资料）{!isCurrentMonth && <span className="ml-2 text-primary normal-case">非本月</span>}
+        </h2>
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
           <StatCard label="Total Revenue" value={formatMYR(pnl.totalRevenue)} />
           <StatCard label="Total Expense" value={formatMYR(pnl.totalExpense)} />

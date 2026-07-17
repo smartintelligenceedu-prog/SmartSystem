@@ -3,85 +3,76 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { t } from "@/lib/i18n";
 
-export interface PayoutRunRow {
+export interface PayeeSettlementRow {
   id: string;
+  payee_type: "analyst" | "introducer";
+  name: string;
   period_start: string;
   period_end: string;
-  processed_at: string;
-  analyst_payout_total: number;
-  introducer_payout_total: number;
+  gross_amount: number;
+  href: string;
 }
 
-export async function listPayoutRuns(): Promise<PayoutRunRow[]> {
+// One row per analyst/introducer per settlement run — not one row per run —
+// so back office sees exactly who was paid and can search by name directly
+// from the settlement-history list, without drilling into a period first.
+// Someone with no commission in a given run simply has no row (payslip/
+// statement rows only ever get created for payees present in that run's
+// approved commission records — see runMonthlyPayout below).
+export async function listPayeeSettlementRows(): Promise<PayeeSettlementRow[]> {
   const admin = createAdminClient();
-  const { data: runs } = await admin
-    .from("commission_payout_runs")
-    .select("id, period_start, period_end, processed_at")
-    .order("period_start", { ascending: false });
-  if (!runs || runs.length === 0) return [];
-
-  const runIds = runs.map((r) => r.id);
   const [{ data: payslips }, { data: statements }] = await Promise.all([
-    admin.from("analyst_payslips").select("payout_run_id, gross_amount").in("payout_run_id", runIds),
-    admin.from("introducer_commission_statements").select("payout_run_id, gross_amount").in("payout_run_id", runIds),
+    admin.from("analyst_payslips").select("id, payout_run_id, analyst_id, gross_amount"),
+    admin.from("introducer_commission_statements").select("id, payout_run_id, introducer_id, gross_amount"),
   ]);
+  if ((!payslips || payslips.length === 0) && (!statements || statements.length === 0)) return [];
 
-  return runs.map((r) => ({
-    id: r.id,
-    period_start: r.period_start,
-    period_end: r.period_end,
-    processed_at: r.processed_at,
-    analyst_payout_total: (payslips ?? []).filter((p) => p.payout_run_id === r.id).reduce((s, p) => s + Number(p.gross_amount), 0),
-    introducer_payout_total: (statements ?? []).filter((s) => s.payout_run_id === r.id).reduce((s, st) => s + Number(st.gross_amount), 0),
-  }));
-}
+  const runIds = [...new Set([...(payslips ?? []).map((p) => p.payout_run_id), ...(statements ?? []).map((s) => s.payout_run_id)])];
+  const { data: runs } =
+    runIds.length > 0 ? await admin.from("commission_payout_runs").select("id, period_start, period_end").in("id", runIds) : { data: [] };
+  const runById = new Map((runs ?? []).map((r) => [r.id, r]));
 
-export interface PayoutRunDetail {
-  id: string;
-  period_start: string;
-  period_end: string;
-  analyst_lines: { payslip_id: string; analyst_name: string; gross_amount: number }[];
-  introducer_lines: { statement_id: string; introducer_name: string; gross_amount: number }[];
-}
-
-export async function getPayoutRunDetail(runId: string): Promise<PayoutRunDetail | null> {
-  const admin = createAdminClient();
-  const { data: run } = await admin.from("commission_payout_runs").select("id, period_start, period_end").eq("id", runId).maybeSingle();
-  if (!run) return null;
-
-  const [{ data: payslips }, { data: statements }] = await Promise.all([
-    admin.from("analyst_payslips").select("id, analyst_id, gross_amount").eq("payout_run_id", runId),
-    admin.from("introducer_commission_statements").select("id, introducer_id, gross_amount").eq("payout_run_id", runId),
-  ]);
-
-  const analystIds = (payslips ?? []).map((p) => p.analyst_id);
-  const introducerIds = (statements ?? []).map((s) => s.introducer_id);
+  const analystIds = [...new Set((payslips ?? []).map((p) => p.analyst_id))];
+  const introducerIds = [...new Set((statements ?? []).map((s) => s.introducer_id))];
   const [{ data: analysts }, { data: introducers }] = await Promise.all([
     analystIds.length > 0 ? admin.from("analysts").select("id, party_id").in("id", analystIds) : Promise.resolve({ data: [] }),
     introducerIds.length > 0 ? admin.from("introducers").select("id, party_id").in("id", introducerIds) : Promise.resolve({ data: [] }),
   ]);
-  const partyIds = [...(analysts ?? []).map((a) => a.party_id), ...(introducers ?? []).map((i) => i.party_id)];
+  const partyIds = [...new Set([...(analysts ?? []).map((a) => a.party_id), ...(introducers ?? []).map((i) => i.party_id)])];
   const { data: identities } =
     partyIds.length > 0 ? await admin.from("individuals").select("party_id, full_name").in("party_id", partyIds) : { data: [] };
   const nameByParty = new Map((identities ?? []).map((i) => [i.party_id, i.full_name]));
   const analystPartyById = new Map((analysts ?? []).map((a) => [a.id, a.party_id]));
   const introducerPartyById = new Map((introducers ?? []).map((i) => [i.id, i.party_id]));
 
-  return {
-    id: run.id,
-    period_start: run.period_start,
-    period_end: run.period_end,
-    analyst_lines: (payslips ?? []).map((p) => ({
-      payslip_id: p.id,
-      analyst_name: nameByParty.get(analystPartyById.get(p.analyst_id) ?? "") ?? "—",
+  const analystRows: PayeeSettlementRow[] = (payslips ?? []).map((p) => {
+    const run = runById.get(p.payout_run_id);
+    return {
+      id: p.id,
+      payee_type: "analyst",
+      name: nameByParty.get(analystPartyById.get(p.analyst_id) ?? "") ?? "—",
+      period_start: run?.period_start ?? "",
+      period_end: run?.period_end ?? "",
       gross_amount: Number(p.gross_amount),
-    })),
-    introducer_lines: (statements ?? []).map((s) => ({
-      statement_id: s.id,
-      introducer_name: nameByParty.get(introducerPartyById.get(s.introducer_id) ?? "") ?? "—",
+      href: `/admin/payroll/payslip/${p.id}`,
+    };
+  });
+  const introducerRows: PayeeSettlementRow[] = (statements ?? []).map((s) => {
+    const run = runById.get(s.payout_run_id);
+    return {
+      id: s.id,
+      payee_type: "introducer",
+      name: nameByParty.get(introducerPartyById.get(s.introducer_id) ?? "") ?? "—",
+      period_start: run?.period_start ?? "",
+      period_end: run?.period_end ?? "",
       gross_amount: Number(s.gross_amount),
-    })),
-  };
+      href: `/admin/payroll/statement/${s.id}`,
+    };
+  });
+
+  return [...analystRows, ...introducerRows].sort(
+    (a, b) => b.period_start.localeCompare(a.period_start) || a.name.localeCompare(b.name)
+  );
 }
 
 export interface CommissionLineItem {

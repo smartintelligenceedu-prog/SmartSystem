@@ -8,6 +8,7 @@ import type { AnalystStatus } from "@/lib/types/registration";
 import { VoucherProgressBar } from "../finance/institutional/voucher-progress-bar";
 import { getAgentInstitutionalStats, getFollowUpChildren } from "./agent-institutional-stats";
 import { TQC_TAG_I18N_KEY } from "@/lib/tqc-tags";
+import { CopyLinkButton } from "../_components/copy-link-button";
 
 function formatMYR(amount: number) {
   return new Intl.NumberFormat("ms-MY", { style: "currency", currency: "MYR" }).format(amount);
@@ -114,7 +115,12 @@ export async function AgentSection({ analystId }: { analystId: string }) {
               {t("dashboard.agent.field.agent_id")}: {analyst?.referral_code}
             </p>
           </div>
-          <Badge variant="secondary">{t(STATUS_LABEL_KEY[(analyst?.status as AnalystStatus) ?? "pending"])}</Badge>
+          <div className="flex items-center gap-3">
+            {analyst?.referral_code && (
+              <CopyLinkButton path={`/register?ref=${analyst.referral_code}`} label={t("dashboard.agent.copy_referral_link")} />
+            )}
+            <Badge variant="secondary">{t(STATUS_LABEL_KEY[(analyst?.status as AnalystStatus) ?? "pending"])}</Badge>
+          </div>
         </CardContent>
       </Card>
 

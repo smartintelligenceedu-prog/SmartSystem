@@ -256,6 +256,26 @@ alter table sales_items enable row level security;
 create policy "back office only" on sales_items for all
   using (is_back_office()) with check (is_back_office());
 
+-- Certification exam (migration 034) — back office only, same posture as
+-- sales_items above. The self-service exam page (any analyst) reads/writes
+-- through the admin client with an explicit analyst_id filter rather than
+-- relying on RLS for the self-scope, matching listMyStaffPayslips()'s
+-- explicit-filter precedent (an "or is_back_office()" RLS clause wouldn't
+-- restrict a back-office caller, but there is no back-office self-view here
+-- to leak in the first place since these reads never go through the
+-- caller's own RLS-scoped session).
+alter table certification_questions enable row level security;
+create policy "back office only" on certification_questions for all
+  using (is_back_office()) with check (is_back_office());
+
+alter table certification_settings enable row level security;
+create policy "back office only" on certification_settings for all
+  using (is_back_office()) with check (is_back_office());
+
+alter table certification_attempts enable row level security;
+create policy "back office only" on certification_attempts for all
+  using (is_back_office()) with check (is_back_office());
+
 -- ----------------------------------------------------------------------------
 -- Devices (migration 021) — readable by any authenticated portal user, same
 -- reasoning as detection_appointments/detection_sessions above: the device

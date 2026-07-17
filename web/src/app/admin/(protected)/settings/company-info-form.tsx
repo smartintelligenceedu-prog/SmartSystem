@@ -55,6 +55,10 @@ export function CompanyInfoForm({ companyInfo }: { companyInfo: CompanyInfo }) {
         <label className="text-xs text-muted-foreground">{t("settings.company.invoice_terms_label")}</label>
         <Textarea name="invoiceTerms" defaultValue={companyInfo.invoiceTerms} rows={4} placeholder={t("settings.company.invoice_terms_placeholder")} />
       </div>
+      <div className="space-y-1">
+        <label className="text-xs text-muted-foreground">{t("settings.company.agreement_url_label")}</label>
+        <Input name="agreementUrl" defaultValue={companyInfo.agreementUrl} placeholder="https://…" />
+      </div>
 
       {state.status === "error" && (
         <p className="text-xs text-destructive" role="alert">

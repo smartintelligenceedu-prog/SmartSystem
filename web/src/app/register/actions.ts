@@ -4,6 +4,7 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { uploadRegistrationDocument, validateUploadFile } from "@/lib/storage";
 import type { RegistrationResult } from "@/lib/types/registration";
+import { getCompanyInfo } from "@/app/admin/(protected)/settings/data";
 
 const registrationSchema = z.object({
   full_name: z.string().trim().min(2, "请输入姓名"),
@@ -44,6 +45,21 @@ export async function submitRegistration(
     return { status: "error", message: parsed.error.issues[0]?.message ?? "表单资料有误" };
   }
   const input = parsed.data;
+
+  // The checkbox only renders (and stays disabled until the link is opened)
+  // when an agreement URL is configured in Settings — mirror that same
+  // condition here rather than unconditionally requiring it, since a
+  // bypassed/missing client-side `required`/`disabled` shouldn't block
+  // registration when there's nothing configured to agree to in the first
+  // place. agreement_link_opened is re-checked server-side too, not just
+  // trusted from the disabled-checkbox client state.
+  const companyInfo = await getCompanyInfo();
+  const agreementRequired = !!companyInfo.agreementUrl;
+  const linkOpened = formData.get("agreement_link_opened") === "true";
+  const agreedToTerms = formData.get("agree_to_terms") === "on";
+  if (agreementRequired && (!linkOpened || !agreedToTerms)) {
+    return { status: "error", message: "请先点击阅读 Agent Agreement / Terms and Conditions，再勾选同意" };
+  }
 
   // File fields are validated separately from the zod text schema — FormData
   // gives back File objects the schema above isn't shaped for.
@@ -179,6 +195,7 @@ export async function submitRegistration(
       ic_document_url: icUpload.path,
       payment_screenshot_url: paymentUpload.path,
       status: "pending",
+      agreement_accepted_at: agreedToTerms ? new Date().toISOString() : null,
     })
     .select("id")
     .single();

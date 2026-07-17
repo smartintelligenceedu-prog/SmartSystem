@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { RegistrationKit } from "@/lib/types/registration";
 import { RegisterForm } from "./register-form";
 import { Logo } from "@/components/logo";
+import { getCompanyInfo } from "@/app/admin/(protected)/settings/data";
 
 // Kit pricing/availability is live data, not something to bake into the
 // static build — and this also avoids next build trying to execute the
@@ -28,8 +29,12 @@ async function getActiveKits(): Promise<RegistrationKit[]> {
   return data ?? [];
 }
 
-export default async function RegisterPage() {
-  const kits = await getActiveKits();
+export default async function RegisterPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ ref?: string }>;
+}) {
+  const [kits, companyInfo, { ref }] = await Promise.all([getActiveKits(), getCompanyInfo(), searchParams]);
 
   return (
     <main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center px-6 py-16">
@@ -47,7 +52,7 @@ export default async function RegisterPage() {
       {kits.length === 0 ? (
         <p className="text-sm text-destructive">目前没有开放中的注册套装，请联系公司后台。</p>
       ) : (
-        <RegisterForm kits={kits} />
+        <RegisterForm kits={kits} agreementUrl={companyInfo.agreementUrl} sponsorReferralCode={ref} />
       )}
     </main>
   );

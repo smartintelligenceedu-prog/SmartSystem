@@ -126,6 +126,8 @@ create table analyst_ranks (
   requirements text
 );
 
+create sequence analyst_referral_code_seq; -- backs the "AG-0001" style referral_code default below
+
 create table analysts (
   id uuid primary key default gen_random_uuid(),
   party_id uuid not null references parties(id),
@@ -133,7 +135,7 @@ create table analysts (
   assigned_leader_id uuid references analysts(id), -- operational team assignment; independent of sponsor_id, admin-editable. Since migration 015, this IS a commission recipient: the RM40 report-override commission (see commission_engine.sql)
   rank_id uuid references analyst_ranks(id),
   registration_order_id uuid, -- FK added later (registration_orders is defined after this table)
-  referral_code text not null unique default replace(gen_random_uuid()::text, '-', ''), -- shareable code new recruits sign up under
+  referral_code text not null unique default ('AG-' || lpad(nextval('analyst_referral_code_seq')::text, 4, '0')), -- shareable code new recruits sign up under; short "AG-0001" style since migration 034
   is_pic boolean not null default false, -- Person In Charge of a channel campaign (school/roadshow outreach)
   branch_id uuid references branches(id),
   bank_name text,
@@ -401,6 +403,45 @@ create table certification_records (
 );
 create index idx_certification_records_analyst on certification_records(analyst_id);
 
+-- training_courses/training_enrollments/certification_exams/certification_records
+-- above are original baseline scaffolding for a full LMS (multiple courses,
+-- multiple exams, percentage scoring) — never wired to any app code. TRN-02
+-- (migration 021) shipped a much simpler flag instead: analysts.
+-- certification_passed_at, set either by a manual admin button or (migration
+-- 034, below) a self-service MCQ exam. The tables below are purpose-built for
+-- that flag-based system and are intentionally separate from the unused
+-- tables above rather than retrofitting them.
+
+create table certification_questions (
+  id uuid primary key default gen_random_uuid(),
+  question_set smallint not null check (question_set in (1, 2)),
+  question_text text not null,
+  choices jsonb not null, -- e.g. ["Choice A", "Choice B", "Choice C", "Choice D"]
+  correct_choice_index smallint not null,
+  is_active boolean not null default true,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now()
+);
+create index idx_certification_questions_set on certification_questions(question_set, is_active);
+
+create table certification_settings (
+  id boolean primary key default true check (id), -- singleton row
+  passing_score integer not null default 8,
+  updated_at timestamptz not null default now()
+);
+
+create table certification_attempts (
+  id uuid primary key default gen_random_uuid(),
+  analyst_id uuid not null references analysts(id),
+  question_set smallint not null,
+  total_questions integer not null,
+  correct_count integer not null,
+  passed boolean not null,
+  answers jsonb not null, -- [{question_id, selected_index, correct}]
+  attempted_at timestamptz not null default now()
+);
+create index idx_certification_attempts_analyst on certification_attempts(analyst_id);
+
 -- ============================================================================
 -- 6. DEVICE & ASSET MANAGEMENT
 -- ============================================================================
@@ -640,6 +681,7 @@ create table registration_orders (
   reviewed_at timestamptz,
   rejection_reason text,
   status text not null default 'pending' check (status in ('pending', 'fulfilled', 'cancelled')),
+  agreement_accepted_at timestamptz, -- audit trail: registrant ticked the Agent Agreement / T&C checkbox (migration 034)
   created_at timestamptz not null default now()
 );
 

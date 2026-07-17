@@ -12,6 +12,7 @@ export interface CompanyInfo {
   bankAccountName: string;
   bankAccountNumber: string;
   invoiceTerms: string;
+  agreementUrl: string;
 }
 
 const DEFAULT_COMPANY_INFO: CompanyInfo = {
@@ -25,6 +26,7 @@ const DEFAULT_COMPANY_INFO: CompanyInfo = {
   bankAccountName: "",
   bankAccountNumber: "",
   invoiceTerms: "",
+  agreementUrl: "",
 };
 
 export const COMPANY_INFO_SETTINGS_KEY = "company_info";

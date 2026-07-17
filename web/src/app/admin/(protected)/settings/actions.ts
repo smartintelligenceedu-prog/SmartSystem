@@ -34,6 +34,7 @@ const companyInfoSchema = z.object({
   bankAccountName: z.string().trim(),
   bankAccountNumber: z.string().trim(),
   invoiceTerms: z.string().trim(),
+  agreementUrl: z.string().trim(),
 });
 
 export type UpdateCompanyInfoState = { status: "idle" } | { status: "error"; message: string } | { status: "success" };
@@ -53,6 +54,7 @@ export async function updateCompanyInfo(_prev: UpdateCompanyInfoState, formData:
     bankAccountName: formData.get("bankAccountName"),
     bankAccountNumber: formData.get("bankAccountNumber"),
     invoiceTerms: formData.get("invoiceTerms"),
+    agreementUrl: formData.get("agreementUrl"),
   });
   if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message ?? t("settings.error.invalid_form") };
 
