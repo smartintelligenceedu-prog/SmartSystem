@@ -787,6 +787,10 @@ create table commission_records (
   -- Migration 022 — tags exactly which payout run paid this record out; the
   -- audit trail from a payslip/statement line back to this transaction.
   payout_run_id uuid references commission_payout_runs(id),
+  -- Migration 035 — only populated for trigger_type = 'introducer' (via
+  -- insert_commission()'s p_customer_id); backs the phone-number duplicate
+  -- guard and the commission-page customer/phone display.
+  customer_id uuid references customers(id),
   constraint chk_commission_payee check (
     (analyst_id is not null and introducer_id is null) or
     (analyst_id is null and introducer_id is not null)
@@ -795,6 +799,7 @@ create table commission_records (
 create index idx_commission_records_analyst on commission_records(analyst_id);
 create index idx_commission_records_introducer on commission_records(introducer_id);
 create index idx_commission_records_payout_run on commission_records(payout_run_id);
+create index idx_commission_records_customer on commission_records(customer_id) where customer_id is not null;
 
 -- Migration 022 — minimal HR-09 patch: monthly commission payout
 -- automation. Deliberately NOT reusing payroll_runs/payslips below (those

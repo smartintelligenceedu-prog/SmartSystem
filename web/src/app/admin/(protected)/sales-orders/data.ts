@@ -6,6 +6,7 @@ import { getSignedDocumentUrl } from "@/lib/storage";
 export interface SalesOrderRow {
   order_id: string;
   customer_name: string; // single name, or "N 位顾客" when the order covers several people
+  customer_names: string[]; // every individual name in the order, even for multi-person orders — for search, since customer_name collapses to "N 位顾客"
   analyst_name: string; // whoever submitted the order (orders.analyst_id) — not necessarily who's credited on every item
   item_type: string;
   total_amount: number;
@@ -62,10 +63,15 @@ export async function listSalesOrders(isBackOffice: boolean, statusFilter?: stri
   let rows = orders.map((o) => {
     const orderItems = itemsByOrder.get(o.id) ?? [];
     const itemCustomerIds = [...new Set(orderItems.map((it) => it.customer_id).filter((id): id is string => !!id))];
+    const customerNames = itemCustomerIds
+      .map((id) => {
+        const party = customerPartyById.get(id);
+        return party ? nameByParty.get(party) : null;
+      })
+      .filter((n): n is string => !!n);
     let customerName = "—";
     if (itemCustomerIds.length === 1) {
-      const party = customerPartyById.get(itemCustomerIds[0]);
-      customerName = (party && nameByParty.get(party)) ?? "—";
+      customerName = customerNames[0] ?? "—";
     } else if (itemCustomerIds.length > 1) {
       customerName = `${itemCustomerIds.length} 位顾客`;
     }
@@ -73,6 +79,7 @@ export async function listSalesOrders(isBackOffice: boolean, statusFilter?: stri
     return {
       order_id: o.id,
       customer_name: customerName,
+      customer_names: customerNames,
       analyst_name: (analystParty && nameByParty.get(analystParty)) ?? "—",
       item_type: orderItems[0]?.item_type ?? "—",
       total_amount: Number(o.total_amount),

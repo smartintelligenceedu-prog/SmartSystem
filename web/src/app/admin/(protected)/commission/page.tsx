@@ -100,6 +100,17 @@ export default async function CommissionPage() {
                     <span className="ml-1 text-xs text-muted-foreground">
                       ({r.payee_type === "introducer" ? "引荐人" : "分析师"})
                     </span>
+                    {r.customer_name && (
+                      <div className="mt-0.5 text-xs text-muted-foreground">
+                        顾客：{r.customer_name}
+                        {r.customer_phone_masked && ` ${r.customer_phone_masked}`}
+                        {r.prior_settlement_date && (
+                          <span className="ml-1 text-amber-600">
+                            ⚠ 该手机号已于 {new Date(r.prior_settlement_date).toLocaleDateString("zh-CN")} 结算过
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell className="text-muted-foreground">{TRIGGER_LABEL[r.trigger_type] ?? r.trigger_type}</TableCell>
                   <TableCell className="text-muted-foreground">
@@ -118,7 +129,13 @@ export default async function CommissionPage() {
                   <TableCell>
                     <div className="flex items-start gap-2">
                       {r.status === "pending" && <ApproveCommissionButton recordId={r.id} />}
-                      <AdjustCommissionCell recordId={r.id} currentAmount={r.commission_amount} />
+                      <AdjustCommissionCell
+                        recordId={r.id}
+                        currentAmount={r.commission_amount}
+                        customerName={r.customer_name}
+                        customerPhoneMasked={r.customer_phone_masked}
+                        priorSettlementDate={r.prior_settlement_date}
+                      />
                     </div>
                   </TableCell>
                 </TableRow>

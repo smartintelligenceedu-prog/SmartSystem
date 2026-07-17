@@ -85,6 +85,12 @@ $$;
 -- Registration Module still holds by default, this is an opt-in per rule).
 -- ----------------------------------------------------------------------------
 
+-- p_customer_id (migration 035, default null): only the introducer branch
+-- below passes it — every other trigger_type (recruitment, etc.) leaves it
+-- null. Backs the phone-number duplicate guard and the commission-page
+-- customer/phone display, both of which need to know which customer an
+-- introducer commission was for without reconstructing it from
+-- source_transaction_id each time.
 create or replace function insert_commission(
   p_trigger_type text,
   p_order_id uuid,
@@ -95,7 +101,8 @@ create or replace function insert_commission(
   p_rate numeric,
   p_flat_amount numeric,
   p_cap numeric,
-  p_base numeric
+  p_base numeric,
+  p_customer_id uuid default null
 )
 returns void
 language plpgsql
@@ -115,12 +122,14 @@ begin
 
   insert into commission_records (
     trigger_type, source_transaction_type, source_transaction_id,
-    level_number, analyst_id, introducer_id, calculation_type, rate_applied, base_amount, commission_amount
+    level_number, analyst_id, introducer_id, calculation_type, rate_applied, base_amount, commission_amount,
+    customer_id
   ) values (
     p_trigger_type, 'order', p_order_id,
     p_level, p_analyst_id, p_introducer_id, p_calculation_type,
     case when p_calculation_type = 'flat' then null else p_rate end,
-    p_base, v_amount
+    p_base, v_amount,
+    p_customer_id
   );
 end;
 $$;
@@ -207,6 +216,7 @@ declare
   v_intro_payee uuid;
   v_item order_items%rowtype;
   v_intro_row record;
+  v_customer_phone text;
   i int;
   j int;
 begin
@@ -328,6 +338,11 @@ begin
   -- this as wrong after reviewing live demo data.) Level 1 = the direct
   -- introducer, level 2 = that introducer's own upline introducer (if any,
   -- via introducer_sponsor_at_level() — migration 014).
+  --
+  -- Migration 035: also blocks by phone number, not just customer_id — a
+  -- same-person re-registered under a second customer record (different
+  -- customer_id) would otherwise slip past the check below and pay the
+  -- introducer twice for what is really one person's repeat visit.
   -- --------------------------------------------------------------------
   for v_intro_row in
     select oi.customer_id, c.acquired_via_introducer_id as introducer_id, sum(oi.subtotal) as total_subtotal
@@ -351,6 +366,26 @@ begin
       continue;
     end if;
 
+    -- Skip if this customer's phone number already has an approved/paid
+    -- introducer commission on record under a DIFFERENT customer_id.
+    select i.phone into v_customer_phone
+    from customers c2
+    join individuals i on i.party_id = c2.party_id
+    where c2.id = v_intro_row.customer_id;
+
+    if v_customer_phone is not null and v_customer_phone <> '' and exists (
+      select 1
+      from commission_records cr
+      join customers c3 on c3.id = cr.customer_id
+      join individuals i2 on i2.party_id = c3.party_id
+      where cr.trigger_type = 'introducer'
+        and cr.status in ('approved', 'paid')
+        and cr.customer_id <> v_intro_row.customer_id
+        and i2.phone = v_customer_phone
+    ) then
+      continue;
+    end if;
+
     for j in 1..2 loop
       if j = 1 then
         v_intro_payee := v_intro_row.introducer_id;
@@ -363,7 +398,8 @@ begin
       if v_rule.calculation_type is not null then
         perform insert_commission(
           'introducer', new.id, j, null, v_intro_payee,
-          v_rule.calculation_type, v_rule.rate_percent, v_rule.flat_amount, v_rule.cap_amount, v_intro_row.total_subtotal
+          v_rule.calculation_type, v_rule.rate_percent, v_rule.flat_amount, v_rule.cap_amount, v_intro_row.total_subtotal,
+          v_intro_row.customer_id
         );
       end if;
     end loop;

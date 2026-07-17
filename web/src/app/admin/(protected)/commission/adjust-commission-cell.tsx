@@ -10,7 +10,19 @@ function formatMYR(amount: number) {
   return new Intl.NumberFormat("ms-MY", { style: "currency", currency: "MYR" }).format(amount);
 }
 
-export function AdjustCommissionCell({ recordId, currentAmount }: { recordId: string; currentAmount: number }) {
+export function AdjustCommissionCell({
+  recordId,
+  currentAmount,
+  customerName,
+  customerPhoneMasked,
+  priorSettlementDate,
+}: {
+  recordId: string;
+  currentAmount: number;
+  customerName?: string | null;
+  customerPhoneMasked?: string | null;
+  priorSettlementDate?: string | null;
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [editing, setEditing] = useState(false);
@@ -28,6 +40,17 @@ export function AdjustCommissionCell({ recordId, currentAmount }: { recordId: st
 
   return (
     <div className="flex flex-col gap-1">
+      {customerName && (
+        <p className="text-xs text-muted-foreground">
+          顾客：{customerName}
+          {customerPhoneMasked && ` ${customerPhoneMasked}`}
+          {priorSettlementDate && (
+            <span className="ml-1 text-amber-600">
+              ⚠ 该手机号已于 {new Date(priorSettlementDate).toLocaleDateString("zh-CN")} 结算过
+            </span>
+          )}
+        </p>
+      )}
       <div className="flex items-center gap-1">
         <Input
           type="number"
