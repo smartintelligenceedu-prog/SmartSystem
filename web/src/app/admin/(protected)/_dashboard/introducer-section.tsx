@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { CopyLinkButton } from "../_components/copy-link-button";
 
 function formatMYR(amount: number) {
   return new Intl.NumberFormat("ms-MY", { style: "currency", currency: "MYR" }).format(amount);
@@ -26,7 +27,7 @@ export async function IntroducerSection({ introducerId }: { introducerId: string
   const supabase = await createServerSupabaseClient();
 
   const [{ data: introducer }, { data: summaryRows }, { data: monthlyRows }, { data: history }] = await Promise.all([
-    supabase.from("introducers").select("referral_code").eq("id", introducerId).maybeSingle(),
+    supabase.from("introducers").select("referral_code, assigned_analyst_id").eq("id", introducerId).maybeSingle(),
     supabase.rpc("introducer_summary", { for_introducer_id: introducerId }),
     supabase.rpc("introducer_monthly_summary", { for_introducer_id: introducerId }),
     supabase
@@ -49,11 +50,19 @@ export async function IntroducerSection({ introducerId }: { introducerId: string
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-medium tracking-wide text-muted-foreground uppercase">引荐概况（Introducer）</h2>
         {introducer?.referral_code && (
-          <p className="text-sm text-muted-foreground">
-            我的推荐码：<span className="font-mono font-medium text-foreground">{introducer.referral_code}</span>
-          </p>
+          <div className="flex items-center gap-3">
+            <p className="text-sm text-muted-foreground">
+              我的推荐码：<span className="font-mono font-medium text-foreground">{introducer.referral_code}</span>
+            </p>
+            <CopyLinkButton path={`/refer/${introducer.referral_code}`} label="复制转介顾客连结" />
+          </div>
         )}
       </div>
+      {introducer?.referral_code && !introducer.assigned_analyst_id && (
+        <p className="text-xs text-muted-foreground">
+          尚未指派负责分析师，透过转介连结留资料的顾客暂时不会自动分派跟进人 — 请联系后台设置。
+        </p>
+      )}
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <StatCard label="Total Introduced Customers" value={String(summary.total_introduced_customers)} />

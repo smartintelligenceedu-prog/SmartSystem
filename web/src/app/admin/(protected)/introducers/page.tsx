@@ -1,10 +1,11 @@
 import { redirect } from "next/navigation";
 import { getPortalUserContext } from "@/lib/auth/context";
 import { isBackOfficeRole } from "@/lib/auth/roles";
-import { listIntroducers, listActiveIntroducersForSponsorPicker } from "./data";
+import { listIntroducers, listActiveIntroducersForSponsorPicker, listApprovedAnalystsForAssignment } from "./data";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { IntroducerLoginCell } from "./introducer-login-cell";
+import { AssignedAnalystCell } from "./assigned-analyst-cell";
 import { CreateIntroducerForm } from "./create-introducer-form";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +20,11 @@ export default async function IntroducersPage() {
     redirect("/admin");
   }
 
-  const [introducers, sponsors] = await Promise.all([listIntroducers(), listActiveIntroducersForSponsorPicker()]);
+  const [introducers, sponsors, analysts] = await Promise.all([
+    listIntroducers(),
+    listActiveIntroducersForSponsorPicker(),
+    listApprovedAnalystsForAssignment(),
+  ]);
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">
@@ -38,6 +43,7 @@ export default async function IntroducersPage() {
               <TableHead>联络方式</TableHead>
               <TableHead>上线引荐人</TableHead>
               <TableHead>推荐码</TableHead>
+              <TableHead>负责分析师</TableHead>
               <TableHead>已引荐顾客</TableHead>
               <TableHead>累计奖金</TableHead>
               <TableHead>状态</TableHead>
@@ -47,7 +53,7 @@ export default async function IntroducersPage() {
           <TableBody>
             {introducers.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="text-center text-muted-foreground">
+                <TableCell colSpan={9} className="text-center text-muted-foreground">
                   尚未建立任何引荐人
                 </TableCell>
               </TableRow>
@@ -61,6 +67,14 @@ export default async function IntroducersPage() {
                 </TableCell>
                 <TableCell className="text-muted-foreground">{row.sponsor_name ?? "—"}</TableCell>
                 <TableCell className="font-mono text-xs text-muted-foreground">{row.referral_code}</TableCell>
+                <TableCell>
+                  <AssignedAnalystCell
+                    introducerId={row.introducer_id}
+                    currentAnalystId={row.assigned_analyst_id}
+                    currentAnalystName={row.assigned_analyst_name}
+                    analysts={analysts}
+                  />
+                </TableCell>
                 <TableCell className="tabular-nums">{row.total_introduced_customers}</TableCell>
                 <TableCell className="tabular-nums">{formatMYR(row.total_bonus)}</TableCell>
                 <TableCell>
@@ -79,7 +93,7 @@ export default async function IntroducersPage() {
 
       <div>
         <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">新增引荐人</h2>
-        <CreateIntroducerForm sponsors={sponsors} />
+        <CreateIntroducerForm sponsors={sponsors} analysts={analysts} />
       </div>
     </div>
   );

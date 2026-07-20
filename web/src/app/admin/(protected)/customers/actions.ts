@@ -51,6 +51,7 @@ const customerFormSchema = z.object({
   marital_status: z.enum(["single", "married", "divorced", "widowed", "other"]).optional().or(z.literal("")),
   acquired_via_introducer_id: z.string().uuid().optional().or(z.literal("")),
   children_json: z.string().optional().or(z.literal("")),
+  lead_id: z.string().uuid().optional().or(z.literal("")),
 });
 
 function parseCustomerForm(formData: FormData) {
@@ -64,6 +65,7 @@ function parseCustomerForm(formData: FormData) {
     marital_status: formData.get("marital_status") || undefined,
     acquired_via_introducer_id: formData.get("acquired_via_introducer_id") || undefined,
     children_json: formData.get("children_json") || undefined,
+    lead_id: formData.get("lead_id") || undefined,
   });
 }
 
@@ -158,6 +160,18 @@ export async function createCustomer(_prev: CustomerFormState, formData: FormDat
 
   await replaceChildren(admin, customer.id, children);
   await logCustomerActivity(admin, auth.userId, customer.id, "created");
+
+  // Lead-to-customer conversion (see /refer/[code] intake flow): only the
+  // lead's own assigned analyst or back office may close it out, and only
+  // if it isn't already converted — a stale/reused lead_id in the URL
+  // should silently no-op rather than reassign someone else's lead.
+  if (input.lead_id) {
+    const { data: lead } = await admin.from("leads").select("id, assigned_analyst_id, status").eq("id", input.lead_id).maybeSingle();
+    if (lead && lead.status !== "converted" && (auth.isBackOffice || lead.assigned_analyst_id === auth.analystId)) {
+      await admin.from("leads").update({ status: "converted", converted_customer_id: customer.id }).eq("id", input.lead_id);
+      revalidatePath("/admin/leads");
+    }
+  }
 
   revalidatePath("/admin/customers");
   return { status: "success", customerId: customer.id };

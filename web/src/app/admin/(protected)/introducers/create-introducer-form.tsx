@@ -10,7 +10,13 @@ import { adminCreateIntroducer, type CreateIntroducerState } from "./actions";
 
 const initialState: CreateIntroducerState = { status: "idle" };
 
-export function CreateIntroducerForm({ sponsors }: { sponsors: { id: string; name: string }[] }) {
+export function CreateIntroducerForm({
+  sponsors,
+  analysts,
+}: {
+  sponsors: { id: string; name: string }[];
+  analysts: { id: string; name: string }[];
+}) {
   const [state, formAction, isPending] = useActionState(adminCreateIntroducer, initialState);
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -56,6 +62,24 @@ export function CreateIntroducerForm({ sponsors }: { sponsors: { id: string; nam
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">如果这位引荐人是被别的引荐人介绍进来的，选择上线可以让上线也拿到 Level 2 佣金。</p>
+            </div>
+          )}
+          {analysts.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="assigned_analyst_id">负责分析师（选填）</Label>
+              <Select name="assigned_analyst_id" items={analysts.map((a) => ({ value: a.id, label: a.name }))}>
+                <SelectTrigger id="assigned_analyst_id" className="w-full">
+                  <SelectValue placeholder="不指定可留空" />
+                </SelectTrigger>
+                <SelectContent>
+                  {analysts.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">这位引荐人发出的「转介顾客」连结，顾客留资料后会自动分派给这位分析师跟进。</p>
             </div>
           )}
           <div className="grid grid-cols-3 gap-4">

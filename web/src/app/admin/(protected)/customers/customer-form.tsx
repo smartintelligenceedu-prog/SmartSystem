@@ -54,11 +54,13 @@ export function CustomerForm({
   customerId,
   introducers,
   initialValues,
+  leadId,
 }: {
   mode: "create" | "edit";
   customerId?: string;
   introducers: { id: string; name: string }[];
   initialValues?: CustomerFormInitialValues;
+  leadId?: string;
 }) {
   const router = useRouter();
   const action = mode === "edit" && customerId ? updateCustomer.bind(null, customerId) : createCustomer;
@@ -86,6 +88,7 @@ export function CustomerForm({
       <CardContent className="pt-6">
         <form action={formAction} className="space-y-6">
           <input type="hidden" name="children_json" value={JSON.stringify(children)} />
+          {leadId && <input type="hidden" name="lead_id" value={leadId} />}
 
           <section className="space-y-4">
             <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{t("customer.form.section.basic")}</p>

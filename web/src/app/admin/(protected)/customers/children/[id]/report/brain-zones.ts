@@ -20,6 +20,27 @@ export const BRAIN_ZONES = [
 
 export type BrainZoneField = (typeof BRAIN_ZONES)[number]["field"];
 
+// A zone's percentage share (its QC value ÷ sum of all 10 zones' QC values
+// x 100) auto-suggests strength (>= 9%) or weakness (< 9%, "within average
+// standard" per the reference material) — but 'potential' (开放性潜能) is
+// never auto-assigned, only ever a manual analyst call per zone (migration
+// 036). See ZONE_STRENGTH_THRESHOLD_PCT below for the cutoff.
+export const ZONE_CATEGORIES = ["strength", "weakness", "potential"] as const;
+export type ZoneCategory = (typeof ZONE_CATEGORIES)[number];
+export const ZONE_STRENGTH_THRESHOLD_PCT = 9;
+
+export function autoZoneCategory(percentage: number): "strength" | "weakness" {
+  return percentage >= ZONE_STRENGTH_THRESHOLD_PCT ? "strength" : "weakness";
+}
+
+// score_i / sum(all 10 scores) * 100, rounded to 2dp — matches how the
+// reference report's displayed percentages were reverse-derived (see the
+// 2026-07-17 conversation): total is "脑活跃度", not a fixed 100-point scale.
+export function zonePercentage(score: number, total: number): number {
+  if (total <= 0) return 0;
+  return Math.round((score / total) * 10000) / 100;
+}
+
 export const LEARNING_STYLES = [
   { value: "motivation", nameKey: "tqc.learning_style.motivation", icon: "\u{1F525}" },
   { value: "thinking", nameKey: "tqc.learning_style.thinking", icon: "\u{1F9E0}" },

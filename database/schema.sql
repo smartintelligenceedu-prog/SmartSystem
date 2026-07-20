@@ -170,6 +170,10 @@ create table introducers (
   bank_account_name text,
   bank_account_no text,
   status text not null default 'active' check (status in ('active', 'inactive')),
+  -- Migration 038 — which analyst this introducer's referred leads (see
+  -- `leads` table below) route to. Nullable: back office assigns this per
+  -- introducer, not required at creation time.
+  assigned_analyst_id uuid references analysts(id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -227,6 +231,10 @@ create table leads (
   email text,
   source text,
   assigned_analyst_id uuid references analysts(id),
+  -- Migration 038 — which introducer sent this lead, if any (public
+  -- /refer/[code] link). Carries commission attribution through to
+  -- customers.acquired_via_introducer_id once the lead is converted.
+  introducer_id uuid references introducers(id),
   status text not null default 'new' check (status in ('new', 'contacted', 'converted', 'lost')),
   converted_customer_id uuid, -- FK added after customers table exists
   created_at timestamptz not null default now()
@@ -316,10 +324,19 @@ create table tqc_one_page_reports (
   personality_type text not null,
 
   tqc_activity_score numeric(6,2) not null check (tqc_activity_score >= 0),
-  tqc_stars int not null check (tqc_stars between 0 and 5),
+  -- Migration 037 — no longer collected on the entry form; nullable so
+  -- existing rows' data isn't destroyed, just stops being required.
+  tqc_stars int check (tqc_stars between 0 and 5),
 
   -- 'motivation' | 'thinking' | 'tactile' | 'auditory' | 'visual'
   learning_styles text[] not null default '{}',
+
+  -- Migration 036 — analyst's final 相对优势/相对弱势/开放性潜能 pick per
+  -- zone, e.g. {"brain_zone_a_organization": "strength", ...}. Defaults to
+  -- '{}'; a zone missing from the map falls back to the auto strength/
+  -- weakness threshold split in the app layer (see report-view.tsx) rather
+  -- than storing a value for every zone on every row.
+  zone_categories jsonb not null default '{}'::jsonb,
 
   analyst_summary text,
 

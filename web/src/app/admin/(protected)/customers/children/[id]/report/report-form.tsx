@@ -9,7 +9,16 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { t } from "@/lib/i18n";
 import { saveOnePageReport, type SaveOnePageReportState } from "./actions";
-import { BRAIN_ZONES, LEARNING_STYLES, PERSONALITY_TYPES, type LearningStyleValue } from "./brain-zones";
+import {
+  BRAIN_ZONES,
+  LEARNING_STYLES,
+  PERSONALITY_TYPES,
+  ZONE_CATEGORIES,
+  autoZoneCategory,
+  zonePercentage,
+  type LearningStyleValue,
+  type ZoneCategory,
+} from "./brain-zones";
 
 const initialState: SaveOnePageReportState = { status: "idle" };
 
@@ -30,9 +39,22 @@ export function ReportForm({
 }) {
   const [state, formAction, isPending] = useActionState(saveOnePageReport, initialState);
   const [selectedStyles, setSelectedStyles] = useState<LearningStyleValue[]>([]);
+  // Mirrors the (uncontrolled) score inputs purely to compute each zone's
+  // live percentage-of-total and the suggested strength/weakness category —
+  // the scores themselves still submit via the inputs' own `name` attribute,
+  // not from this state. manualCategory only holds zones the analyst has
+  // explicitly clicked a category for; anything not in there keeps following
+  // the live auto-suggestion as other zones' scores change.
+  const [scores, setScores] = useState<Record<string, number>>({});
+  const [manualCategory, setManualCategory] = useState<Partial<Record<string, ZoneCategory>>>({});
 
   function toggleStyle(value: LearningStyleValue) {
     setSelectedStyles((prev) => (prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]));
+  }
+
+  const total = Object.values(scores).reduce((sum, v) => sum + (Number.isFinite(v) ? v : 0), 0);
+  function categoryFor(field: string): ZoneCategory {
+    return manualCategory[field] ?? autoZoneCategory(zonePercentage(scores[field] ?? 0, total));
   }
 
   return (
@@ -65,19 +87,52 @@ export function ReportForm({
 
           <div>
             <p className="mb-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">{t("tqc.form.zones_section")}</p>
+            <p className="mb-3 text-xs text-muted-foreground">{t("tqc.form.zones_category_hint")}</p>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
-              {BRAIN_ZONES.map((zone) => (
-                <div key={zone.field} className="space-y-2">
-                  <Label htmlFor={zone.field}>{t(zone.nameKey as Parameters<typeof t>[0])}</Label>
-                  <Input id={zone.field} name={zone.field} type="number" step="0.01" min="0" max="100" required />
-                </div>
-              ))}
+              {BRAIN_ZONES.map((zone) => {
+                const pct = zonePercentage(scores[zone.field] ?? 0, total);
+                const category = categoryFor(zone.field);
+                return (
+                  <div key={zone.field} className="space-y-2 rounded-md border border-neutral-200 p-2">
+                    <Label htmlFor={zone.field}>{t(zone.nameKey as Parameters<typeof t>[0])}</Label>
+                    <Input
+                      id={zone.field}
+                      name={zone.field}
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="100"
+                      required
+                      onChange={(e) => {
+                        const value = Number(e.target.value);
+                        setScores((prev) => ({ ...prev, [zone.field]: Number.isFinite(value) ? value : 0 }));
+                      }}
+                    />
+                    <p className="text-xs text-muted-foreground tabular-nums">{pct.toFixed(2)}%</p>
+                    <div className="space-y-1">
+                      {ZONE_CATEGORIES.map((option) => (
+                        <label key={option} className="flex items-center gap-1.5 text-xs">
+                          <input
+                            type="radio"
+                            name={`zone_category_${zone.field}`}
+                            value={option}
+                            checked={category === option}
+                            onChange={() => setManualCategory((prev) => ({ ...prev, [zone.field]: option }))}
+                            className="size-3"
+                          />
+                          {t(`tqc.zone_category.${option}` as Parameters<typeof t>[0])}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
           <div>
             <p className="mb-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">{t("tqc.form.personality_section")}</p>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="personality_type">{t("tqc.form.personality_type_label")}</Label>
                 <Select name="personality_type" items={PERSONALITY_TYPES.map((p) => ({ value: p.value, label: t(p.nameKey as Parameters<typeof t>[0]) }))}>
@@ -96,10 +151,6 @@ export function ReportForm({
               <div className="space-y-2">
                 <Label htmlFor="tqc_activity_score">{t("tqc.form.activity_score_label")}</Label>
                 <Input id="tqc_activity_score" name="tqc_activity_score" type="number" step="0.01" min="0" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="tqc_stars">{t("tqc.form.stars_label")}</Label>
-                <Input id="tqc_stars" name="tqc_stars" type="number" step="1" min="0" max="5" required />
               </div>
             </div>
           </div>

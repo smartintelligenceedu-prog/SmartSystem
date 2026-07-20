@@ -31,6 +31,7 @@ export function Sidebar({ context }: { context: PortalUserContext }) {
       : []),
     ...(hasAnalyst || isBackOffice ? [{ href: "/admin/sales-orders", label: "销售订单" }] : []),
     ...(hasAnalyst || isBackOffice ? [{ href: "/admin/schedule", label: t("schedule.nav.label") }] : []),
+    ...(hasAnalyst || isBackOffice ? [{ href: "/admin/leads", label: t("leads.nav.label") }] : []),
     ...(hasAnalyst ? [{ href: "/admin/reports", label: "我的报告" }] : isBackOffice ? [{ href: "/admin/reports", label: "报告交付状态" }] : []),
     ...(hasAnalyst || context.introducerId || isBackOffice ? [{ href: "/admin/commission", label: "佣金" }] : []),
     ...(hasAnalyst || context.introducerId || isFinance ? [{ href: "/admin/payroll", label: t("payroll.nav.label") }] : []),

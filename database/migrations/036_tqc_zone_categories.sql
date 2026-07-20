@@ -1,0 +1,31 @@
+-- ============================================================================
+-- Migration 036 — TQC brain-zone categorization overhaul (2026-07-17, CTO
+-- request): the one-page report's "相对优势/发展潜力/相对弱势" section was
+-- always the top-3/middle-4/bottom-3 zones by rank, no matter what the
+-- actual scores were — not how the real TQC methodology works. Per the
+-- CTO's reference material, each zone should be independently classified:
+--   - percentage = zone's QC value ÷ sum of all 10 zones' QC values × 100
+--   - >= 9%  -> 相对优势 (strength, red)
+--   - 6-8.99% -> 相对弱势 ("within average standard", blue)
+--   - 开放性潜能 (open potential, cyan/★) is NEVER auto-computed — it's a
+--     manual analyst call per zone (a zone can score reasonably high and
+--     still be flagged open-potential; the two aren't mutually exclusive by
+--     score alone, per the reference report's own example).
+--
+-- zone_categories stores the analyst's final per-zone choice (defaulting to
+-- the auto strength/weakness split in the UI, but always overridable,
+-- including flipping to 'potential') as one JSONB map instead of 10 new
+-- columns + 10 check constraints — matches how the app already treats all
+-- ten zones uniformly via the BRAIN_ZONES array, and keeps validation in
+-- the zod schema (app layer) rather than duplicating it in SQL.
+--
+-- Existing rows default to '{}' (empty map) — the report view already
+-- falls back to computing the same auto strength/weakness split for any
+-- zone missing from the map, so old reports render sensibly without a
+-- backfill (they just never show 开放性潜能 for zones nobody classified
+-- that way, which is correct — nobody made that call for them).
+--
+-- Self-contained + idempotent: every statement guarded, safe to rerun.
+-- ============================================================================
+
+alter table tqc_one_page_reports add column if not exists zone_categories jsonb not null default '{}'::jsonb;

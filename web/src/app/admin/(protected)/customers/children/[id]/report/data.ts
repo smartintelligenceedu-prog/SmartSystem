@@ -1,6 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { BRAIN_ZONES, type BrainZoneField } from "./brain-zones";
+import { BRAIN_ZONES, type BrainZoneField, type ZoneCategory } from "./brain-zones";
 
 export interface ChildContext {
   // Migration 028 — null when the subject is the customer themselves
@@ -73,9 +73,12 @@ export type OnePageReport = {
   right_brain_pct: number;
   personality_type: string;
   tqc_activity_score: number;
-  tqc_stars: number;
   learning_styles: string[];
   analyst_summary: string | null;
+  // Missing entries mean "nobody classified this zone manually" — the view
+  // falls back to the same auto strength/weakness split the form suggests,
+  // so old rows (pre-migration-036, always '{}') still render sensibly.
+  zone_categories: Partial<Record<BrainZoneField, ZoneCategory>>;
 } & Record<BrainZoneField, number>;
 
 const SELECT_COLUMNS = [
@@ -85,9 +88,9 @@ const SELECT_COLUMNS = [
   "right_brain_pct",
   "personality_type",
   "tqc_activity_score",
-  "tqc_stars",
   "learning_styles",
   "analyst_summary",
+  "zone_categories",
   ...BRAIN_ZONES.map((z) => z.field),
 ].join(", ");
 
@@ -106,9 +109,9 @@ async function getLatestOnePageReportBy(filter: { child_id: string } | { custome
     right_brain_pct: Number(row.right_brain_pct),
     personality_type: row.personality_type,
     tqc_activity_score: Number(row.tqc_activity_score),
-    tqc_stars: Number(row.tqc_stars),
     learning_styles: row.learning_styles ?? [],
     analyst_summary: row.analyst_summary,
+    zone_categories: (row.zone_categories as Partial<Record<BrainZoneField, ZoneCategory>>) ?? {},
   };
   for (const zone of BRAIN_ZONES) {
     result[zone.field] = Number(row[zone.field]);

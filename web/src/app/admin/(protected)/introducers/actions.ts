@@ -35,6 +35,7 @@ const createIntroducerSchema = z.object({
   bank_account_name: z.string().trim().optional(),
   bank_account_no: z.string().trim().optional(),
   sponsor_id: z.string().uuid().optional().or(z.literal("")),
+  assigned_analyst_id: z.string().uuid().optional().or(z.literal("")),
 });
 
 export type CreateIntroducerState =
@@ -57,6 +58,7 @@ export async function adminCreateIntroducer(
     bank_account_name: formData.get("bank_account_name") || undefined,
     bank_account_no: formData.get("bank_account_no") || undefined,
     sponsor_id: formData.get("sponsor_id") || undefined,
+    assigned_analyst_id: formData.get("assigned_analyst_id") || undefined,
   });
   if (!parsed.success) {
     return { status: "error", message: parsed.error.issues[0]?.message ?? "表单资料有误" };
@@ -86,11 +88,31 @@ export async function adminCreateIntroducer(
     bank_account_name: input.bank_account_name ?? null,
     bank_account_no: input.bank_account_no ?? null,
     status: "active",
+    assigned_analyst_id: input.assigned_analyst_id || null,
   });
   if (introducerError) return { status: "error", message: `建立引荐人失败：${introducerError.message}` };
 
   revalidatePath("/admin/introducers");
   return { status: "success" };
+}
+
+// Migration 038 — introducers previously had no assigned-analyst editor at
+// all (only set-once at creation). This lets back office set/change it for
+// existing introducers too, since the public /refer/[code] lead link needs
+// it to route leads anywhere.
+export async function adminUpdateIntroducerAssignedAnalyst(
+  introducerId: string,
+  analystId: string | null
+): Promise<{ ok: boolean; message: string }> {
+  const auth = await requireBackOfficeUserId();
+  if ("error" in auth) return { ok: false, message: auth.error };
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("introducers").update({ assigned_analyst_id: analystId }).eq("id", introducerId);
+  if (error) return { ok: false, message: `更新失败：${error.message}` };
+
+  revalidatePath("/admin/introducers");
+  return { ok: true, message: "已更新" };
 }
 
 export async function adminCreateIntroducerLogin(

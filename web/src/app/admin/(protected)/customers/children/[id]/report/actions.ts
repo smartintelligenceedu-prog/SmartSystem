@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getChildContext, getCustomerSelfContext } from "./data";
-import { BRAIN_ZONES, LEARNING_STYLES, PERSONALITY_TYPE_VALUES } from "./brain-zones";
+import { BRAIN_ZONES, LEARNING_STYLES, PERSONALITY_TYPE_VALUES, ZONE_CATEGORIES } from "./brain-zones";
 import { t } from "@/lib/i18n";
 
 async function requireCallerContext(): Promise<{ analystId: string | null; isBackOffice: boolean } | { error: string }> {
@@ -25,6 +25,7 @@ async function requireCallerContext(): Promise<{ analystId: string | null; isBac
 }
 
 const scoreSchema = z.coerce.number().min(0, "分数必须介于 0-100 之间").max(100, "分数必须介于 0-100 之间");
+const zoneCategorySchema = z.enum(ZONE_CATEGORIES, { message: "请为每个脑区选择分类" });
 const learningStyleValues = LEARNING_STYLES.map((s) => s.value) as [string, ...string[]];
 
 const saveReportSchema = z.object({
@@ -35,10 +36,13 @@ const saveReportSchema = z.object({
   right_brain_pct: scoreSchema,
   personality_type: z.enum(PERSONALITY_TYPE_VALUES, { message: "请选择性格类型" }),
   tqc_activity_score: z.coerce.number().min(0, "脑活跃度分数不能为负数"),
-  tqc_stars: z.coerce.number().int().min(0).max(5, "星级必须介于 0-5 之间"),
   learning_styles: z.array(z.enum(learningStyleValues)),
   analyst_summary: z.string().trim().optional(),
-  ...Object.fromEntries(BRAIN_ZONES.map((z) => [z.field, scoreSchema])),
+  ...Object.fromEntries(BRAIN_ZONES.map((zone) => [zone.field, scoreSchema])),
+  // Loop variable deliberately not named `z` here — this codebase's `z` import
+  // is the zod namespace, and `zoneCategorySchema` (built from it) is
+  // referenced inside this same map callback.
+  ...Object.fromEntries(BRAIN_ZONES.map((zone) => [`zone_category_${zone.field}`, zoneCategorySchema])),
 });
 
 export type SaveOnePageReportState = { status: "idle" } | { status: "error"; message: string } | { status: "success" };
@@ -83,16 +87,26 @@ export async function saveOnePageReport(_prev: SaveOnePageReportState, formData:
     right_brain_pct: formData.get("right_brain_pct"),
     personality_type: formData.get("personality_type"),
     tqc_activity_score: formData.get("tqc_activity_score"),
-    tqc_stars: formData.get("tqc_stars"),
     learning_styles: learningStyles,
     analyst_summary: formData.get("analyst_summary") || undefined,
-    ...Object.fromEntries(BRAIN_ZONES.map((z) => [z.field, formData.get(z.field)])),
+    ...Object.fromEntries(BRAIN_ZONES.map((zone) => [zone.field, formData.get(zone.field)])),
+    ...Object.fromEntries(BRAIN_ZONES.map((zone) => [`zone_category_${zone.field}`, formData.get(`zone_category_${zone.field}`)])),
   });
   if (!parsed.success) {
     return { status: "error", message: parsed.error.issues[0]?.message ?? "表单资料有误" };
   }
 
-  const { child_id, customer_id, appointment_id, ...rest } = parsed.data;
+  // zone_category_<field> fields aren't real table columns — collapse them
+  // into the single zone_categories JSONB map the DB actually stores
+  // (migration 036) before spreading `rest` into the insert below.
+  const zoneCategories: Record<string, string> = {};
+  for (const zone of BRAIN_ZONES) {
+    zoneCategories[zone.field] = parsed.data[`zone_category_${zone.field}` as keyof typeof parsed.data] as unknown as string;
+  }
+  const { child_id, customer_id, appointment_id, ...restWithZoneCategoryKeys } = parsed.data;
+  const rest = Object.fromEntries(
+    Object.entries(restWithZoneCategoryKeys).filter(([key]) => !key.startsWith("zone_category_"))
+  ) as Omit<typeof restWithZoneCategoryKeys, `zone_category_${string}`>;
   const admin = createAdminClient();
 
   // The appointment must exist, belong to this subject, and still be
@@ -137,6 +151,7 @@ export async function saveOnePageReport(_prev: SaveOnePageReportState, formData:
     created_by_analyst_id: auth.analystId,
     ...rest,
     analyst_summary: rest.analyst_summary || null,
+    zone_categories: zoneCategories,
   });
   if (error) return { status: "error", message: `保存报告失败：${error.message}` };
 

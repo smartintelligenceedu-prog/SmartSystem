@@ -1,5 +1,5 @@
 import { t } from "@/lib/i18n";
-import { BRAIN_ZONES, LEARNING_STYLES, PERSONALITY_TYPES, type BrainZoneField } from "./brain-zones";
+import { BRAIN_ZONES, LEARNING_STYLES, PERSONALITY_TYPES, autoZoneCategory, zonePercentage, type BrainZoneField, type ZoneCategory } from "./brain-zones";
 import type { ChildContext, OnePageReport } from "./data";
 
 function formatDate(iso: string | null) {
@@ -7,21 +7,38 @@ function formatDate(iso: string | null) {
   return new Date(iso).toLocaleDateString("en-MY", { year: "numeric", month: "long", day: "numeric" });
 }
 
-function scoreColor(score: number) {
-  const clamped = Math.max(0, Math.min(100, score));
-  const hue = (clamped / 100) * 120; // 0 = red, 120 = green
-  return `hsl(${hue}, 70%, 88%)`;
-}
+// 相对优势=红, 相对弱势=蓝 ("within average standard"), 开放性潜能=青 — per
+// the reference TQC material (2026-07-17), replacing the old score-gradient
+// coloring which didn't reflect this categorical scheme at all.
+const CATEGORY_CELL_STYLE: Record<ZoneCategory, string> = {
+  strength: "bg-red-100 border-red-300",
+  weakness: "bg-blue-100 border-blue-300",
+  potential: "bg-cyan-100 border-cyan-300",
+};
+const CATEGORY_TEXT_STYLE: Record<ZoneCategory, string> = {
+  strength: "text-red-700",
+  weakness: "text-blue-700",
+  potential: "text-cyan-700",
+};
 
 export function ReportView({ child, report }: { child: ChildContext; report: OnePageReport }) {
   const zoneEntries = BRAIN_ZONES.map((zone) => ({
     ...zone,
     score: report[zone.field as BrainZoneField],
   }));
-  const sorted = [...zoneEntries].sort((a, b) => b.score - a.score);
-  const strengths = sorted.slice(0, 3);
-  const potential = sorted.slice(3, 7);
-  const weaknesses = sorted.slice(7, 10);
+  const total = zoneEntries.reduce((sum, z) => sum + z.score, 0);
+  const categorizedZones = zoneEntries.map((zone) => {
+    const pct = zonePercentage(zone.score, total);
+    // A zone missing from zone_categories (every report saved before
+    // migration 036) falls back to the same auto strength/weakness split
+    // the entry form suggests — nobody ever manually flagged it 开放性潜能,
+    // so it can't retroactively show as one.
+    const category = report.zone_categories[zone.field as BrainZoneField] ?? autoZoneCategory(pct);
+    return { ...zone, pct, category };
+  });
+  const strengths = categorizedZones.filter((z) => z.category === "strength");
+  const weaknesses = categorizedZones.filter((z) => z.category === "weakness");
+  const potential = categorizedZones.filter((z) => z.category === "potential");
 
   const personality = PERSONALITY_TYPES.find((p) => p.value === report.personality_type);
 
@@ -61,14 +78,13 @@ export function ReportView({ child, report }: { child: ChildContext; report: One
 
           <p className="mt-5 text-xs font-bold tracking-wide text-neutral-500 uppercase">{t("tqc.report.zones_title")}</p>
           <div className="mt-2 grid grid-cols-5 gap-1.5">
-            {zoneEntries.map((zone) => (
-              <div
-                key={zone.field}
-                className="rounded border border-neutral-300 p-1.5 text-center"
-                style={{ backgroundColor: scoreColor(zone.score) }}
-              >
+            {categorizedZones.map((zone) => (
+              <div key={zone.field} className={`rounded border p-1.5 text-center ${CATEGORY_CELL_STYLE[zone.category]}`}>
                 <p className="truncate text-[10px] font-medium text-neutral-700">{t(zone.nameKey as Parameters<typeof t>[0])}</p>
-                <p className="text-sm font-bold tabular-nums">{zone.score}</p>
+                <p className={`text-sm font-bold tabular-nums ${CATEGORY_TEXT_STYLE[zone.category]}`}>
+                  {zone.category === "potential" ? "★" : `${zone.pct.toFixed(2)}%`}
+                </p>
+                <p className="text-[9px] text-neutral-500 tabular-nums">QC: {zone.score}</p>
               </div>
             ))}
           </div>
@@ -76,8 +92,6 @@ export function ReportView({ child, report }: { child: ChildContext; report: One
           <div className="mt-5 flex items-center gap-3 text-sm">
             <span className="text-neutral-500">{t("tqc.report.activity_score_label")}:</span>
             <span className="font-bold tabular-nums">{report.tqc_activity_score}</span>
-            <span className="text-neutral-500">{t("tqc.report.stars_label")}:</span>
-            <span className="font-bold">{"★".repeat(report.tqc_stars)}{"☆".repeat(5 - report.tqc_stars)}</span>
           </div>
         </div>
 
@@ -99,32 +113,33 @@ export function ReportView({ child, report }: { child: ChildContext; report: One
       <div className="mt-6 grid grid-cols-2 gap-6">
         <div className="space-y-3 text-sm">
           <div>
-            <p className="text-xs font-bold tracking-wide text-emerald-700 uppercase">{t("tqc.report.strengths_title")}</p>
+            <p className="text-xs font-bold tracking-wide text-red-700 uppercase">{t("tqc.report.strengths_title")}</p>
             <ul className="mt-1 list-inside list-disc">
+              {strengths.length === 0 && <li className="list-none text-neutral-400">—</li>}
               {strengths.map((z) => (
                 <li key={z.field}>
-                  {t(z.nameKey as Parameters<typeof t>[0])} ({z.score})
+                  {t(z.nameKey as Parameters<typeof t>[0])} ({z.pct.toFixed(2)}%)
                 </li>
               ))}
             </ul>
           </div>
           <div>
-            <p className="text-xs font-bold tracking-wide text-amber-700 uppercase">{t("tqc.report.potential_title")}</p>
+            <p className="text-xs font-bold tracking-wide text-blue-700 uppercase">{t("tqc.report.weaknesses_title")}</p>
             <ul className="mt-1 list-inside list-disc">
-              {potential.map((z) => (
-                <li key={z.field}>
-                  {t(z.nameKey as Parameters<typeof t>[0])} ({z.score})
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div>
-            <p className="text-xs font-bold tracking-wide text-red-700 uppercase">{t("tqc.report.weaknesses_title")}</p>
-            <ul className="mt-1 list-inside list-disc">
+              {weaknesses.length === 0 && <li className="list-none text-neutral-400">—</li>}
               {weaknesses.map((z) => (
                 <li key={z.field}>
-                  {t(z.nameKey as Parameters<typeof t>[0])} ({z.score})
+                  {t(z.nameKey as Parameters<typeof t>[0])} ({z.pct.toFixed(2)}%)
                 </li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <p className="text-xs font-bold tracking-wide text-cyan-700 uppercase">{t("tqc.report.potential_title")}</p>
+            <ul className="mt-1 list-inside list-disc">
+              {potential.length === 0 && <li className="list-none text-neutral-400">—</li>}
+              {potential.map((z) => (
+                <li key={z.field}>{t(z.nameKey as Parameters<typeof t>[0])} ★</li>
               ))}
             </ul>
           </div>
