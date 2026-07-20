@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent } from "@/components/ui/card";
+import { t } from "@/lib/i18n";
 
 // PIC is scaffolded but not fully activated yet per the Phase 3 scope
 // decision — channel_campaigns exists in the schema (from the Registration
@@ -12,13 +13,19 @@ export async function PicSection({ analystId }: { analystId: string }) {
     .select("id", { count: "exact", head: true })
     .eq("pic_analyst_id", analystId);
 
+  const [title, descriptionPrefix, descriptionSuffix] = await Promise.all([
+    t("dashboard.pic.title"),
+    t("dashboard.pic.description_prefix"),
+    t("dashboard.pic.description_suffix"),
+  ]);
+
   return (
     <section className="space-y-4">
-      <h2 className="text-sm font-medium tracking-wide text-muted-foreground uppercase">通路开发（PIC）</h2>
+      <h2 className="text-sm font-medium tracking-wide text-muted-foreground uppercase">{title}</h2>
       <Card>
         <CardContent className="pt-6">
           <p className="text-sm text-muted-foreground">
-            PIC 功能尚未完全启用。目前你名下有 <span className="font-medium text-foreground">{campaignCount ?? 0}</span> 个通路开发活动（校园/机构/roadshow）。完整的活动管理界面会在未来阶段开放。
+            {descriptionPrefix}<span className="font-medium text-foreground">{campaignCount ?? 0}</span>{descriptionSuffix}
           </p>
         </CardContent>
       </Card>

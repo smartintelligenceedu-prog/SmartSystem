@@ -4,37 +4,42 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { t } from "@/lib/i18n";
 
 async function requireBackOfficeUserId(): Promise<{ userId: string } | { error: string }> {
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "请先登入" };
+  if (!user) return { error: await t("finance.institutional.error.not_signed_in") };
 
   const { data: isBackOffice } = await supabase.rpc("is_back_office");
-  if (!isBackOffice) return { error: "没有权限执行此操作" };
+  if (!isBackOffice) return { error: await t("finance.institutional.error.no_permission") };
 
   const { data: userRow } = await supabase.from("users").select("id").eq("auth_user_id", user.id).single();
-  if (!userRow) return { error: "找不到对应的后台使用者资料" };
+  if (!userRow) return { error: await t("finance.institutional.error.no_user_row") };
 
   return { userId: userRow.id };
 }
 
-const createOrderSchema = z.object({
-  description: z.string().trim().min(2, "请输入订单描述"),
-  total_amount: z.coerce.number().positive("金额必须大于 0"),
-  quantity: z.coerce.number().int().positive("份数必须是大于 0 的整数"),
-  analyst_id: z.string().uuid().optional().or(z.literal("")),
-  institution_name: z.string().trim().min(2, "请输入机构名称"),
-  ssm_number: z.string().trim().optional(),
-  billing_address_line1: z.string().trim().min(2, "请输入开票地址"),
-  billing_address_line2: z.string().trim().optional(),
-  billing_city: z.string().trim().optional(),
-  billing_state: z.string().trim().optional(),
-  billing_postcode: z.string().trim().optional(),
-  institution_phone: z.string().trim().optional(),
-});
+// Built per-call, not a module-scope constant — see the identical note in
+// customers/actions.ts's buildCustomerFormSchema.
+async function buildCreateOrderSchema() {
+  return z.object({
+    description: z.string().trim().min(2, await t("finance.institutional.error.description_required")),
+    total_amount: z.coerce.number().positive(await t("finance.institutional.error.amount_positive")),
+    quantity: z.coerce.number().int().positive(await t("finance.institutional.error.quantity_positive")),
+    analyst_id: z.string().uuid().optional().or(z.literal("")),
+    institution_name: z.string().trim().min(2, await t("finance.institutional.error.institution_name_required")),
+    ssm_number: z.string().trim().optional(),
+    billing_address_line1: z.string().trim().min(2, await t("finance.institutional.error.billing_address_required")),
+    billing_address_line2: z.string().trim().optional(),
+    billing_city: z.string().trim().optional(),
+    billing_state: z.string().trim().optional(),
+    billing_postcode: z.string().trim().optional(),
+    institution_phone: z.string().trim().optional(),
+  });
+}
 
 export type CreateInstitutionalOrderState = { status: "idle" } | { status: "error"; message: string } | { status: "success" };
 
@@ -55,6 +60,7 @@ export async function createInstitutionalOrder(
   const auth = await requireBackOfficeUserId();
   if ("error" in auth) return { status: "error", message: auth.error };
 
+  const createOrderSchema = await buildCreateOrderSchema();
   const parsed = createOrderSchema.safeParse({
     description: formData.get("description"),
     total_amount: formData.get("total_amount"),
@@ -70,14 +76,16 @@ export async function createInstitutionalOrder(
     institution_phone: formData.get("institution_phone") || undefined,
   });
   if (!parsed.success) {
-    return { status: "error", message: parsed.error.issues[0]?.message ?? "表单资料有误" };
+    return { status: "error", message: parsed.error.issues[0]?.message ?? (await t("finance.institutional.error.invalid_form")) };
   }
   const input = parsed.data;
 
   const admin = createAdminClient();
 
   const { data: party, error: partyError } = await admin.from("parties").insert({ party_type: "organization" }).select("id").single();
-  if (partyError) return { status: "error", message: `建立机构资料失败：${partyError.message}` };
+  if (partyError) {
+    return { status: "error", message: `${await t("finance.institutional.error.create_institution_failed_prefix")}${partyError.message}` };
+  }
 
   const { error: orgError } = await admin.from("organizations").insert({
     party_id: party.id,
@@ -85,7 +93,9 @@ export async function createInstitutionalOrder(
     registration_no: input.ssm_number || null,
     phone: input.institution_phone || null,
   });
-  if (orgError) return { status: "error", message: `建立机构资料失败：${orgError.message}` };
+  if (orgError) {
+    return { status: "error", message: `${await t("finance.institutional.error.create_institution_failed_prefix")}${orgError.message}` };
+  }
 
   const { error: addressError } = await admin.from("addresses").insert({
     party_id: party.id,
@@ -95,7 +105,9 @@ export async function createInstitutionalOrder(
     state: input.billing_state || null,
     postcode: input.billing_postcode || null,
   });
-  if (addressError) return { status: "error", message: `建立开票地址失败：${addressError.message}` };
+  if (addressError) {
+    return { status: "error", message: `${await t("finance.institutional.error.create_billing_address_failed_prefix")}${addressError.message}` };
+  }
 
   const { data: order, error: orderError } = await admin
     .from("orders")
@@ -108,7 +120,7 @@ export async function createInstitutionalOrder(
     })
     .select("id")
     .single();
-  if (orderError) return { status: "error", message: `建立订单失败：${orderError.message}` };
+  if (orderError) return { status: "error", message: `${await t("finance.institutional.error.create_order_failed_prefix")}${orderError.message}` };
 
   // unit_price is derived for display only (invoice line items) — subtotal
   // stays the authoritative total_amount rather than unit_price * quantity,
@@ -123,7 +135,7 @@ export async function createInstitutionalOrder(
     subtotal: input.total_amount,
     analyst_id: input.analyst_id || null,
   });
-  if (itemError) return { status: "error", message: `建立订单项目失败：${itemError.message}` };
+  if (itemError) return { status: "error", message: `${await t("finance.institutional.error.create_item_failed_prefix")}${itemError.message}` };
 
   revalidatePath("/admin/finance/institutional");
   return { status: "success" };
@@ -141,7 +153,7 @@ export async function issueInvoice(orderId: string): Promise<{ ok: boolean; mess
 
   const admin = createAdminClient();
   const { data: order } = await admin.from("orders").select("id, total_amount, billing_mode").eq("id", orderId).maybeSingle();
-  if (!order) return { ok: false, message: "找不到这笔订单" };
+  if (!order) return { ok: false, message: await t("finance.institutional.error.order_not_found") };
 
   // Business validation (duplicate invoice, deposit conflict, order status)
   // is re-checked inside handle_invoice_issued() — this INSERT is the only
@@ -153,10 +165,10 @@ export async function issueInvoice(orderId: string): Promise<{ ok: boolean; mess
     invoice_type: "standard",
     status: "issued",
   });
-  if (error) return { ok: false, message: `开票失败：${error.message}` };
+  if (error) return { ok: false, message: `${await t("finance.institutional.error.issue_invoice_failed_prefix")}${error.message}` };
 
   revalidatePath("/admin/finance/institutional");
-  return { ok: true, message: "已开具发票" };
+  return { ok: true, message: await t("finance.institutional.success.invoice_issued") };
 }
 
 export async function issueFinalSettlementInvoice(orderId: string): Promise<{ ok: boolean; message: string }> {
@@ -165,7 +177,7 @@ export async function issueFinalSettlementInvoice(orderId: string): Promise<{ ok
 
   const admin = createAdminClient();
   const { data: order } = await admin.from("orders").select("id, total_amount").eq("id", orderId).maybeSingle();
-  if (!order) return { ok: false, message: "找不到这笔订单" };
+  if (!order) return { ok: false, message: await t("finance.institutional.error.order_not_found") };
 
   const { error } = await admin.from("invoices").insert({
     order_id: orderId,
@@ -174,10 +186,10 @@ export async function issueFinalSettlementInvoice(orderId: string): Promise<{ ok
     invoice_type: "final_settlement",
     status: "issued",
   });
-  if (error) return { ok: false, message: `开具结算发票失败：${error.message}` };
+  if (error) return { ok: false, message: `${await t("finance.institutional.error.issue_settlement_failed_prefix")}${error.message}` };
 
   revalidatePath("/admin/finance/institutional");
-  return { ok: true, message: "已开具结算发票" };
+  return { ok: true, message: await t("finance.institutional.success.settlement_issued") };
 }
 
 const paymentTypeSchema = z.enum(["deposit", "full_payment", "final_payment"]);
@@ -193,9 +205,9 @@ export async function recordPayment(
   if ("error" in auth) return { ok: false, message: auth.error };
 
   const parsedType = paymentTypeSchema.safeParse(paymentType);
-  if (!parsedType.success) return { ok: false, message: "无效的付款类型" };
-  if (!Number.isFinite(amount) || amount <= 0) return { ok: false, message: "金额必须大于 0" };
-  if (!method.trim()) return { ok: false, message: "请输入付款方式" };
+  if (!parsedType.success) return { ok: false, message: await t("finance.institutional.error.invalid_payment_type") };
+  if (!Number.isFinite(amount) || amount <= 0) return { ok: false, message: await t("finance.institutional.error.amount_positive") };
+  if (!method.trim()) return { ok: false, message: await t("finance.institutional.error.payment_method_required") };
 
   const admin = createAdminClient();
   const { error } = await admin.from("payments").insert({
@@ -205,8 +217,8 @@ export async function recordPayment(
     payment_type: parsedType.data,
     reference_no: referenceNo.trim() || null,
   });
-  if (error) return { ok: false, message: `登记收款失败：${error.message}` };
+  if (error) return { ok: false, message: `${await t("finance.institutional.error.record_payment_failed_prefix")}${error.message}` };
 
   revalidatePath("/admin/finance/institutional");
-  return { ok: true, message: "已登记收款" };
+  return { ok: true, message: await t("finance.institutional.success.payment_recorded") };
 }

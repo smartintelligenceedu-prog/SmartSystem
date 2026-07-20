@@ -2,7 +2,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { RegistrationKit } from "@/lib/types/registration";
 import { RegisterForm } from "./register-form";
 import { Logo } from "@/components/logo";
+import { LocaleSwitcher } from "@/components/locale-switcher";
 import { getCompanyInfo } from "@/app/admin/(protected)/settings/data";
+import { t } from "@/lib/i18n";
 
 // Kit pricing/availability is live data, not something to bake into the
 // static build — and this also avoids next build trying to execute the
@@ -24,7 +26,7 @@ async function getActiveKits(): Promise<RegistrationKit[]> {
     .order("price", { ascending: true });
 
   if (error) {
-    throw new Error(`无法载入注册套装：${error.message}`);
+    throw new Error(`${await t("register.load_error_prefix")}${error.message}`);
   }
   return data ?? [];
 }
@@ -38,19 +40,22 @@ export default async function RegisterPage({
 
   return (
     <main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center px-6 py-16">
-      <Logo className="mb-6" />
+      <div className="mb-6 flex items-center justify-between">
+        <Logo />
+        <LocaleSwitcher />
+      </div>
       <div className="mb-8">
         <p className="text-sm font-medium tracking-wide text-muted-foreground uppercase">
-          TQC 分析师注册
+          {await t("register.eyebrow")}
         </p>
-        <h1 className="mt-1 text-2xl font-semibold">加入成为 TQC 分析师</h1>
+        <h1 className="mt-1 text-2xl font-semibold">{await t("register.title")}</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          完成注册并缴付套装费用后，即可开始培训认证流程。
+          {await t("register.subtitle")}
         </p>
       </div>
 
       {kits.length === 0 ? (
-        <p className="text-sm text-destructive">目前没有开放中的注册套装，请联系公司后台。</p>
+        <p className="text-sm text-destructive">{await t("register.no_kits")}</p>
       ) : (
         <RegisterForm kits={kits} agreementUrl={companyInfo.agreementUrl} sponsorReferralCode={ref} />
       )}

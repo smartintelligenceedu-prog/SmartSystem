@@ -1,7 +1,12 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { LOCALE_COOKIE, type Locale } from "@/lib/i18n-shared";
+import { t } from "@/lib/i18n";
+
+const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
 
 export type LoginState = { status: "idle" } | { status: "error"; message: string };
 
@@ -11,14 +16,30 @@ export async function signIn(_prev: LoginState, formData: FormData): Promise<Log
   const next = String(formData.get("next") ?? "/admin/registrations");
 
   if (!email || !password) {
-    return { status: "error", message: "请输入 email 和密码" };
+    return { status: "error", message: await t("login.error.missing_credentials") };
   }
 
   const supabase = await createServerSupabaseClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const { data: signInData, error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
-    return { status: "error", message: "登入失败，请检查 email/密码是否正确" };
+    return { status: "error", message: await t("login.error.invalid_credentials") };
+  }
+
+  // Sync the runtime locale cookie to this account's saved preference, so a
+  // login on a new device/browser (where the cookie doesn't exist yet, or is
+  // stale) picks up what they set last time in Profile. Filtered by
+  // auth_user_id explicitly — RLS's "self or back office" select policy lets
+  // a back-office caller see every row, and .single() would error on more
+  // than one.
+  const { data: userRow } = await supabase.from("users").select("locale").eq("auth_user_id", signInData.user.id).single();
+  if (userRow?.locale) {
+    const cookieStore = await cookies();
+    cookieStore.set(LOCALE_COOKIE, userRow.locale as Locale, {
+      path: "/",
+      maxAge: ONE_YEAR_SECONDS,
+      sameSite: "lax",
+    });
   }
 
   redirect(next);

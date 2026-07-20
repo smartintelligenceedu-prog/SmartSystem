@@ -67,6 +67,7 @@ create table users (
   party_id uuid not null references parties(id),
   auth_user_id uuid not null unique, -- maps to Supabase auth.users.id
   status text not null default 'active' check (status in ('active', 'suspended')),
+  locale text not null default 'zh' check (locale in ('zh', 'en')), -- migration 039 — persisted UI language preference, synced to a `locale` cookie at login
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

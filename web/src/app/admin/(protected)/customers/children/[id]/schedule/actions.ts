@@ -12,10 +12,10 @@ async function requireCallerContext(): Promise<{ analystId: string | null; isBac
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "请先登入" };
+  if (!user) return { error: await t("schedule.form.error.not_signed_in") };
 
   const { data: userRow } = await supabase.from("users").select("id, party_id").eq("auth_user_id", user.id).single();
-  if (!userRow) return { error: "找不到对应的使用者资料" };
+  if (!userRow) return { error: await t("schedule.form.error.no_user_row") };
 
   const { data: isBackOffice } = await supabase.rpc("is_back_office");
   const { data: analyst } = await supabase.from("analysts").select("id").eq("party_id", userRow.party_id).maybeSingle();
@@ -23,15 +23,19 @@ async function requireCallerContext(): Promise<{ analystId: string | null; isBac
   return { analystId: analyst?.id ?? null, isBackOffice: !!isBackOffice };
 }
 
-const scheduleSchema = z.object({
-  child_id: z.string().uuid().optional(),
-  customer_id: z.string().uuid().optional(),
-  center_id: z.string().uuid(t("schedule.form.error.center_required")),
-  device_id: z.string().uuid(t("schedule.form.error.device_required")),
-  detection_date: z.string().min(1, t("schedule.form.error.date_required")),
-  start_time: z.string().regex(/^\d{2}:\d{2}$/, t("schedule.form.error.start_time_required")),
-  end_time: z.string().regex(/^\d{2}:\d{2}$/, t("schedule.form.error.end_time_required")),
-});
+// Built per-call, not a module-scope constant — see the identical note in
+// customers/actions.ts's buildCustomerFormSchema.
+async function buildScheduleSchema() {
+  return z.object({
+    child_id: z.string().uuid().optional(),
+    customer_id: z.string().uuid().optional(),
+    center_id: z.string().uuid(await t("schedule.form.error.center_required")),
+    device_id: z.string().uuid(await t("schedule.form.error.device_required")),
+    detection_date: z.string().min(1, await t("schedule.form.error.date_required")),
+    start_time: z.string().regex(/^\d{2}:\d{2}$/, await t("schedule.form.error.start_time_required")),
+    end_time: z.string().regex(/^\d{2}:\d{2}$/, await t("schedule.form.error.end_time_required")),
+  });
+}
 
 // Malaysia has a single fixed UTC+8 offset (no DST) — appending it directly
 // to the date+time the analyst typed guarantees the correct instant
@@ -56,18 +60,19 @@ export async function scheduleAppointment(_prev: ScheduleAppointmentState, formD
   const childId = typeof childIdRaw === "string" && childIdRaw ? childIdRaw : null;
   const customerIdRaw = formData.get("customer_id");
   const customerIdInput = typeof customerIdRaw === "string" && customerIdRaw ? customerIdRaw : null;
-  if (!childId && !customerIdInput) return { status: "error", message: "找不到受测者的资料" };
+  if (!childId && !customerIdInput) return { status: "error", message: await t("schedule.form.error.subject_not_found") };
 
   // Migration 028 — the subject is either a customer_children row or the
   // customer themselves (adult self-assessment); exactly one of
   // childId/customerIdInput is set by the form.
   const subject = childId ? await getChildContext(childId) : await getCustomerSelfContext(customerIdInput as string);
-  if (!subject) return { status: "error", message: "找不到受测者的资料" };
+  if (!subject) return { status: "error", message: await t("schedule.form.error.subject_not_found") };
 
   if (!auth.isBackOffice && auth.analystId !== subject.owner_analyst_id) {
-    return { status: "error", message: "没有权限执行此操作" };
+    return { status: "error", message: await t("schedule.form.error.no_permission") };
   }
 
+  const scheduleSchema = await buildScheduleSchema();
   const parsed = scheduleSchema.safeParse({
     child_id: childId ?? undefined,
     customer_id: childId ? undefined : (customerIdInput ?? undefined),
@@ -78,7 +83,7 @@ export async function scheduleAppointment(_prev: ScheduleAppointmentState, formD
     end_time: formData.get("end_time"),
   });
   if (!parsed.success) {
-    return { status: "error", message: parsed.error.issues[0]?.message ?? "表单资料有误" };
+    return { status: "error", message: parsed.error.issues[0]?.message ?? (await t("schedule.form.error.invalid_form")) };
   }
 
   const { center_id, device_id, detection_date, start_time, end_time } = parsed.data;
@@ -87,7 +92,7 @@ export async function scheduleAppointment(_prev: ScheduleAppointmentState, formD
   const scheduledEnd = toMYTimestamp(detection_date, end_time);
   const durationMinutes = Math.round((scheduledEnd.getTime() - scheduledAt.getTime()) / 60000);
   if (durationMinutes <= 0) {
-    return { status: "error", message: t("schedule.form.error.invalid_time_range") };
+    return { status: "error", message: await t("schedule.form.error.invalid_time_range") };
   }
 
   const admin = createAdminClient();
@@ -108,9 +113,9 @@ export async function scheduleAppointment(_prev: ScheduleAppointmentState, formD
   });
   if (appointmentError) {
     if (appointmentError.code === "23P01") {
-      return { status: "error", message: t("schedule.form.error.device_conflict") };
+      return { status: "error", message: await t("schedule.form.error.device_conflict") };
     }
-    return { status: "error", message: `${t("schedule.form.error.save_failed")}${appointmentError.message}` };
+    return { status: "error", message: `${await t("schedule.form.error.save_failed")}${appointmentError.message}` };
   }
 
   if (childId) {

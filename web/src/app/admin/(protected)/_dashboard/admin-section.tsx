@@ -3,13 +3,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { AnalystStatus } from "@/lib/types/registration";
+import { t, type TranslationKey } from "@/lib/i18n";
 
-const STATUS_LABEL: Record<AnalystStatus, string> = {
-  pending: "待审核",
-  approved: "已核准",
-  suspended: "已暂停",
-  rejected: "已拒绝",
-  terminated: "已终止",
+const STATUS_KEY: Record<AnalystStatus, TranslationKey> = {
+  pending: "dashboard.agent.status.pending",
+  approved: "dashboard.agent.status.approved",
+  suspended: "dashboard.agent.status.suspended",
+  rejected: "dashboard.agent.status.rejected",
+  terminated: "dashboard.agent.status.terminated",
 };
 
 function formatMYR(amount: number) {
@@ -95,34 +96,35 @@ function StatCard({ label, value, href }: { label: string; value: string; href?:
 export async function AdminSection() {
   const stats = await getAdminStats();
 
+  const statusLabelByStatus = Object.fromEntries(
+    await Promise.all(Object.entries(STATUS_KEY).map(async ([k, key]) => [k, await t(key)]))
+  ) as Record<AnalystStatus, string>;
+
   return (
     <section className="space-y-4">
-      <h2 className="text-sm font-medium tracking-wide text-muted-foreground uppercase">公司营运总览</h2>
+      <h2 className="text-sm font-medium tracking-wide text-muted-foreground uppercase">{await t("dashboard.admin.title")}</h2>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatCard label="Today's Sales" value={formatMYR(stats.todaySales)} />
-        <StatCard label="Monthly Sales" value={formatMYR(stats.monthSales)} />
-        <StatCard label="Total Agent" value={String(stats.totalAgent)} href="/admin/registrations?status=approved" />
-        <StatCard label="Pending Registration" value={String(stats.pendingRegistration)} href="/admin/registrations?status=pending" />
+        <StatCard label={await t("dashboard.admin.stat.todays_sales")} value={formatMYR(stats.todaySales)} />
+        <StatCard label={await t("dashboard.admin.stat.monthly_sales")} value={formatMYR(stats.monthSales)} />
+        <StatCard label={await t("dashboard.admin.stat.total_agent")} value={String(stats.totalAgent)} href="/admin/registrations?status=approved" />
+        <StatCard label={await t("dashboard.admin.stat.pending_registration")} value={String(stats.pendingRegistration)} href="/admin/registrations?status=pending" />
         <StatCard
-          label="Pending Payment Verification"
+          label={await t("dashboard.admin.stat.pending_payment_verification")}
           value={String(stats.pendingPaymentVerification)}
           href="/admin/sales-orders?status=pending"
         />
-        <StatCard label="Today's Commission" value={formatMYR(stats.todayCommission)} />
-        <StatCard label="Today's Override" value={formatMYR(stats.todayOverride)} />
-        <StatCard label="Monthly Expenses" value={formatMYR(stats.monthExpenses)} />
-        <StatCard label="Net Profit" value={formatMYR(stats.netProfit)} />
+        <StatCard label={await t("dashboard.admin.stat.todays_commission")} value={formatMYR(stats.todayCommission)} />
+        <StatCard label={await t("dashboard.admin.stat.todays_override")} value={formatMYR(stats.todayOverride)} />
+        <StatCard label={await t("dashboard.admin.stat.monthly_expenses")} value={formatMYR(stats.monthExpenses)} />
+        <StatCard label={await t("dashboard.admin.stat.net_profit")} value={formatMYR(stats.netProfit)} />
       </div>
-      <p className="text-xs text-muted-foreground">
-        Net Profit 目前是「Monthly Sales − 佣金支出」的简化估算，还没有接上正式总帐（Chart of Accounts）过帐，等财务模组做总帐自动过帐后会换成真实做帐数字。「Monthly
-        Profit」跟 Net Profit 是同一个数字，避免看板上重复显示同一笔钱两次。
-      </p>
+      <p className="text-xs text-muted-foreground">{await t("dashboard.admin.net_profit_note")}</p>
 
       <div>
-        <h3 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">Recent Activities</h3>
+        <h3 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{await t("dashboard.admin.recent_activities")}</h3>
         <div className="divide-y rounded-md border">
-          {stats.recent.length === 0 && <p className="p-4 text-sm text-muted-foreground">暂无资料</p>}
+          {stats.recent.length === 0 && <p className="p-4 text-sm text-muted-foreground">{await t("dashboard.admin.empty")}</p>}
           {stats.recent.map((r) => (
             <Link
               key={r.id}
@@ -134,7 +136,7 @@ export async function AdminSection() {
                 <span className="text-muted-foreground tabular-nums">
                   {new Date(r.created_at).toLocaleDateString("zh-CN")}
                 </span>
-                <Badge variant="secondary">{STATUS_LABEL[r.status]}</Badge>
+                <Badge variant="secondary">{statusLabelByStatus[r.status]}</Badge>
               </div>
             </Link>
           ))}

@@ -5,19 +5,22 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { uploadRegistrationDocument, validateUploadFile } from "@/lib/storage";
 import type { RegistrationResult } from "@/lib/types/registration";
 import { getCompanyInfo } from "@/app/admin/(protected)/settings/data";
+import { t } from "@/lib/i18n";
 
-const registrationSchema = z.object({
-  full_name: z.string().trim().min(2, "请输入姓名"),
-  nickname: z.string().trim().min(1, "请输入昵称"),
-  ic_or_passport_no: z.string().trim().min(5, "请输入身份证/护照号码"),
-  phone: z.string().trim().min(8, "请输入有效的电话号码"),
-  email: z.string().trim().email("请输入有效的电邮地址"),
-  bank_name: z.string().trim().min(2, "请输入银行名称"),
-  bank_account_name: z.string().trim().min(2, "请输入银行户口持有人姓名"),
-  bank_account_no: z.string().trim().min(5, "请输入银行户口号码"),
-  sponsor_referral_code: z.string().trim().optional(),
-  kit_id: z.string().uuid("请选择注册套装"),
-});
+async function buildRegistrationSchema() {
+  return z.object({
+    full_name: z.string().trim().min(2, await t("register.error.full_name_required")),
+    nickname: z.string().trim().min(1, await t("register.error.nickname_required")),
+    ic_or_passport_no: z.string().trim().min(5, await t("register.error.ic_required")),
+    phone: z.string().trim().min(8, await t("register.error.phone_invalid")),
+    email: z.string().trim().email(await t("register.error.email_invalid")),
+    bank_name: z.string().trim().min(2, await t("register.error.bank_name_required")),
+    bank_account_name: z.string().trim().min(2, await t("register.error.bank_account_name_required")),
+    bank_account_no: z.string().trim().min(5, await t("register.error.bank_account_no_required")),
+    sponsor_referral_code: z.string().trim().optional(),
+    kit_id: z.string().uuid(await t("register.error.kit_required")),
+  });
+}
 
 export type RegistrationState =
   | { status: "idle" }
@@ -28,6 +31,7 @@ export async function submitRegistration(
   _prev: RegistrationState,
   formData: FormData
 ): Promise<RegistrationState> {
+  const registrationSchema = await buildRegistrationSchema();
   const parsed = registrationSchema.safeParse({
     full_name: formData.get("full_name"),
     nickname: formData.get("nickname"),
@@ -42,7 +46,7 @@ export async function submitRegistration(
   });
 
   if (!parsed.success) {
-    return { status: "error", message: parsed.error.issues[0]?.message ?? "表单资料有误" };
+    return { status: "error", message: parsed.error.issues[0]?.message ?? (await t("register.error.form_invalid")) };
   }
   const input = parsed.data;
 
@@ -58,7 +62,7 @@ export async function submitRegistration(
   const linkOpened = formData.get("agreement_link_opened") === "true";
   const agreedToTerms = formData.get("agree_to_terms") === "on";
   if (agreementRequired && (!linkOpened || !agreedToTerms)) {
-    return { status: "error", message: "请先点击阅读 Agent Agreement / Terms and Conditions，再勾选同意" };
+    return { status: "error", message: await t("register.error.agreement_required") };
   }
 
   // File fields are validated separately from the zod text schema — FormData
@@ -67,8 +71,8 @@ export async function submitRegistration(
   const paymentScreenshot = formData.get("payment_screenshot") as File | null;
 
   const fileError =
-    validateUploadFile(icDocument, "身份证照片", true) ??
-    validateUploadFile(paymentScreenshot, "缴费截图", true);
+    (await validateUploadFile(icDocument, await t("register.error.ic_document_label"), true)) ??
+    (await validateUploadFile(paymentScreenshot, await t("register.error.payment_screenshot_label"), true));
   if (fileError) {
     return { status: "error", message: fileError };
   }
@@ -89,10 +93,10 @@ export async function submitRegistration(
       .maybeSingle();
 
     if (sponsorError) {
-      return { status: "error", message: `查询推荐人时发生错误：${sponsorError.message}` };
+      return { status: "error", message: `${await t("register.error.sponsor_lookup_failed_prefix")}${sponsorError.message}` };
     }
     if (!sponsor) {
-      return { status: "error", message: "找不到这个推荐码，请跟你的推荐人确认后再试一次" };
+      return { status: "error", message: await t("register.error.sponsor_not_found") };
     }
     sponsorId = sponsor.id;
 
@@ -114,10 +118,10 @@ export async function submitRegistration(
     .maybeSingle();
 
   if (kitError) {
-    return { status: "error", message: `查询套装时发生错误：${kitError.message}` };
+    return { status: "error", message: `${await t("register.error.kit_lookup_failed_prefix")}${kitError.message}` };
   }
   if (!kit) {
-    return { status: "error", message: "所选套装已下架，请重新选择" };
+    return { status: "error", message: await t("register.error.kit_unavailable") };
   }
 
   // party + individual
@@ -128,7 +132,7 @@ export async function submitRegistration(
     .single();
 
   if (partyError) {
-    return { status: "error", message: `建立资料时发生错误：${partyError.message}` };
+    return { status: "error", message: `${await t("register.error.create_profile_failed_prefix")}${partyError.message}` };
   }
 
   const { error: individualError } = await admin.from("individuals").insert({
@@ -141,7 +145,7 @@ export async function submitRegistration(
   });
 
   if (individualError) {
-    return { status: "error", message: `建立个人资料时发生错误：${individualError.message}` };
+    return { status: "error", message: `${await t("register.error.create_individual_failed_prefix")}${individualError.message}` };
   }
 
   // Uploads happen after the party exists (paths are keyed by party id) and
@@ -154,7 +158,7 @@ export async function submitRegistration(
 
   const uploadError = icUpload.error ?? paymentUpload.error;
   if (uploadError) {
-    return { status: "error", message: `文件上传失败：${uploadError}` };
+    return { status: "error", message: `${await t("register.error.upload_failed_prefix")}${uploadError}` };
   }
 
   // financial order (registration type)
@@ -169,7 +173,7 @@ export async function submitRegistration(
     .single();
 
   if (orderError) {
-    return { status: "error", message: `建立订单时发生错误：${orderError.message}` };
+    return { status: "error", message: `${await t("register.error.create_order_failed_prefix")}${orderError.message}` };
   }
 
   const { error: orderItemError } = await admin.from("order_items").insert({
@@ -182,7 +186,7 @@ export async function submitRegistration(
   });
 
   if (orderItemError) {
-    return { status: "error", message: `建立订单明细时发生错误：${orderItemError.message}` };
+    return { status: "error", message: `${await t("register.error.create_order_item_failed_prefix")}${orderItemError.message}` };
   }
 
   const { data: registrationOrder, error: regOrderError } = await admin
@@ -201,7 +205,7 @@ export async function submitRegistration(
     .single();
 
   if (regOrderError) {
-    return { status: "error", message: `建立注册订单时发生错误：${regOrderError.message}` };
+    return { status: "error", message: `${await t("register.error.create_registration_order_failed_prefix")}${regOrderError.message}` };
   }
 
   // The analyst row is created now, in a 'pending' state — not deferred to
@@ -225,7 +229,7 @@ export async function submitRegistration(
     .single();
 
   if (analystError) {
-    return { status: "error", message: `建立分析师资料失败：${analystError.message}` };
+    return { status: "error", message: `${await t("register.error.create_analyst_failed_prefix")}${analystError.message}` };
   }
 
   return {

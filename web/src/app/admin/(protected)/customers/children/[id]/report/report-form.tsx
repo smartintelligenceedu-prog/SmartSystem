@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { t } from "@/lib/i18n";
+import { ct } from "@/lib/i18n-client";
 import { saveOnePageReport, type SaveOnePageReportState } from "./actions";
 import {
   BRAIN_ZONES,
@@ -68,33 +68,33 @@ export function ReportForm({
           ))}
 
           <div className="rounded-md border border-dashed border-neutral-300 p-3 text-sm text-muted-foreground">
-            {t("tqc.form.appointment_label")}: {appointmentSummary}
+            {ct("tqc.form.appointment_label")}: {appointmentSummary}
           </div>
 
           <div>
-            <p className="mb-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">{t("tqc.form.brain_balance_section")}</p>
+            <p className="mb-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">{ct("tqc.form.brain_balance_section")}</p>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="left_brain_pct">{t("tqc.form.left_brain_label")}</Label>
+                <Label htmlFor="left_brain_pct">{ct("tqc.form.left_brain_label")}</Label>
                 <Input id="left_brain_pct" name="left_brain_pct" type="number" step="0.01" min="0" max="100" required />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="right_brain_pct">{t("tqc.form.right_brain_label")}</Label>
+                <Label htmlFor="right_brain_pct">{ct("tqc.form.right_brain_label")}</Label>
                 <Input id="right_brain_pct" name="right_brain_pct" type="number" step="0.01" min="0" max="100" required />
               </div>
             </div>
           </div>
 
           <div>
-            <p className="mb-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">{t("tqc.form.zones_section")}</p>
-            <p className="mb-3 text-xs text-muted-foreground">{t("tqc.form.zones_category_hint")}</p>
+            <p className="mb-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">{ct("tqc.form.zones_section")}</p>
+            <p className="mb-3 text-xs text-muted-foreground">{ct("tqc.form.zones_category_hint")}</p>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
               {BRAIN_ZONES.map((zone) => {
                 const pct = zonePercentage(scores[zone.field] ?? 0, total);
                 const category = categoryFor(zone.field);
                 return (
                   <div key={zone.field} className="space-y-2 rounded-md border border-neutral-200 p-2">
-                    <Label htmlFor={zone.field}>{t(zone.nameKey as Parameters<typeof t>[0])}</Label>
+                    <Label htmlFor={zone.field}>{ct(zone.nameKey as Parameters<typeof ct>[0])}</Label>
                     <Input
                       id={zone.field}
                       name={zone.field}
@@ -120,7 +120,7 @@ export function ReportForm({
                             onChange={() => setManualCategory((prev) => ({ ...prev, [zone.field]: option }))}
                             className="size-3"
                           />
-                          {t(`tqc.zone_category.${option}` as Parameters<typeof t>[0])}
+                          {ct(`tqc.zone_category.${option}` as Parameters<typeof ct>[0])}
                         </label>
                       ))}
                     </div>
@@ -131,32 +131,32 @@ export function ReportForm({
           </div>
 
           <div>
-            <p className="mb-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">{t("tqc.form.personality_section")}</p>
+            <p className="mb-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">{ct("tqc.form.personality_section")}</p>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="personality_type">{t("tqc.form.personality_type_label")}</Label>
-                <Select name="personality_type" items={PERSONALITY_TYPES.map((p) => ({ value: p.value, label: t(p.nameKey as Parameters<typeof t>[0]) }))}>
+                <Label htmlFor="personality_type">{ct("tqc.form.personality_type_label")}</Label>
+                <Select name="personality_type" items={PERSONALITY_TYPES.map((p) => ({ value: p.value, label: ct(p.nameKey as Parameters<typeof ct>[0]) }))}>
                   <SelectTrigger id="personality_type" className="w-full">
                     <SelectValue placeholder="—" />
                   </SelectTrigger>
                   <SelectContent>
                     {PERSONALITY_TYPES.map((p) => (
                       <SelectItem key={p.value} value={p.value}>
-                        {t(p.nameKey as Parameters<typeof t>[0])}
+                        {ct(p.nameKey as Parameters<typeof ct>[0])}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="tqc_activity_score">{t("tqc.form.activity_score_label")}</Label>
+                <Label htmlFor="tqc_activity_score">{ct("tqc.form.activity_score_label")}</Label>
                 <Input id="tqc_activity_score" name="tqc_activity_score" type="number" step="0.01" min="0" required />
               </div>
             </div>
           </div>
 
           <div>
-            <p className="mb-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">{t("tqc.form.learning_styles_section")}</p>
+            <p className="mb-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">{ct("tqc.form.learning_styles_section")}</p>
             <div className="flex flex-wrap gap-2">
               {LEARNING_STYLES.map((style) => {
                 const active = selectedStyles.includes(style.value);
@@ -168,7 +168,7 @@ export function ReportForm({
                     variant={active ? "default" : "outline"}
                     onClick={() => toggleStyle(style.value)}
                   >
-                    {t(style.nameKey as Parameters<typeof t>[0])}
+                    {ct(style.nameKey as Parameters<typeof ct>[0])}
                   </Button>
                 );
               })}
@@ -176,7 +176,7 @@ export function ReportForm({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="analyst_summary">{t("tqc.form.analyst_summary_label")}</Label>
+            <Label htmlFor="analyst_summary">{ct("tqc.form.analyst_summary_label")}</Label>
             <Textarea id="analyst_summary" name="analyst_summary" rows={3} />
           </div>
 
@@ -185,10 +185,10 @@ export function ReportForm({
               {state.message}
             </p>
           )}
-          {state.status === "success" && <p className="text-sm">{t("tqc.form.success")}</p>}
+          {state.status === "success" && <p className="text-sm">{ct("tqc.form.success")}</p>}
 
           <Button type="submit" disabled={isPending}>
-            {t("tqc.form.submit")}
+            {ct("tqc.form.submit")}
           </Button>
         </form>
       </CardContent>

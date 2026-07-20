@@ -8,7 +8,19 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { updateOwnName, changeOwnPassword } from "./actions";
 import type { PortalUserContext } from "@/lib/auth/context";
-import { ROLE_LABEL } from "@/lib/auth/roles";
+import type { PortalRole } from "@/lib/auth/roles";
+import { LocaleSwitcher } from "@/components/locale-switcher";
+import { ct } from "@/lib/i18n-client";
+
+const ROLE_KEY: Record<PortalRole, "role.admin" | "role.finance" | "role.back_office" | "role.agent" | "role.leader" | "role.introducer" | "role.pic"> = {
+  admin: "role.admin",
+  finance: "role.finance",
+  back_office: "role.back_office",
+  agent: "role.agent",
+  leader: "role.leader",
+  introducer: "role.introducer",
+  pic: "role.pic",
+};
 
 export function ProfileForm({ context }: { context: PortalUserContext }) {
   const [isPending, startTransition] = useTransition();
@@ -22,26 +34,33 @@ export function ProfileForm({ context }: { context: PortalUserContext }) {
     <div className="mt-6 space-y-6">
       <Card>
         <CardContent className="space-y-4 pt-6">
-          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">基本资料</p>
+          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{ct("profile.language_heading")}</p>
+          <LocaleSwitcher />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="space-y-4 pt-6">
+          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{ct("profile.basic_info_heading")}</p>
 
           <div className="space-y-2">
-            <Label>电邮</Label>
+            <Label>{ct("profile.field.email")}</Label>
             <p className="text-sm text-muted-foreground">{context.email}</p>
           </div>
 
           <div className="space-y-2">
-            <Label>角色</Label>
+            <Label>{ct("profile.field.roles")}</Label>
             <div className="flex gap-1">
               {context.roles.map((role) => (
                 <Badge key={role} variant="secondary">
-                  {ROLE_LABEL[role]}
+                  {ct(ROLE_KEY[role])}
                 </Badge>
               ))}
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="full_name">姓名</Label>
+            <Label htmlFor="full_name">{ct("profile.field.full_name")}</Label>
             <Input id="full_name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
           </div>
 
@@ -56,22 +75,22 @@ export function ProfileForm({ context }: { context: PortalUserContext }) {
               })
             }
           >
-            储存
+            {ct("profile.save")}
           </Button>
         </CardContent>
       </Card>
 
       <Card>
         <CardContent className="space-y-4 pt-6">
-          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">更改密码</p>
+          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{ct("profile.change_password_heading")}</p>
           <div className="space-y-2">
-            <Label htmlFor="new_password">新密码</Label>
+            <Label htmlFor="new_password">{ct("profile.field.new_password")}</Label>
             <Input
               id="new_password"
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="至少 8 个字元"
+              placeholder={ct("profile.field.new_password_placeholder")}
             />
           </div>
           {passwordMessage && <p className="text-sm">{passwordMessage}</p>}
@@ -85,7 +104,7 @@ export function ProfileForm({ context }: { context: PortalUserContext }) {
               })
             }
           >
-            更新密码
+            {ct("profile.update_password")}
           </Button>
         </CardContent>
       </Card>

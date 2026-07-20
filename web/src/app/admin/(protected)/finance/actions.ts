@@ -3,19 +3,20 @@
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { t } from "@/lib/i18n";
 
 async function requireBackOfficeUserId(): Promise<{ userId: string } | { error: string }> {
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "请先登入" };
+  if (!user) return { error: await t("finance.error.not_signed_in") };
 
   const { data: isBackOffice } = await supabase.rpc("is_back_office");
-  if (!isBackOffice) return { error: "没有权限执行此操作" };
+  if (!isBackOffice) return { error: await t("finance.error.no_permission") };
 
   const { data: userRow } = await supabase.from("users").select("id").eq("auth_user_id", user.id).single();
-  if (!userRow) return { error: "找不到对应的后台使用者资料" };
+  if (!userRow) return { error: await t("finance.error.no_user_row") };
 
   return { userId: userRow.id };
 }
@@ -67,11 +68,11 @@ export async function recordOperatingExpense(_prev: RecordExpenseState, formData
   const entryDate = String(formData.get("expense_date") ?? "");
 
   if (!OPERATING_EXPENSE_CATEGORIES.includes(category as OperatingExpenseCategory)) {
-    return { status: "error", message: "请选择支出类别" };
+    return { status: "error", message: await t("finance.error.select_category") };
   }
-  if (!description.trim()) return { status: "error", message: "请填写说明" };
-  if (!Number.isFinite(amount) || amount <= 0) return { status: "error", message: "请输入正确的金额" };
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(entryDate)) return { status: "error", message: "请选择有效的日期" };
+  if (!description.trim()) return { status: "error", message: await t("finance.error.description_required") };
+  if (!Number.isFinite(amount) || amount <= 0) return { status: "error", message: await t("finance.error.valid_amount") };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(entryDate)) return { status: "error", message: await t("finance.error.valid_date") };
 
   const admin = createAdminClient();
 
@@ -80,7 +81,7 @@ export async function recordOperatingExpense(_prev: RecordExpenseState, formData
   const cashAccountId = accountIdByCode.get("1000");
   const expenseAccountId = accountIdByCode.get(OPERATING_EXPENSE_ACCOUNT_CODE[category as OperatingExpenseCategory]);
   if (!cashAccountId || !expenseAccountId) {
-    return { status: "error", message: "找不到必要的会计科目，请先确认 Chart of Accounts 已建立" };
+    return { status: "error", message: await t("finance.error.missing_accounts") };
   }
 
   const { data: entry, error: entryError } = await admin
@@ -94,13 +95,15 @@ export async function recordOperatingExpense(_prev: RecordExpenseState, formData
     })
     .select("id")
     .single();
-  if (entryError || !entry) return { status: "error", message: `记录失败：${entryError?.message ?? "未知错误"}` };
+  if (entryError || !entry) {
+    return { status: "error", message: `${await t("finance.error.record_failed_prefix")}${entryError?.message ?? (await t("finance.error.unknown_error"))}` };
+  }
 
   const { error: linesError } = await admin.from("journal_lines").insert([
     { journal_entry_id: entry.id, account_id: expenseAccountId, debit: amount, credit: 0 },
     { journal_entry_id: entry.id, account_id: cashAccountId, debit: 0, credit: amount },
   ]);
-  if (linesError) return { status: "error", message: `记录失败：${linesError.message}` };
+  if (linesError) return { status: "error", message: `${await t("finance.error.record_failed_prefix")}${linesError.message}` };
 
   revalidatePath("/admin/finance");
   return { status: "success" };
@@ -130,7 +133,7 @@ export async function postToLedger(selection?: { orderIds: string[]; commissionI
   const cashAccountId = accountIdByCode.get("1000");
   const payableAccountId = accountIdByCode.get("2000");
   if (!cashAccountId || !payableAccountId) {
-    return { ok: false, message: "找不到必要的会计科目，请先确认 Chart of Accounts 已建立" };
+    return { ok: false, message: await t("finance.error.missing_accounts") };
   }
 
   const [{ data: paidOrders }, { data: postedOrderEntries }, { data: commissions }, { data: postedCommissionEntries }] = await Promise.all([
@@ -160,7 +163,7 @@ export async function postToLedger(selection?: { orderIds: string[]; commissionI
   }
 
   if (unpostedOrders.length === 0 && unpostedCommissions.length === 0) {
-    return { ok: true, message: "没有需要过帐的交易" };
+    return { ok: true, message: await t("finance.success.no_transactions_to_post") };
   }
 
   let postedCount = 0;
@@ -176,7 +179,10 @@ export async function postToLedger(selection?: { orderIds: string[]; commissionI
         entry_date: order.created_at.slice(0, 10),
         source_type: "order",
         source_id: order.id,
-        description: order.order_type === "registration" ? "注册费收入" : "检测服务收入",
+        description:
+          order.order_type === "registration"
+            ? await t("finance.entry.registration_revenue")
+            : await t("finance.entry.detection_service_revenue"),
         posted_by: auth.userId,
       })
       .select("id")
@@ -201,7 +207,7 @@ export async function postToLedger(selection?: { orderIds: string[]; commissionI
         entry_date: c.calculated_at.slice(0, 10),
         source_type: "commission_record",
         source_id: c.id,
-        description: `佣金支出 - ${c.trigger_type}`,
+        description: `${await t("finance.entry.commission_expense_prefix")}${c.trigger_type}`,
         posted_by: auth.userId,
       })
       .select("id")
@@ -216,5 +222,5 @@ export async function postToLedger(selection?: { orderIds: string[]; commissionI
   }
 
   revalidatePath("/admin/finance");
-  return { ok: true, message: `已过帐 ${postedCount} 笔交易` };
+  return { ok: true, message: `${await t("finance.success.posted_prefix")}${postedCount}${await t("finance.success.posted_suffix")}` };
 }

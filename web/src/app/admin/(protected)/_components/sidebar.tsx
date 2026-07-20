@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { Logo } from "@/components/logo";
 import type { PortalUserContext } from "@/lib/auth/context";
 import { hasRole, hasAnyRole, isBackOfficeRole } from "@/lib/auth/roles";
-import { t } from "@/lib/i18n";
+import { ct } from "@/lib/i18n-client";
 
 interface NavItem {
   href: string;
@@ -25,29 +25,29 @@ export function Sidebar({ context }: { context: PortalUserContext }) {
   const isAdmin = hasRole(context, "admin");
 
   const items: NavItem[] = [
-    { href: "/admin", label: "Dashboard" },
+    { href: "/admin", label: ct("dashboard.nav.label") },
     ...(hasAnalyst || context.introducerId || isBackOffice
-      ? [{ href: "/admin/customers", label: isBackOffice ? t("customer.nav.label_back_office") : t("customer.nav.label") }]
+      ? [{ href: "/admin/customers", label: isBackOffice ? ct("customer.nav.label_back_office") : ct("customer.nav.label") }]
       : []),
-    ...(hasAnalyst || isBackOffice ? [{ href: "/admin/sales-orders", label: "销售订单" }] : []),
-    ...(hasAnalyst || isBackOffice ? [{ href: "/admin/schedule", label: t("schedule.nav.label") }] : []),
-    ...(hasAnalyst || isBackOffice ? [{ href: "/admin/leads", label: t("leads.nav.label") }] : []),
-    ...(hasAnalyst ? [{ href: "/admin/reports", label: "我的报告" }] : isBackOffice ? [{ href: "/admin/reports", label: "报告交付状态" }] : []),
-    ...(hasAnalyst || context.introducerId || isBackOffice ? [{ href: "/admin/commission", label: "佣金" }] : []),
-    ...(hasAnalyst || context.introducerId || isFinance ? [{ href: "/admin/payroll", label: t("payroll.nav.label") }] : []),
-    ...(hasAnalyst ? [{ href: "/admin/certification", label: t("certification.nav.label") }] : []),
-    ...(isLeader ? [{ href: "/admin/team", label: "团队" }] : []),
-    ...(isFinance ? [{ href: "/admin/finance", label: "财务" }] : []),
-    ...(isFinance ? [{ href: "/admin/pic-campaigns", label: t("pic_campaigns.nav.label") }] : []),
-    ...(isFinance ? [{ href: "/admin/analytics", label: t("analytics.nav.label") }] : []),
-    ...(isBackOffice ? [{ href: "/admin/registrations", label: "注册审核" }] : []),
-    ...(isBackOffice ? [{ href: "/admin/introducers", label: "引荐人管理" }] : []),
-    ...(isBackOffice ? [{ href: "/admin/introducer-applications", label: "引荐人申请" }] : []),
-    ...(isBackOffice ? [{ href: "/admin/devices", label: t("devices.nav.label") }] : []),
-    ...(isBackOffice ? [{ href: "/admin/certification/questions", label: t("certification.nav.admin_label") }] : []),
-    ...(isAdmin ? [{ href: "/admin/users", label: "帐号管理" }] : []),
-    ...(isAdmin ? [{ href: "/admin/settings", label: "设定" }] : []),
-    { href: "/admin/profile", label: "我的帐户" },
+    ...(hasAnalyst || isBackOffice ? [{ href: "/admin/sales-orders", label: ct("sales_orders.page.title") }] : []),
+    ...(hasAnalyst || isBackOffice ? [{ href: "/admin/schedule", label: ct("schedule.nav.label") }] : []),
+    ...(hasAnalyst || isBackOffice ? [{ href: "/admin/leads", label: ct("leads.nav.label") }] : []),
+    ...(hasAnalyst ? [{ href: "/admin/reports", label: ct("reports.title.self") }] : isBackOffice ? [{ href: "/admin/reports", label: ct("reports.title.back_office") }] : []),
+    ...(hasAnalyst || context.introducerId || isBackOffice ? [{ href: "/admin/commission", label: ct("commission.page.title") }] : []),
+    ...(hasAnalyst || context.introducerId || isFinance ? [{ href: "/admin/payroll", label: ct("payroll.nav.label") }] : []),
+    ...(hasAnalyst ? [{ href: "/admin/certification", label: ct("certification.nav.label") }] : []),
+    ...(isLeader ? [{ href: "/admin/team", label: ct("team.page.title") }] : []),
+    ...(isFinance ? [{ href: "/admin/finance", label: ct("finance.page.title") }] : []),
+    ...(isFinance ? [{ href: "/admin/pic-campaigns", label: ct("pic_campaigns.nav.label") }] : []),
+    ...(isFinance ? [{ href: "/admin/analytics", label: ct("analytics.nav.label") }] : []),
+    ...(isBackOffice ? [{ href: "/admin/registrations", label: ct("registrations.nav.label") }] : []),
+    ...(isBackOffice ? [{ href: "/admin/introducers", label: ct("introducers.page.title") }] : []),
+    ...(isBackOffice ? [{ href: "/admin/introducer-applications", label: ct("introducer_applications.page.title") }] : []),
+    ...(isBackOffice ? [{ href: "/admin/devices", label: ct("devices.nav.label") }] : []),
+    ...(isBackOffice ? [{ href: "/admin/certification/questions", label: ct("certification.nav.admin_label") }] : []),
+    ...(isAdmin ? [{ href: "/admin/users", label: ct("users.page.title") }] : []),
+    ...(isAdmin ? [{ href: "/admin/settings", label: ct("settings.nav.label") }] : []),
+    { href: "/admin/profile", label: ct("profile.page.title") },
   ];
 
   const isActive = (href: string) => (href === "/admin" ? pathname === "/admin" : pathname.startsWith(href));

@@ -24,14 +24,14 @@ import {
 import type { RegistrationDetail } from "../data";
 import type { AnalystStatus } from "@/lib/types/registration";
 import { LoginAccountCard } from "./login-account-card";
-import { t } from "@/lib/i18n";
+import { ct } from "@/lib/i18n-client";
 
-const STATUS_LABEL: Record<AnalystStatus, string> = {
-  pending: "待审核",
-  approved: "已核准",
-  suspended: "已暂停",
-  rejected: "已拒绝",
-  terminated: "已终止",
+const STATUS_KEY: Record<AnalystStatus, "dashboard.agent.status.pending" | "dashboard.agent.status.approved" | "dashboard.agent.status.suspended" | "dashboard.agent.status.rejected" | "dashboard.agent.status.terminated"> = {
+  pending: "dashboard.agent.status.pending",
+  approved: "dashboard.agent.status.approved",
+  suspended: "dashboard.agent.status.suspended",
+  rejected: "dashboard.agent.status.rejected",
+  terminated: "dashboard.agent.status.terminated",
 };
 
 function formatMYR(amount: number) {
@@ -53,10 +53,10 @@ function DocumentLink({ label, url }: { label: string; url: string | null }) {
       <p className="text-xs text-muted-foreground">{label}</p>
       {url ? (
         <a href={url} target="_blank" rel="noreferrer" className="text-sm text-primary underline">
-          查看档案
+          {ct("registrations.detail.view_document")}
         </a>
       ) : (
-        <p className="text-sm text-muted-foreground">未上传</p>
+        <p className="text-sm text-muted-foreground">{ct("registrations.detail.not_uploaded")}</p>
       )}
     </div>
   );
@@ -94,48 +94,48 @@ export function ReviewPanel({
             {detail.full_name} <span className="text-muted-foreground">({detail.nickname})</span>
           </h1>
           <p className="text-sm text-muted-foreground">
-            提交于 {new Date(detail.created_at).toLocaleString("zh-CN")}
+            {ct("registrations.detail.submitted_at_prefix")}{new Date(detail.created_at).toLocaleString("zh-CN")}
           </p>
         </div>
-        <Badge>{STATUS_LABEL[detail.status]}</Badge>
+        <Badge>{ct(STATUS_KEY[detail.status])}</Badge>
       </div>
 
       <Card>
         <CardContent className="space-y-4 pt-6">
-          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">个人资料</p>
+          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{ct("registrations.detail.personal_info_heading")}</p>
           <div className="grid grid-cols-2 gap-4">
-            <Field label="身份证 / 护照号码" value={detail.ic_or_passport_no} />
-            <Field label="电话" value={detail.phone} />
-            <Field label="电邮" value={detail.email} />
-            <Field label="推荐人 (Introducer)" value={detail.sponsor_name ?? "无"} />
+            <Field label={ct("registrations.detail.field.ic")} value={detail.ic_or_passport_no} />
+            <Field label={ct("registrations.detail.field.phone")} value={detail.phone} />
+            <Field label={ct("registrations.detail.field.email")} value={detail.email} />
+            <Field label={ct("registrations.detail.field.sponsor")} value={detail.sponsor_name ?? ct("registrations.detail.none")} />
           </div>
-          <DocumentLink label="身份证照片" url={detail.ic_document_signed_url} />
+          <DocumentLink label={ct("registrations.detail.field.ic_photo")} url={detail.ic_document_signed_url} />
         </CardContent>
       </Card>
 
       <Card>
         <CardContent className="space-y-4 pt-6">
-          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">银行资料</p>
+          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{ct("registrations.detail.bank_info_heading")}</p>
           <div className="grid grid-cols-2 gap-4">
-            <Field label="银行名称" value={detail.bank_name ?? "—"} />
-            <Field label="户口持有人" value={detail.bank_account_name ?? "—"} />
-            <Field label="银行户口号码" value={detail.bank_account_no ?? "—"} />
+            <Field label={ct("registrations.detail.field.bank_name")} value={detail.bank_name ?? "—"} />
+            <Field label={ct("registrations.detail.field.bank_account_name")} value={detail.bank_account_name ?? "—"} />
+            <Field label={ct("registrations.detail.field.bank_account_no")} value={detail.bank_account_no ?? "—"} />
           </div>
         </CardContent>
       </Card>
 
       <Card>
         <CardContent className="space-y-4 pt-6">
-          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">注册与缴费</p>
-          <Field label="套装" value={`${detail.kit_name} · ${formatMYR(detail.price)}`} />
-          <DocumentLink label="缴费截图" url={detail.payment_screenshot_signed_url} />
+          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{ct("registrations.detail.registration_payment_heading")}</p>
+          <Field label={ct("registrations.detail.field.kit")} value={`${detail.kit_name} · ${formatMYR(detail.price)}`} />
+          <DocumentLink label={ct("registrations.detail.field.payment_screenshot")} url={detail.payment_screenshot_signed_url} />
         </CardContent>
       </Card>
 
       <Card>
         <CardContent className="space-y-3 pt-6">
           <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-            Assigned Leader（与推荐人相互独立，不影响佣金）
+            {ct("registrations.detail.assigned_leader_heading")}
           </p>
           <div className="flex gap-2">
             {/* Base UI's Select.Value shows the raw value unless Root gets an `items`
@@ -146,7 +146,7 @@ export function ReviewPanel({
               onValueChange={(value) => setAssignedLeaderId(value ?? "")}
             >
               <SelectTrigger className="w-full">
-                <SelectValue placeholder="未指定" />
+                <SelectValue placeholder={ct("registrations.detail.leader_placeholder")} />
               </SelectTrigger>
               <SelectContent>
                 {leaders.map((leader) => (
@@ -161,7 +161,7 @@ export function ReviewPanel({
               disabled={isPending}
               onClick={() => run(() => adminSetAssignedLeader(detail.analyst_id, assignedLeaderId || null))}
             >
-              储存
+              {ct("registrations.detail.save")}
             </Button>
           </div>
         </CardContent>
@@ -172,21 +172,21 @@ export function ReviewPanel({
       {isAdmin && detail.status === "approved" && (
         <Card>
           <CardContent className="space-y-3 pt-6">
-            <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{t("registrations.certification.section_title")}</p>
+            <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{ct("registrations.certification.section_title")}</p>
             {detail.certification_passed_at ? (
               <p className="text-sm">
-                {t("registrations.certification.passed_label")}{" "}
+                {ct("registrations.certification.passed_label")}{" "}
                 {new Date(detail.certification_passed_at).toLocaleString("zh-CN")}
               </p>
             ) : detail.resale_voucher_locked ? (
               <>
-                <p className="text-sm text-muted-foreground">{t("registrations.certification.pending_description")}</p>
+                <p className="text-sm text-muted-foreground">{ct("registrations.certification.pending_description")}</p>
                 <Button disabled={isPending} onClick={() => run(() => adminApproveCertification(detail.analyst_id))}>
-                  {t("registrations.certification.approve_button")}
+                  {ct("registrations.certification.approve_button")}
                 </Button>
               </>
             ) : (
-              <p className="text-sm text-muted-foreground">{t("registrations.certification.no_locked_voucher")}</p>
+              <p className="text-sm text-muted-foreground">{ct("registrations.certification.no_locked_voucher")}</p>
             )}
           </CardContent>
         </Card>
@@ -195,7 +195,7 @@ export function ReviewPanel({
       {detail.status === "rejected" && detail.rejection_reason && (
         <Card>
           <CardContent className="pt-6">
-            <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">拒绝原因</p>
+            <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{ct("registrations.detail.rejection_reason_heading")}</p>
             <p className="mt-1 text-sm">{detail.rejection_reason}</p>
           </CardContent>
         </Card>
@@ -207,10 +207,10 @@ export function ReviewPanel({
         {detail.status === "pending" && (
           <>
             <Button disabled={isPending} onClick={() => run(() => adminApproveRegistration(detail.analyst_id))}>
-              核准
+              {ct("registrations.detail.approve")}
             </Button>
             <Button variant="destructive" disabled={isPending} onClick={() => setShowRejectForm((v) => !v)}>
-              拒绝
+              {ct("registrations.detail.reject")}
             </Button>
           </>
         )}
@@ -220,12 +220,12 @@ export function ReviewPanel({
             disabled={isPending}
             onClick={() => run(() => adminSetSuspendStatus(detail.analyst_id, true))}
           >
-            暂停此分析师
+            {ct("registrations.detail.suspend")}
           </Button>
         )}
         {detail.status === "suspended" && (
           <Button disabled={isPending} onClick={() => run(() => adminSetSuspendStatus(detail.analyst_id, false))}>
-            恢复此分析师
+            {ct("registrations.detail.resume")}
           </Button>
         )}
       </div>
@@ -233,19 +233,19 @@ export function ReviewPanel({
       {showRejectForm && (
         <Card>
           <CardContent className="space-y-3 pt-6">
-            <Label htmlFor="reject-reason">拒绝原因</Label>
+            <Label htmlFor="reject-reason">{ct("registrations.detail.rejection_reason_heading")}</Label>
             <Textarea
               id="reject-reason"
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
-              placeholder="例如：缴费截图与套装金额不符"
+              placeholder={ct("registrations.detail.reject_reason_placeholder")}
             />
             <Button
               variant="destructive"
               disabled={isPending}
               onClick={() => run(() => adminRejectRegistration(detail.analyst_id, rejectReason))}
             >
-              确认拒绝
+              {ct("registrations.detail.confirm_reject")}
             </Button>
           </CardContent>
         </Card>

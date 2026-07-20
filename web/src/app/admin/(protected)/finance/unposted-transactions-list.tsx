@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { postToLedger } from "./actions";
 import type { UnpostedTransactionRow } from "./data";
+import { ct } from "@/lib/i18n-client";
 
 function formatMYR(amount: number) {
   return new Intl.NumberFormat("ms-MY", { style: "currency", currency: "MYR" }).format(amount);
@@ -46,7 +47,7 @@ export function UnpostedTransactionsList({ transactions }: { transactions: Unpos
     <div>
       <div className="mb-2 flex items-center justify-between">
         <button type="button" onClick={toggleAll} className="text-xs text-muted-foreground hover:underline">
-          {allSelected ? "取消全选" : "全选"}
+          {allSelected ? ct("finance.unposted_list.deselect_all") : ct("finance.unposted_list.select_all")}
         </button>
         <div className="flex items-center gap-2">
           {message && <span className="text-xs text-muted-foreground">{message}</span>}
@@ -65,7 +66,9 @@ export function UnpostedTransactionsList({ transactions }: { transactions: Unpos
               })
             }
           >
-            {isPending ? "过帐中…" : `过帐已选 (${selectedCount})`}
+            {isPending
+              ? ct("finance.unposted_list.posting")
+              : `${ct("finance.unposted_list.post_selected_prefix")}${selectedCount}${ct("finance.unposted_list.post_selected_suffix")}`}
           </Button>
         </div>
       </div>
@@ -79,10 +82,12 @@ export function UnpostedTransactionsList({ transactions }: { transactions: Unpos
                 <div>
                   <p>
                     {tx.description}
-                    <span className="ml-2 text-xs text-muted-foreground">{tx.type === "order" ? "订单" : "佣金"}</span>
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      {tx.type === "order" ? ct("finance.unposted_list.type_order") : ct("finance.unposted_list.type_commission")}
+                    </span>
                     {tx.pending && (
                       <Badge variant="outline" className="ml-2 text-[10px]">
-                        尚未核准
+                        {ct("finance.unposted_list.not_approved_badge")}
                       </Badge>
                     )}
                   </p>

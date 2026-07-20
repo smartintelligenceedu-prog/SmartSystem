@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { searchCustomerChildren, type ChildSearchResult } from "./data";
+import { t } from "@/lib/i18n";
 
 // Redemption is a front-line action (an assessor scanning/typing a code
 // while a child is physically present for detection), not a back-office-only
@@ -15,10 +16,10 @@ async function requireCallerContext(): Promise<{ analystId: string | null; isBac
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "请先登入" };
+  if (!user) return { error: await t("finance.institutional.voucher.error.not_authenticated") };
 
   const { data: userRow } = await supabase.from("users").select("id, party_id").eq("auth_user_id", user.id).single();
-  if (!userRow) return { error: "找不到对应的使用者资料" };
+  if (!userRow) return { error: await t("sales_orders.error.no_user_row") };
 
   const { data: isBackOffice } = await supabase.rpc("is_back_office");
   const { data: analyst } = await supabase.from("analysts").select("id").eq("party_id", userRow.party_id).maybeSingle();

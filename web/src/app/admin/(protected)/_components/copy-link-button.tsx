@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { ct } from "@/lib/i18n-client";
 
 export function CopyLinkButton({ path, label }: { path: string; label: string }) {
   const [copied, setCopied] = useState(false);
@@ -27,7 +28,7 @@ export function CopyLinkButton({ path, label }: { path: string; label: string })
           }
         }}
       >
-        {copied ? "已复制" : label}
+        {copied ? ct("copy_link.copied") : label}
       </Button>
       {fallbackUrl && (
         <input

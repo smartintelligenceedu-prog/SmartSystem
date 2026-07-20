@@ -11,19 +11,19 @@ async function requireBackOfficeUserId(): Promise<{ userId: string } | { error: 
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: t("devices.error.not_logged_in") };
+  if (!user) return { error: await t("devices.error.not_logged_in") };
 
   const { data: isBackOffice } = await supabase.rpc("is_back_office");
-  if (!isBackOffice) return { error: t("devices.error.no_permission") };
+  if (!isBackOffice) return { error: await t("devices.error.no_permission") };
 
   const { data: userRow } = await supabase.from("users").select("id").eq("auth_user_id", user.id).single();
-  if (!userRow) return { error: t("devices.error.no_user_row") };
+  if (!userRow) return { error: await t("devices.error.no_user_row") };
 
   return { userId: userRow.id };
 }
 
 const createDeviceSchema = z.object({
-  serial_no: z.string().trim().min(1, t("devices.error.serial_required")),
+  serial_no: z.string().trim().min(1, await t("devices.error.serial_required")),
   model: z.string().trim().optional(),
 });
 
@@ -38,12 +38,12 @@ export async function createDevice(_prev: CreateDeviceState, formData: FormData)
     model: formData.get("model") || undefined,
   });
   if (!parsed.success) {
-    return { status: "error", message: parsed.error.issues[0]?.message ?? t("devices.error.invalid_form") };
+    return { status: "error", message: parsed.error.issues[0]?.message ?? await t("devices.error.invalid_form") };
   }
 
   const admin = createAdminClient();
   const { error } = await admin.from("devices").insert({ serial_no: parsed.data.serial_no, model: parsed.data.model || null });
-  if (error) return { status: "error", message: `${t("devices.error.create_failed")}${error.message}` };
+  if (error) return { status: "error", message: `${await t("devices.error.create_failed")}${error.message}` };
 
   revalidatePath("/admin/devices");
   return { status: "success" };

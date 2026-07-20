@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { updateCertificationQuestion, toggleCertificationQuestionActive, type QuestionFormState } from "../actions";
-import { t } from "@/lib/i18n";
+import { ct } from "@/lib/i18n-client";
 import type { CertificationQuestionRow } from "../data";
 
 const initialState: QuestionFormState = { status: "idle" };
@@ -67,10 +67,10 @@ export function QuestionRow({ question }: { question: CertificationQuestionRow }
           )}
           <div className="flex items-center gap-2">
             <Button size="sm" type="submit" disabled={isSaving}>
-              {t("certification.admin.form.save")}
+              {ct("certification.admin.form.save")}
             </Button>
             <Button size="sm" variant="ghost" type="button" onClick={() => setEditing(false)}>
-              {t("certification.admin.form.cancel")}
+              {ct("certification.admin.form.cancel")}
             </Button>
           </div>
         </form>
@@ -85,17 +85,17 @@ export function QuestionRow({ question }: { question: CertificationQuestionRow }
           {question.question_text}
           {!question.is_active && (
             <Badge variant="outline" className="ml-2 text-[10px] text-muted-foreground">
-              {t("certification.admin.inactive_badge")}
+              {ct("certification.admin.inactive_badge")}
             </Badge>
           )}
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
-          {t("certification.admin.correct_answer_prefix")} {question.choices[question.correct_choice_index]}
+          {ct("certification.admin.correct_answer_prefix")} {question.choices[question.correct_choice_index]}
         </p>
       </div>
       <div className="flex items-center gap-3">
         <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
-          {t("certification.admin.edit_button")}
+          {ct("certification.admin.edit_button")}
         </Button>
         <Button
           size="sm"
@@ -108,7 +108,7 @@ export function QuestionRow({ question }: { question: CertificationQuestionRow }
             })
           }
         >
-          {question.is_active ? t("certification.admin.deactivate_button") : t("certification.admin.activate_button")}
+          {question.is_active ? ct("certification.admin.deactivate_button") : ct("certification.admin.activate_button")}
         </Button>
       </div>
     </div>

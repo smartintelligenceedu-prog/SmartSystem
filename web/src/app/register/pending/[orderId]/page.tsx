@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Logo } from "@/components/logo";
 import type { AnalystStatus } from "@/lib/types/registration";
+import { t, type TranslationKey } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -43,31 +44,31 @@ async function getApplicationSummary(orderId: string) {
   };
 }
 
-const STATUS_COPY: Record<AnalystStatus, { eyebrow: string; heading: string; body: string }> = {
+const STATUS_COPY_KEY: Record<AnalystStatus, { eyebrow: TranslationKey; heading: TranslationKey; body: TranslationKey }> = {
   pending: {
-    eyebrow: "审核中",
-    heading: "申请已提交，等待审核",
-    body: "后台会核对你上传的身份证与缴费截图，审核通过后即可开始培训课程，请留意电邮通知。",
+    eyebrow: "register.pending.status.pending.eyebrow",
+    heading: "register.pending.status.pending.heading",
+    body: "register.pending.status.pending.body",
   },
   approved: {
-    eyebrow: "注册完成",
-    heading: "欢迎加入 TQC",
-    body: "账户已启用，请留意电邮通知以开始培训课程。",
+    eyebrow: "register.pending.status.approved.eyebrow",
+    heading: "register.pending.status.approved.heading",
+    body: "register.pending.status.approved.body",
   },
   rejected: {
-    eyebrow: "申请未通过",
-    heading: "很抱歉，此次申请未获批准",
-    body: "如有疑问请联系推荐人或公司后台。",
+    eyebrow: "register.pending.status.rejected.eyebrow",
+    heading: "register.pending.status.rejected.heading",
+    body: "register.pending.status.rejected.body",
   },
   suspended: {
-    eyebrow: "账户已暂停",
-    heading: "此账户目前已被暂停",
-    body: "请联系公司后台了解详情。",
+    eyebrow: "register.pending.status.suspended.eyebrow",
+    heading: "register.pending.status.suspended.heading",
+    body: "register.pending.status.suspended.body",
   },
   terminated: {
-    eyebrow: "账户已终止",
-    heading: "此账户已终止",
-    body: "请联系公司后台了解详情。",
+    eyebrow: "register.pending.status.terminated.eyebrow",
+    heading: "register.pending.status.terminated.heading",
+    body: "register.pending.status.terminated.body",
   },
 };
 
@@ -80,13 +81,20 @@ export default async function RegistrationPendingPage({
   const summary = await getApplicationSummary(orderId);
   if (!summary) notFound();
 
-  const copy = STATUS_COPY[summary.status];
+  const copyKey = STATUS_COPY_KEY[summary.status];
+  const [eyebrow, heading, body, totalLabel, reasonPrefix] = await Promise.all([
+    t(copyKey.eyebrow),
+    t(copyKey.heading),
+    t(copyKey.body),
+    t("register.pending.total_label"),
+    t("register.pending.reason_prefix"),
+  ]);
 
   return (
     <main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center px-6 py-16">
       <Logo className="mb-6" />
-      <p className="text-sm font-medium tracking-wide text-muted-foreground uppercase">{copy.eyebrow}</p>
-      <h1 className="mt-1 text-2xl font-semibold">{copy.heading}</h1>
+      <p className="text-sm font-medium tracking-wide text-muted-foreground uppercase">{eyebrow}</p>
+      <h1 className="mt-1 text-2xl font-semibold">{heading}</h1>
 
       <Card className="mt-6">
         <CardContent className="space-y-3 pt-6">
@@ -98,15 +106,15 @@ export default async function RegistrationPendingPage({
           ))}
           <Separator />
           <div className="flex justify-between font-medium">
-            <span>应付总额</span>
+            <span>{totalLabel}</span>
             <span className="tabular-nums">{formatMYR(summary.order.total_amount)}</span>
           </div>
         </CardContent>
       </Card>
 
-      <p className="mt-6 text-sm text-muted-foreground">{copy.body}</p>
+      <p className="mt-6 text-sm text-muted-foreground">{body}</p>
       {summary.status === "rejected" && summary.rejectionReason && (
-        <p className="mt-2 text-sm text-destructive">原因：{summary.rejectionReason}</p>
+        <p className="mt-2 text-sm text-destructive">{reasonPrefix}{summary.rejectionReason}</p>
       )}
     </main>
   );

@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AdjustCommissionCell } from "./adjust-commission-cell";
 import { ApproveCommissionButton } from "./approve-commission-button";
+import { t, type TranslationKey } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -16,22 +17,26 @@ function formatMYR(amount: number) {
   return new Intl.NumberFormat("ms-MY", { style: "currency", currency: "MYR" }).format(amount);
 }
 
-const TRIGGER_LABEL: Record<string, string> = {
-  personal_sale: "个人销售",
-  pic_channel: "通路销售（PIC）",
-  introducer: "引荐人佣金",
-  recruitment: "招募佣金",
-  voucher_resale: "兑换券转售",
-  report_override: "报告上线抽成",
-  analyst_report_fee: "分析师解读费",
-};
+const TRIGGER_KEY = {
+  personal_sale: "payroll.trigger_type.personal_sale",
+  pic_channel: "payroll.trigger_type.pic_channel",
+  introducer: "payroll.trigger_type.introducer",
+  recruitment: "payroll.trigger_type.recruitment",
+  voucher_resale: "payroll.trigger_type.voucher_resale",
+  report_override: "payroll.trigger_type.report_override",
+  analyst_report_fee: "payroll.trigger_type.analyst_report_fee",
+} satisfies Record<string, TranslationKey>;
 
-const STATUS_LABEL: Record<string, string> = {
-  pending: "待处理",
-  approved: "已核准",
-  paid: "已发放",
-  reversed: "已冲销",
-};
+const STATUS_KEY = {
+  pending: "commission.status.pending",
+  approved: "commission.status.approved",
+  paid: "commission.status.paid",
+  reversed: "commission.status.reversed",
+} satisfies Record<string, TranslationKey>;
+
+async function resolveLabelMap(key: Record<string, TranslationKey>): Promise<Record<string, string>> {
+  return Object.fromEntries(await Promise.all(Object.entries(key).map(async ([k, tk]) => [k, await t(tk)])));
+}
 
 interface SelfCommissionRow {
   id: string;
@@ -56,37 +61,48 @@ export default async function CommissionPage() {
 
   if (isBackOffice) {
     const rows = await listAllCommissions();
+    const triggerLabelByType = await resolveLabelMap(TRIGGER_KEY);
+    const statusLabelByStatus = await resolveLabelMap(STATUS_KEY);
+    const introducerLabel = await t("commission.page.payee_type.introducer");
+    const analystLabel = await t("commission.page.payee_type.analyst");
+    const customerPrefix = await t("commission.page.customer_prefix");
+    const priorSettlementPrefix = await t("commission.cell.prior_settlement_prefix");
+    const priorSettlementSuffix = await t("commission.cell.prior_settlement_suffix");
+    const flatAmountLabel = await t("commission.page.flat_amount");
+    const originalAmountPrefix = await t("commission.page.original_amount_prefix");
     return (
       <div className="mx-auto max-w-6xl space-y-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-xl font-semibold">佣金</h1>
+            <h1 className="text-xl font-semibold">{await t("commission.page.title")}</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              全公司最近 {rows.length} 笔佣金记录。金额可人工调整（保留原始计算金额与调整原因，供稽核）。
+              {await t("commission.page.subtitle_prefix")}
+              {rows.length}
+              {await t("commission.page.subtitle_suffix")}
             </p>
           </div>
           {hasAnyRole(context, ["admin", "finance"]) && (
-            <Button size="sm" variant="outline" render={<Link href="/admin/commission/rules">佣金规则设定</Link>} />
+            <Button size="sm" variant="outline" render={<Link href="/admin/commission/rules">{await t("commission.page.rules_link")}</Link>} />
           )}
         </div>
         <div className="overflow-x-auto rounded-md border">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>日期</TableHead>
-                <TableHead>对象</TableHead>
-                <TableHead>类型</TableHead>
-                <TableHead>计算方式</TableHead>
-                <TableHead>金额</TableHead>
-                <TableHead>状态</TableHead>
-                <TableHead>调整</TableHead>
+                <TableHead>{await t("commission.page.column.date")}</TableHead>
+                <TableHead>{await t("commission.page.column.payee")}</TableHead>
+                <TableHead>{await t("commission.page.column.type")}</TableHead>
+                <TableHead>{await t("commission.page.column.calc_method")}</TableHead>
+                <TableHead>{await t("commission.page.column.amount")}</TableHead>
+                <TableHead>{await t("commission.page.column.status")}</TableHead>
+                <TableHead>{await t("commission.page.column.adjust")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center text-muted-foreground">
-                    尚无佣金记录
+                    {await t("commission.page.empty")}
                   </TableCell>
                 </TableRow>
               )}
@@ -98,33 +114,39 @@ export default async function CommissionPage() {
                   <TableCell>
                     {r.payee_name}
                     <span className="ml-1 text-xs text-muted-foreground">
-                      ({r.payee_type === "introducer" ? "引荐人" : "分析师"})
+                      ({r.payee_type === "introducer" ? introducerLabel : analystLabel})
                     </span>
                     {r.customer_name && (
                       <div className="mt-0.5 text-xs text-muted-foreground">
-                        顾客：{r.customer_name}
+                        {customerPrefix}
+                        {r.customer_name}
                         {r.customer_phone_masked && ` ${r.customer_phone_masked}`}
                         {r.prior_settlement_date && (
                           <span className="ml-1 text-amber-600">
-                            ⚠ 该手机号已于 {new Date(r.prior_settlement_date).toLocaleDateString("zh-CN")} 结算过
+                            {priorSettlementPrefix}
+                            {new Date(r.prior_settlement_date).toLocaleDateString("zh-CN")}
+                            {priorSettlementSuffix}
                           </span>
                         )}
                       </div>
                     )}
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{TRIGGER_LABEL[r.trigger_type] ?? r.trigger_type}</TableCell>
+                  <TableCell className="text-muted-foreground">{triggerLabelByType[r.trigger_type] ?? r.trigger_type}</TableCell>
                   <TableCell className="text-muted-foreground">
-                    {r.calculation_type === "flat" ? "固定金额" : `${r.rate_applied}%`}
+                    {r.calculation_type === "flat" ? flatAmountLabel : `${r.rate_applied}%`}
                   </TableCell>
                   <TableCell className="tabular-nums">
                     {formatMYR(r.commission_amount)}
                     {r.original_amount !== null && (
-                      <div className="text-xs text-muted-foreground">原 {formatMYR(r.original_amount)}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {originalAmountPrefix}
+                        {formatMYR(r.original_amount)}
+                      </div>
                     )}
                     {r.adjustment_reason && <div className="text-xs text-muted-foreground">{r.adjustment_reason}</div>}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={r.status === "paid" ? "secondary" : "outline"}>{STATUS_LABEL[r.status] ?? r.status}</Badge>
+                    <Badge variant={r.status === "paid" ? "secondary" : "outline"}>{statusLabelByStatus[r.status] ?? r.status}</Badge>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-start gap-2">
@@ -162,28 +184,42 @@ export default async function CommissionPage() {
   const rows = (data ?? []) as SelfCommissionRow[];
 
   const total = rows.reduce((sum, r) => sum + r.commission_amount, 0);
+  const selfTriggerLabelByType = await resolveLabelMap(TRIGGER_KEY);
+  const selfStatusLabelByStatus = await resolveLabelMap(STATUS_KEY);
+  const selfFlatAmountLabel = await t("commission.page.flat_amount");
+  const adjustedPrefix = await t("commission.page.adjusted_prefix");
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">我的佣金</h1>
-        <p className="mt-1 text-sm text-muted-foreground">最近 {rows.length} 笔，累计 {formatMYR(total)}</p>
+        <h1 className="text-xl font-semibold">{await t("commission.page.self_title")}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {await t("commission.page.self_subtitle_prefix")}
+          {rows.length}
+          {await t("commission.page.self_subtitle_middle")}
+          {formatMYR(total)}
+        </p>
       </div>
       <div className="divide-y rounded-md border">
-        {rows.length === 0 && <p className="p-4 text-sm text-muted-foreground">目前没有佣金记录</p>}
+        {rows.length === 0 && <p className="p-4 text-sm text-muted-foreground">{await t("commission.page.self_empty")}</p>}
         {rows.map((r) => (
           <div key={r.id} className="flex items-center justify-between px-4 py-3 text-sm">
             <div>
-              <p>{TRIGGER_LABEL[r.trigger_type] ?? r.trigger_type}</p>
+              <p>{selfTriggerLabelByType[r.trigger_type] ?? r.trigger_type}</p>
               <p className="text-xs text-muted-foreground">
                 {new Date(r.calculated_at).toLocaleDateString("zh-CN")} ·{" "}
-                {r.calculation_type === "flat" ? "固定金额" : `${r.rate_applied}% of ${formatMYR(r.base_amount)}`}
+                {r.calculation_type === "flat" ? selfFlatAmountLabel : `${r.rate_applied}% of ${formatMYR(r.base_amount)}`}
               </p>
-              {r.adjustment_reason && <p className="text-xs text-muted-foreground">已调整：{r.adjustment_reason}</p>}
+              {r.adjustment_reason && (
+                <p className="text-xs text-muted-foreground">
+                  {adjustedPrefix}
+                  {r.adjustment_reason}
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-3">
               <span className="tabular-nums">{formatMYR(r.commission_amount)}</span>
-              <Badge variant={r.status === "paid" ? "secondary" : "outline"}>{STATUS_LABEL[r.status] ?? r.status}</Badge>
+              <Badge variant={r.status === "paid" ? "secondary" : "outline"}>{selfStatusLabelByStatus[r.status] ?? r.status}</Badge>
             </div>
           </div>
         ))}

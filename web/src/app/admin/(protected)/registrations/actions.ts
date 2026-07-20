@@ -17,13 +17,13 @@ async function requireBackOfficeUserId(): Promise<{ userId: string } | { error: 
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "请先登入" };
+  if (!user) return { error: await t("registrations.error.not_signed_in") };
 
   const { data: isBackOffice } = await supabase.rpc("is_back_office");
-  if (!isBackOffice) return { error: "没有权限执行此操作" };
+  if (!isBackOffice) return { error: await t("registrations.error.no_permission") };
 
   const { data: userRow } = await supabase.from("users").select("id").eq("auth_user_id", user.id).single();
-  if (!userRow) return { error: "找不到对应的后台使用者资料" };
+  if (!userRow) return { error: await t("registrations.error.no_user_row") };
 
   return { userId: userRow.id };
 }
@@ -42,10 +42,13 @@ export async function adminApproveRegistration(
     .eq("id", analystId)
     .single();
   if (analystError || !analyst || !analyst.registration_order_id) {
-    return { ok: false, message: "找不到这笔申请" };
+    return { ok: false, message: await t("registrations.error.application_not_found") };
   }
   if (analyst.status !== "pending") {
-    return { ok: false, message: `此申请目前状态是「${analyst.status}」，不是待审核，请重新整理页面` };
+    return {
+      ok: false,
+      message: `${await t("registrations.error.status_mismatch_prefix")}${analyst.status}${await t("registrations.error.status_mismatch_suffix_full")}`,
+    };
   }
 
   const { data: regOrder, error: regOrderError } = await admin
@@ -53,7 +56,7 @@ export async function adminApproveRegistration(
     .select("id, order_id, kit_id")
     .eq("id", analyst.registration_order_id)
     .single();
-  if (regOrderError || !regOrder) return { ok: false, message: "找不到对应的注册订单" };
+  if (regOrderError || !regOrder) return { ok: false, message: await t("registrations.error.registration_order_not_found") };
 
   const { data: kit } = await admin
     .from("registration_kits")
@@ -68,7 +71,7 @@ export async function adminApproveRegistration(
     .from("analysts")
     .update({ status: "approved" })
     .eq("id", analystId);
-  if (approveError) return { ok: false, message: `更新分析师状态失败：${approveError.message}` };
+  if (approveError) return { ok: false, message: `${await t("registrations.error.update_analyst_status_failed_prefix")}${approveError.message}` };
 
   await admin
     .from("registration_orders")
@@ -86,7 +89,7 @@ export async function adminApproveRegistration(
   }));
   if (voucherRows.length > 0) {
     const { error: voucherError } = await admin.from("detection_vouchers").insert(voucherRows);
-    if (voucherError) return { ok: false, message: `建立检测券失败：${voucherError.message}` };
+    if (voucherError) return { ok: false, message: `${await t("registrations.error.create_vouchers_failed_prefix")}${voucherError.message}` };
   }
 
   await admin.from("business_card_orders").insert({
@@ -98,10 +101,10 @@ export async function adminApproveRegistration(
     .from("orders")
     .update({ status: "paid" })
     .eq("id", regOrder.order_id);
-  if (orderUpdateError) return { ok: false, message: `更新订单状态失败：${orderUpdateError.message}` };
+  if (orderUpdateError) return { ok: false, message: `${await t("registrations.error.update_order_status_failed_prefix")}${orderUpdateError.message}` };
 
   revalidatePath("/admin/registrations");
-  return { ok: true, message: "已核准，佣金已计算，检测券与名片工单已建立" };
+  return { ok: true, message: await t("registrations.success.approved") };
 }
 
 export async function adminRejectRegistration(
@@ -110,7 +113,7 @@ export async function adminRejectRegistration(
 ): Promise<{ ok: boolean; message: string }> {
   const auth = await requireBackOfficeUserId();
   if ("error" in auth) return { ok: false, message: auth.error };
-  if (!reason.trim()) return { ok: false, message: "请填写拒绝原因" };
+  if (!reason.trim()) return { ok: false, message: await t("registrations.error.reason_required") };
 
   const admin = createAdminClient();
 
@@ -119,9 +122,12 @@ export async function adminRejectRegistration(
     .select("id, registration_order_id, status")
     .eq("id", analystId)
     .single();
-  if (!analyst || !analyst.registration_order_id) return { ok: false, message: "找不到这笔申请" };
+  if (!analyst || !analyst.registration_order_id) return { ok: false, message: await t("registrations.error.application_not_found") };
   if (analyst.status !== "pending") {
-    return { ok: false, message: `此申请目前状态是「${analyst.status}」，不是待审核` };
+    return {
+      ok: false,
+      message: `${await t("registrations.error.status_mismatch_prefix")}${analyst.status}${await t("registrations.error.status_mismatch_suffix_short")}`,
+    };
   }
 
   const { data: regOrder } = await admin
@@ -129,7 +135,7 @@ export async function adminRejectRegistration(
     .select("id, order_id")
     .eq("id", analyst.registration_order_id)
     .single();
-  if (!regOrder) return { ok: false, message: "找不到对应的注册订单" };
+  if (!regOrder) return { ok: false, message: await t("registrations.error.registration_order_not_found") };
 
   await admin.from("analysts").update({ status: "rejected" }).eq("id", analystId);
   await admin
@@ -144,7 +150,7 @@ export async function adminRejectRegistration(
   await admin.from("orders").update({ status: "cancelled" }).eq("id", regOrder.order_id);
 
   revalidatePath("/admin/registrations");
-  return { ok: true, message: "已拒绝此申请" };
+  return { ok: true, message: await t("registrations.success.rejected") };
 }
 
 export async function adminSetAssignedLeader(
@@ -159,7 +165,7 @@ export async function adminSetAssignedLeader(
   if (error) return { ok: false, message: error.message };
 
   revalidatePath("/admin/registrations");
-  return { ok: true, message: "已更新 Assigned Leader" };
+  return { ok: true, message: await t("registrations.success.leader_updated") };
 }
 
 export async function adminSetSuspendStatus(
@@ -171,12 +177,12 @@ export async function adminSetSuspendStatus(
 
   const admin = createAdminClient();
   const { data: analyst } = await admin.from("analysts").select("status").eq("id", analystId).single();
-  if (!analyst) return { ok: false, message: "找不到这位分析师" };
+  if (!analyst) return { ok: false, message: await t("registrations.error.analyst_not_found") };
   if (suspend && analyst.status !== "approved") {
-    return { ok: false, message: "只有已核准的分析师才能被暂停" };
+    return { ok: false, message: await t("registrations.error.only_approved_can_suspend") };
   }
   if (!suspend && analyst.status !== "suspended") {
-    return { ok: false, message: "此分析师目前不是暂停状态" };
+    return { ok: false, message: await t("registrations.error.not_suspended") };
   }
 
   const { error } = await admin
@@ -186,7 +192,7 @@ export async function adminSetSuspendStatus(
   if (error) return { ok: false, message: error.message };
 
   revalidatePath("/admin/registrations");
-  return { ok: true, message: suspend ? "已暂停此分析师" : "已恢复此分析师" };
+  return { ok: true, message: suspend ? await t("registrations.success.suspended") : await t("registrations.success.resumed") };
 }
 
 const GRANTABLE_EXTRA_ROLES = ["leader", "pic"] as const;
@@ -205,19 +211,19 @@ export async function adminCreateAnalystLogin(
 ): Promise<{ ok: boolean; message: string }> {
   const auth = await requireBackOfficeUserId();
   if ("error" in auth) return { ok: false, message: auth.error };
-  if (password.length < 8) return { ok: false, message: "密码至少需要 8 个字元" };
+  if (password.length < 8) return { ok: false, message: await t("registrations.error.password_min") };
 
   const admin = createAdminClient();
 
   const { data: analyst } = await admin.from("analysts").select("party_id, status").eq("id", analystId).single();
-  if (!analyst) return { ok: false, message: "找不到这位分析师" };
-  if (analyst.status !== "approved") return { ok: false, message: "只有已核准的分析师才能建立登入帐号" };
+  if (!analyst) return { ok: false, message: await t("registrations.error.analyst_not_found") };
+  if (analyst.status !== "approved") return { ok: false, message: await t("registrations.error.only_approved_can_create_login") };
 
   const { data: existingUser } = await admin.from("users").select("id").eq("party_id", analyst.party_id).maybeSingle();
-  if (existingUser) return { ok: false, message: "这位分析师已经有登入帐号了" };
+  if (existingUser) return { ok: false, message: await t("registrations.error.already_has_login") };
 
   const { data: identity } = await admin.from("individuals").select("email").eq("party_id", analyst.party_id).single();
-  if (!identity?.email) return { ok: false, message: "找不到这位分析师的电邮资料" };
+  if (!identity?.email) return { ok: false, message: await t("registrations.error.no_email") };
 
   const { data: authUser, error: authError } = await admin.auth.admin.createUser({
     email: identity.email,
@@ -225,7 +231,7 @@ export async function adminCreateAnalystLogin(
     email_confirm: true,
   });
   if (authError || !authUser.user) {
-    return { ok: false, message: `建立登入帐号失败：${authError?.message ?? "未知错误"}` };
+    return { ok: false, message: `${await t("registrations.error.create_login_failed_prefix")}${authError?.message ?? (await t("registrations.error.unknown"))}` };
   }
 
   const { data: userRow, error: userError } = await admin
@@ -233,7 +239,7 @@ export async function adminCreateAnalystLogin(
     .insert({ party_id: analyst.party_id, auth_user_id: authUser.user.id })
     .select("id")
     .single();
-  if (userError) return { ok: false, message: `建立使用者失败：${userError.message}` };
+  if (userError) return { ok: false, message: `${await t("registrations.error.create_user_failed_prefix")}${userError.message}` };
 
   const roleNames = ["agent", ...extraRoles.filter((r) => GRANTABLE_EXTRA_ROLES.includes(r))];
   const { data: roleRows } = await admin.from("roles").select("id, name").in("name", roleNames);
@@ -241,7 +247,7 @@ export async function adminCreateAnalystLogin(
   if (inserts.length > 0) await admin.from("user_roles").insert(inserts);
 
   revalidatePath(`/admin/registrations/${analystId}`);
-  return { ok: true, message: "已建立登入帐号" };
+  return { ok: true, message: await t("registrations.success.login_created") };
 }
 
 /**
@@ -259,10 +265,10 @@ export async function adminUpdateAnalystExtraRoles(
   const admin = createAdminClient();
 
   const { data: analyst } = await admin.from("analysts").select("party_id").eq("id", analystId).single();
-  if (!analyst) return { ok: false, message: "找不到这位分析师" };
+  if (!analyst) return { ok: false, message: await t("registrations.error.analyst_not_found") };
 
   const { data: userRow } = await admin.from("users").select("id").eq("party_id", analyst.party_id).maybeSingle();
-  if (!userRow) return { ok: false, message: "这位分析师还没有登入帐号" };
+  if (!userRow) return { ok: false, message: await t("registrations.error.no_login_yet") };
 
   const { data: leaderPicRoles } = await admin.from("roles").select("id, name").in("name", GRANTABLE_EXTRA_ROLES);
   const roleIdByName = new Map((leaderPicRoles ?? []).map((r) => [r.name, r.id]));
@@ -283,7 +289,7 @@ export async function adminUpdateAnalystExtraRoles(
   }
 
   revalidatePath(`/admin/registrations/${analystId}`);
-  return { ok: true, message: "已更新角色" };
+  return { ok: true, message: await t("registrations.success.roles_updated") };
 }
 
 /**
@@ -300,13 +306,13 @@ export async function adminApproveCertification(analystId: string): Promise<{ ok
 
   const admin = createAdminClient();
   const { data: analyst } = await admin.from("analysts").select("status, certification_passed_at").eq("id", analystId).maybeSingle();
-  if (!analyst) return { ok: false, message: t("registrations.certification.error.not_found") };
-  if (analyst.status !== "approved") return { ok: false, message: t("registrations.certification.error.not_approved") };
-  if (analyst.certification_passed_at) return { ok: false, message: t("registrations.certification.error.already_certified") };
+  if (!analyst) return { ok: false, message: await t("registrations.certification.error.not_found") };
+  if (analyst.status !== "approved") return { ok: false, message: await t("registrations.certification.error.not_approved") };
+  if (analyst.certification_passed_at) return { ok: false, message: await t("registrations.certification.error.already_certified") };
 
   const { error } = await admin.from("analysts").update({ certification_passed_at: new Date().toISOString() }).eq("id", analystId);
-  if (error) return { ok: false, message: `${t("registrations.certification.error.update_failed")}${error.message}` };
+  if (error) return { ok: false, message: `${await t("registrations.certification.error.update_failed")}${error.message}` };
 
   revalidatePath(`/admin/registrations/${analystId}`);
-  return { ok: true, message: t("registrations.certification.success") };
+  return { ok: true, message: await t("registrations.certification.success") };
 }

@@ -6,6 +6,7 @@ import { getPortalUserContext } from "@/lib/auth/context";
 import type { PortalUserContext } from "@/lib/auth/context";
 import { hasRole } from "@/lib/auth/roles";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { t } from "@/lib/i18n";
 
 /**
  * Permission: this whole file requires the 'admin' role specifically, not
@@ -18,17 +19,19 @@ type RequireAdminResult = { ok: true; context: PortalUserContext } | { ok: false
 async function requireAdmin(): Promise<RequireAdminResult> {
   const context = await getPortalUserContext();
   if (!context || !hasRole(context, "admin")) {
-    return { ok: false, error: "需要管理员权限才能执行此操作" };
+    return { ok: false, error: await t("users.error.admin_required") };
   }
   return { ok: true, context };
 }
 
-const createUserSchema = z.object({
-  full_name: z.string().trim().min(2, "请输入姓名"),
-  email: z.string().trim().email("请输入有效的电邮地址"),
-  password: z.string().min(8, "密码至少需要 8 个字元"),
-  roles: z.array(z.enum(["admin", "finance", "back_office"])).min(1, "至少选择一个角色"),
-});
+async function buildCreateUserSchema() {
+  return z.object({
+    full_name: z.string().trim().min(2, await t("users.error.full_name_required")),
+    email: z.string().trim().email(await t("users.error.invalid_email")),
+    password: z.string().min(8, await t("users.error.password_min")),
+    roles: z.array(z.enum(["admin", "finance", "back_office"])).min(1, await t("users.error.roles_required")),
+  });
+}
 
 export type CreateUserState =
   | { status: "idle" }
@@ -42,6 +45,7 @@ export async function adminCreateBackOfficeUser(
   const auth = await requireAdmin();
   if (!auth.ok) return { status: "error", message: auth.error };
 
+  const createUserSchema = await buildCreateUserSchema();
   const parsed = createUserSchema.safeParse({
     full_name: formData.get("full_name"),
     email: formData.get("email"),
@@ -49,7 +53,7 @@ export async function adminCreateBackOfficeUser(
     roles: formData.getAll("roles"),
   });
   if (!parsed.success) {
-    return { status: "error", message: parsed.error.issues[0]?.message ?? "表单资料有误" };
+    return { status: "error", message: parsed.error.issues[0]?.message ?? (await t("users.error.form_invalid")) };
   }
   const input = parsed.data;
 
@@ -61,11 +65,14 @@ export async function adminCreateBackOfficeUser(
     email_confirm: true,
   });
   if (authError || !authUser.user) {
-    return { status: "error", message: `建立登入帐号失败：${authError?.message ?? "未知错误"}` };
+    return {
+      status: "error",
+      message: `${await t("users.error.create_login_failed_prefix")}${authError?.message ?? (await t("users.error.unknown"))}`,
+    };
   }
 
   const { data: party, error: partyError } = await admin.from("parties").insert({ party_type: "individual" }).select("id").single();
-  if (partyError) return { status: "error", message: `建立资料失败：${partyError.message}` };
+  if (partyError) return { status: "error", message: `${await t("users.error.create_profile_failed_prefix")}${partyError.message}` };
 
   await admin.from("individuals").insert({ party_id: party.id, full_name: input.full_name, email: input.email });
 
@@ -74,7 +81,7 @@ export async function adminCreateBackOfficeUser(
     .insert({ party_id: party.id, auth_user_id: authUser.user.id })
     .select("id")
     .single();
-  if (userError) return { status: "error", message: `建立使用者失败：${userError.message}` };
+  if (userError) return { status: "error", message: `${await t("users.error.create_user_failed_prefix")}${userError.message}` };
 
   const { data: roleRows } = await admin.from("roles").select("id, name").in("name", input.roles);
   const userRoleInserts = (roleRows ?? []).map((r) => ({ user_id: userRow.id, role_id: r.id }));
@@ -94,16 +101,16 @@ export async function adminRemoveRole(
   if (!auth.ok) return { ok: false, message: auth.error };
 
   if (userId === auth.context.userId && role === "admin") {
-    return { ok: false, message: "不能移除自己的管理员权限" };
+    return { ok: false, message: await t("users.error.cannot_remove_own_admin") };
   }
 
   const admin = createAdminClient();
   const { data: roleRow } = await admin.from("roles").select("id").eq("name", role).single();
-  if (!roleRow) return { ok: false, message: "找不到这个角色" };
+  if (!roleRow) return { ok: false, message: await t("users.error.role_not_found") };
 
   const { error } = await admin.from("user_roles").delete().eq("user_id", userId).eq("role_id", roleRow.id);
   if (error) return { ok: false, message: error.message };
 
   revalidatePath("/admin/users");
-  return { ok: true, message: "已移除角色" };
+  return { ok: true, message: await t("users.success.role_removed") };
 }

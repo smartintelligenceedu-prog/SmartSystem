@@ -1,17 +1,18 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { t, type TranslationKey } from "@/lib/i18n";
 
 function formatMYR(amount: number) {
   return new Intl.NumberFormat("ms-MY", { style: "currency", currency: "MYR" }).format(amount);
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  pending: "待审核",
-  approved: "已核准",
-  suspended: "已暂停",
-  rejected: "已拒绝",
-  terminated: "已终止",
+const STATUS_KEY: Record<string, TranslationKey> = {
+  pending: "dashboard.agent.status.pending",
+  approved: "dashboard.agent.status.approved",
+  suspended: "dashboard.agent.status.suspended",
+  rejected: "dashboard.agent.status.rejected",
+  terminated: "dashboard.agent.status.terminated",
 };
 
 interface TeamMember {
@@ -58,32 +59,35 @@ export async function LeaderSection({ analystId }: { analystId: string }) {
   const { data: myCommission } = await supabase.from("commission_records").select("commission_amount").eq("analyst_id", analystId);
   const overrideSummary = (myCommission ?? []).reduce((total, r) => total + Number(r.commission_amount), 0);
 
+  const statusLabelByStatus = Object.fromEntries(
+    await Promise.all(Object.entries(STATUS_KEY).map(async ([k, key]) => [k, await t(key)]))
+  ) as Record<string, string>;
+  const customerCountSuffix = await t("dashboard.leader.customer_count_suffix");
+
   return (
     <section className="space-y-4">
-      <h2 className="text-sm font-medium tracking-wide text-muted-foreground uppercase">团队管理（Leader）</h2>
+      <h2 className="text-sm font-medium tracking-wide text-muted-foreground uppercase">{await t("dashboard.leader.title")}</h2>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatCard label="Team Summary（团队人数）" value={String(summary.analyst_count)} />
-        <StatCard label="Team Sales" value={formatMYR(summary.total_revenue)} />
-        <StatCard label="Team Commission" value={formatMYR(summary.team_commission_total)} />
-        <StatCard label="Override Summary（我的佣金）" value={formatMYR(overrideSummary)} />
-        <StatCard label="Pending Team Approval" value={String(summary.pending_team_count)} />
+        <StatCard label={await t("dashboard.leader.stat.team_summary")} value={String(summary.analyst_count)} />
+        <StatCard label={await t("dashboard.leader.stat.team_sales")} value={formatMYR(summary.total_revenue)} />
+        <StatCard label={await t("dashboard.leader.stat.team_commission")} value={formatMYR(summary.team_commission_total)} />
+        <StatCard label={await t("dashboard.leader.stat.override_summary")} value={formatMYR(overrideSummary)} />
+        <StatCard label={await t("dashboard.leader.stat.pending_team_approval")} value={String(summary.pending_team_count)} />
       </div>
-      <p className="text-xs text-muted-foreground">
-        团队汇总只显示数字，不显示团队成员各自的顾客名单明细——这是刻意的设计，避免上线看到下线经营的顾客资料。
-      </p>
+      <p className="text-xs text-muted-foreground">{await t("dashboard.leader.note")}</p>
 
       <div>
-        <h3 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">Team Performance</h3>
+        <h3 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{await t("dashboard.leader.team_performance")}</h3>
         <div className="divide-y rounded-md border">
-          {(!members || members.length === 0) && <p className="p-4 text-sm text-muted-foreground">目前没有团队成员</p>}
+          {(!members || members.length === 0) && <p className="p-4 text-sm text-muted-foreground">{await t("dashboard.leader.empty_members")}</p>}
           {members?.map((m) => (
             <div key={m.analyst_id} className="flex items-center justify-between px-4 py-3 text-sm">
               <span>{m.full_name}</span>
               <div className="flex items-center gap-3">
-                <span className="text-muted-foreground tabular-nums">{m.customer_count} 位顾客</span>
+                <span className="text-muted-foreground tabular-nums">{m.customer_count}{customerCountSuffix}</span>
                 <span className="tabular-nums">{formatMYR(m.revenue)}</span>
-                <Badge variant="secondary">{STATUS_LABEL[m.status] ?? m.status}</Badge>
+                <Badge variant="secondary">{statusLabelByStatus[m.status] ?? m.status}</Badge>
               </div>
             </div>
           ))}

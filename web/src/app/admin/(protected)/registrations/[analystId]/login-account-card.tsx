@@ -8,11 +8,22 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { adminCreateAnalystLogin, adminUpdateAnalystExtraRoles } from "../actions";
-import { ROLE_LABEL } from "@/lib/auth/roles";
+import type { PortalRole } from "@/lib/auth/roles";
 import type { RegistrationDetail } from "../data";
+import { ct } from "@/lib/i18n-client";
 
 const EXTRA_ROLES = ["leader", "pic"] as const;
 type ExtraRole = (typeof EXTRA_ROLES)[number];
+
+const ROLE_KEY: Record<PortalRole, "role.admin" | "role.finance" | "role.back_office" | "role.agent" | "role.leader" | "role.introducer" | "role.pic"> = {
+  admin: "role.admin",
+  finance: "role.finance",
+  back_office: "role.back_office",
+  agent: "role.agent",
+  leader: "role.leader",
+  introducer: "role.introducer",
+  pic: "role.pic",
+};
 
 export function LoginAccountCard({ detail }: { detail: RegistrationDetail }) {
   const router = useRouter();
@@ -36,24 +47,24 @@ export function LoginAccountCard({ detail }: { detail: RegistrationDetail }) {
     return (
       <Card>
         <CardContent className="space-y-4 pt-6">
-          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">登入帐号</p>
+          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{ct("registrations.login.heading")}</p>
           <p className="text-sm text-muted-foreground">
-            尚未建立登入帐号。建立后会自动授予「{ROLE_LABEL.agent}」角色，登入邮箱为 {detail.email}。
+            {ct("registrations.login.no_login_prefix")}{ct(ROLE_KEY.agent)}{ct("registrations.login.no_login_middle")}{detail.email}{ct("registrations.login.no_login_suffix")}
           </p>
 
           <div className="space-y-2">
-            <Label htmlFor="initial_password">初始密码</Label>
+            <Label htmlFor="initial_password">{ct("registrations.login.password_label")}</Label>
             <Input
               id="initial_password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="至少 8 个字元"
+              placeholder={ct("registrations.login.password_placeholder")}
             />
           </div>
 
           <div className="space-y-2">
-            <Label>额外角色（选填）</Label>
+            <Label>{ct("registrations.login.extra_roles_label_optional")}</Label>
             <div className="flex gap-4">
               {EXTRA_ROLES.map((role) => (
                 <label key={role} className="flex items-center gap-2 text-sm">
@@ -63,7 +74,7 @@ export function LoginAccountCard({ detail }: { detail: RegistrationDetail }) {
                     checked={selectedExtraRoles.has(role)}
                     onChange={() => toggleRole(role)}
                   />
-                  {ROLE_LABEL[role]}
+                  {ct(ROLE_KEY[role])}
                 </label>
               ))}
             </div>
@@ -81,7 +92,7 @@ export function LoginAccountCard({ detail }: { detail: RegistrationDetail }) {
               })
             }
           >
-            建立登入帐号
+            {ct("registrations.login.create_button")}
           </Button>
         </CardContent>
       </Card>
@@ -91,17 +102,17 @@ export function LoginAccountCard({ detail }: { detail: RegistrationDetail }) {
   return (
     <Card>
       <CardContent className="space-y-4 pt-6">
-        <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">登入帐号</p>
+        <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{ct("registrations.login.heading")}</p>
         <div className="flex flex-wrap gap-1">
           {detail.portal_roles.map((role) => (
             <Badge key={role} variant="secondary">
-              {ROLE_LABEL[role]}
+              {ct(ROLE_KEY[role])}
             </Badge>
           ))}
         </div>
 
         <div className="space-y-2">
-          <Label>额外角色</Label>
+          <Label>{ct("registrations.login.extra_roles_label")}</Label>
           <div className="flex gap-4">
             {EXTRA_ROLES.map((role) => (
               <label key={role} className="flex items-center gap-2 text-sm">
@@ -111,7 +122,7 @@ export function LoginAccountCard({ detail }: { detail: RegistrationDetail }) {
                   checked={selectedExtraRoles.has(role)}
                   onChange={() => toggleRole(role)}
                 />
-                {ROLE_LABEL[role]}
+                {ct(ROLE_KEY[role])}
               </label>
             ))}
           </div>
@@ -130,7 +141,7 @@ export function LoginAccountCard({ detail }: { detail: RegistrationDetail }) {
             })
           }
         >
-          更新角色
+          {ct("registrations.login.update_button")}
         </Button>
       </CardContent>
     </Card>

@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { t } from "@/lib/i18n";
+import { ct } from "@/lib/i18n-client";
 import { ReportForm } from "./report-form";
 import type { PendingAppointment } from "@/app/admin/(protected)/_scheduling/data";
 
@@ -34,8 +34,8 @@ export function ReportEntrySection({
     return (
       <Card>
         <CardContent className="space-y-3 pt-6 text-center">
-          <p className="text-sm text-muted-foreground">{t("tqc.form.no_pending_appointment")}</p>
-          <Button size="sm" render={<Link href={scheduleHref}>{t("tqc.form.schedule_link")}</Link>} />
+          <p className="text-sm text-muted-foreground">{ct("tqc.form.no_pending_appointment")}</p>
+          <Button size="sm" render={<Link href={scheduleHref}>{ct("tqc.form.schedule_link")}</Link>} />
         </CardContent>
       </Card>
     );
@@ -48,7 +48,7 @@ export function ReportEntrySection({
       {!selected && (
         <Card>
           <CardContent className="space-y-3 pt-6">
-            <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{t("tqc.form.pending_appointments_title")}</p>
+            <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{ct("tqc.form.pending_appointments_title")}</p>
             <div className="divide-y rounded-md border">
               {pendingAppointments.map((a) => (
                 <button
@@ -58,7 +58,7 @@ export function ReportEntrySection({
                   className="flex w-full items-center justify-between px-4 py-3 text-left text-sm hover:bg-accent/50"
                 >
                   <span>{formatSlot(a)}</span>
-                  <span className="text-primary underline">{t("tqc.form.enter_result_button")}</span>
+                  <span className="text-primary underline">{ct("tqc.form.enter_result_button")}</span>
                 </button>
               ))}
             </div>
@@ -71,7 +71,7 @@ export function ReportEntrySection({
       )}
 
       <div className="text-right">
-        <Button size="sm" variant="ghost" render={<Link href={scheduleHref}>{t("tqc.form.schedule_link")}</Link>} />
+        <Button size="sm" variant="ghost" render={<Link href={scheduleHref}>{ct("tqc.form.schedule_link")}</Link>} />
       </div>
     </div>
   );

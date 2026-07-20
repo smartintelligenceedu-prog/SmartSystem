@@ -7,22 +7,24 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { SalesOrderRow } from "./data";
+import { ct } from "@/lib/i18n-client";
+import type { TranslationKey } from "@/lib/i18n-shared";
 
 function formatMYR(amount: number) {
   return new Intl.NumberFormat("ms-MY", { style: "currency", currency: "MYR" }).format(amount);
 }
 
-const ORDER_STATUS_LABEL: Record<string, string> = {
-  pending: "待处理",
-  paid: "已付款",
-  cancelled: "已取消",
-  refunded: "已退款",
-};
+const ORDER_STATUS_KEY = {
+  pending: "order.status.pending",
+  paid: "order.status.paid",
+  cancelled: "order.status.cancelled",
+  refunded: "order.status.refunded",
+} satisfies Record<string, TranslationKey>;
 
-const ITEM_TYPE_LABEL: Record<string, string> = {
-  detection_session: "检测服务（现场付款）",
-  voucher_redemption: "检测券兑换",
-};
+const ITEM_TYPE_KEY = {
+  detection_session: "reports.item_type.detection_session",
+  voucher_redemption: "reports.item_type.voucher_redemption",
+} satisfies Record<string, TranslationKey>;
 
 // Matches against every individual name in an order (customer_names), not
 // the display string (customer_name collapses to "N 位顾客" for multi-person
@@ -32,6 +34,8 @@ export function SalesOrdersSearch({ orders, isBackOffice }: { orders: SalesOrder
   const [query, setQuery] = useState("");
   const q = query.trim().toLowerCase();
   const filtered = q ? orders.filter((o) => o.customer_names.some((n) => n.toLowerCase().includes(q))) : orders;
+  const itemTypeLabel = (type: string) => (type in ITEM_TYPE_KEY ? ct(ITEM_TYPE_KEY[type as keyof typeof ITEM_TYPE_KEY]) : type);
+  const orderStatusLabel = (status: string) => (status in ORDER_STATUS_KEY ? ct(ORDER_STATUS_KEY[status as keyof typeof ORDER_STATUS_KEY]) : status);
 
   return (
     <div className="space-y-3">
@@ -39,19 +43,19 @@ export function SalesOrdersSearch({ orders, isBackOffice }: { orders: SalesOrder
         type="text"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="搜寻顾客姓名…"
+        placeholder={ct("sales_orders.list.search_placeholder")}
         className="max-w-xs"
       />
       <div className="overflow-x-auto rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>日期</TableHead>
-              <TableHead>顾客</TableHead>
-              {isBackOffice && <TableHead>分析师</TableHead>}
-              <TableHead>类型</TableHead>
-              <TableHead>金额</TableHead>
-              <TableHead>状态</TableHead>
+              <TableHead>{ct("sales_orders.list.column.date")}</TableHead>
+              <TableHead>{ct("sales_orders.list.column.customer")}</TableHead>
+              {isBackOffice && <TableHead>{ct("sales_orders.list.column.analyst")}</TableHead>}
+              <TableHead>{ct("sales_orders.list.column.type")}</TableHead>
+              <TableHead>{ct("sales_orders.list.column.amount")}</TableHead>
+              <TableHead>{ct("sales_orders.list.column.status")}</TableHead>
               {isBackOffice && <TableHead></TableHead>}
             </TableRow>
           </TableHeader>
@@ -59,7 +63,7 @@ export function SalesOrdersSearch({ orders, isBackOffice }: { orders: SalesOrder
             {filtered.length === 0 && (
               <TableRow>
                 <TableCell colSpan={isBackOffice ? 7 : 5} className="text-center text-muted-foreground">
-                  {orders.length === 0 ? "尚无订单" : "找不到符合的顾客"}
+                  {orders.length === 0 ? ct("sales_orders.list.empty_no_orders") : ct("sales_orders.list.empty_no_match")}
                 </TableCell>
               </TableRow>
             )}
@@ -70,17 +74,19 @@ export function SalesOrdersSearch({ orders, isBackOffice }: { orders: SalesOrder
                 </TableCell>
                 <TableCell>{o.customer_name}</TableCell>
                 {isBackOffice && <TableCell className="text-muted-foreground">{o.analyst_name}</TableCell>}
-                <TableCell className="text-muted-foreground">{ITEM_TYPE_LABEL[o.item_type] ?? o.item_type}</TableCell>
+                <TableCell className="text-muted-foreground">{itemTypeLabel(o.item_type)}</TableCell>
                 <TableCell className="tabular-nums">{formatMYR(o.total_amount)}</TableCell>
                 <TableCell>
-                  <Badge variant={o.order_status === "paid" ? "secondary" : "outline"}>
-                    {ORDER_STATUS_LABEL[o.order_status] ?? o.order_status}
-                  </Badge>
+                  <Badge variant={o.order_status === "paid" ? "secondary" : "outline"}>{orderStatusLabel(o.order_status)}</Badge>
                 </TableCell>
                 {isBackOffice && (
                   <TableCell>
                     {o.review_status === "pending" && (
-                      <Button size="sm" variant="outline" render={<Link href={`/admin/sales-orders/${o.order_id}`}>审核</Link>} />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        render={<Link href={`/admin/sales-orders/${o.order_id}`}>{ct("sales_orders.list.review_button")}</Link>}
+                      />
                     )}
                   </TableCell>
                 )}

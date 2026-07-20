@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { updateLeadStatus, adminReassignLead } from "./actions";
-import { t } from "@/lib/i18n";
+import { ct } from "@/lib/i18n-client";
 import type { LeadRow } from "./data";
 
 export function LeadActionsCell({
@@ -50,15 +50,15 @@ export function LeadActionsCell({
         <div className="flex items-center gap-2">
           {lead.status !== "contacted" && (
             <Button size="sm" variant="ghost" disabled={isPending} onClick={() => setStatus("contacted")}>
-              {t("leads.action.mark_contacted")}
+              {ct("leads.action.mark_contacted")}
             </Button>
           )}
           {lead.status !== "lost" && (
             <Button size="sm" variant="ghost" disabled={isPending} onClick={() => setStatus("lost")}>
-              {t("leads.action.mark_lost")}
+              {ct("leads.action.mark_lost")}
             </Button>
           )}
-          <Button size="sm" variant="outline" render={<Link href={`/admin/customers/new?lead_id=${lead.id}`}>{t("leads.action.convert")}</Link>} />
+          <Button size="sm" variant="outline" render={<Link href={`/admin/customers/new?lead_id=${lead.id}`}>{ct("leads.action.convert")}</Link>} />
         </div>
       )}
       {isBackOffice && (
@@ -82,15 +82,15 @@ export function LeadActionsCell({
                 </SelectContent>
               </Select>
               <Button size="sm" disabled={isPending} onClick={reassign}>
-                {t("leads.action.reassign_save")}
+                {ct("leads.action.reassign_save")}
               </Button>
               <Button size="sm" variant="ghost" disabled={isPending} onClick={() => setReassigning(false)}>
-                {t("leads.action.reassign_cancel")}
+                {ct("leads.action.reassign_cancel")}
               </Button>
             </>
           ) : (
             <Button size="sm" variant="ghost" onClick={() => setReassigning(true)}>
-              {t("leads.action.reassign")}
+              {ct("leads.action.reassign")}
             </Button>
           )}
         </div>

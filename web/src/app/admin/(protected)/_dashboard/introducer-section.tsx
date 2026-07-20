@@ -2,6 +2,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CopyLinkButton } from "../_components/copy-link-button";
+import { t, getServerLocale } from "@/lib/i18n";
 
 function formatMYR(amount: number) {
   return new Intl.NumberFormat("ms-MY", { style: "currency", currency: "MYR" }).format(amount);
@@ -18,8 +19,11 @@ function StatCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-function formatMonth(dateStr: string) {
+function formatMonth(dateStr: string, locale: "zh" | "en") {
   const d = new Date(dateStr);
+  if (locale === "en") {
+    return d.toLocaleDateString("en-US", { year: "numeric", month: "short" });
+  }
   return `${d.getFullYear()}年${d.getMonth() + 1}月`;
 }
 
@@ -45,40 +49,83 @@ export async function IntroducerSection({ introducerId }: { introducerId: string
     paid_bonus: 0,
   };
 
+  const [
+    title,
+    referralCodePrefix,
+    copyLinkLabel,
+    noAnalystNote,
+    statTotalIntroducedCustomers,
+    statTotalBonus,
+    statPendingBonus,
+    statPaidBonus,
+    monthlyStatsTitle,
+    emptyMonthly,
+    newCustomersPrefix,
+    newCustomersSuffix,
+    bonusHistoryTitle,
+    emptyBonus,
+    flatAmount,
+    ratePrefix,
+    percentOf,
+    rateSuffix,
+    statusPaid,
+    statusPending,
+  ] = await Promise.all([
+    t("dashboard.introducer.title"),
+    t("dashboard.introducer.referral_code_prefix"),
+    t("dashboard.introducer.copy_link"),
+    t("dashboard.introducer.no_analyst_note"),
+    t("dashboard.introducer.stat.total_introduced_customers"),
+    t("dashboard.introducer.stat.total_bonus"),
+    t("dashboard.introducer.stat.pending_bonus"),
+    t("dashboard.introducer.stat.paid_bonus"),
+    t("dashboard.introducer.monthly_stats_title"),
+    t("dashboard.introducer.empty_monthly"),
+    t("dashboard.introducer.new_customers_prefix"),
+    t("dashboard.introducer.new_customers_suffix"),
+    t("dashboard.introducer.bonus_history_title"),
+    t("dashboard.introducer.empty_bonus"),
+    t("dashboard.introducer.flat_amount"),
+    t("dashboard.introducer.rate_prefix"),
+    t("dashboard.introducer.percent_of"),
+    t("dashboard.introducer.rate_suffix"),
+    t("commission.status.paid"),
+    t("commission.status.pending"),
+  ]);
+  const locale = await getServerLocale();
+
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-medium tracking-wide text-muted-foreground uppercase">引荐概况（Introducer）</h2>
+        <h2 className="text-sm font-medium tracking-wide text-muted-foreground uppercase">{title}</h2>
         {introducer?.referral_code && (
           <div className="flex items-center gap-3">
             <p className="text-sm text-muted-foreground">
-              我的推荐码：<span className="font-mono font-medium text-foreground">{introducer.referral_code}</span>
+              {referralCodePrefix}<span className="font-mono font-medium text-foreground">{introducer.referral_code}</span>
             </p>
-            <CopyLinkButton path={`/refer/${introducer.referral_code}`} label="复制转介顾客连结" />
+            <CopyLinkButton path={`/refer/${introducer.referral_code}`} label={copyLinkLabel} />
           </div>
         )}
       </div>
       {introducer?.referral_code && !introducer.assigned_analyst_id && (
-        <p className="text-xs text-muted-foreground">
-          尚未指派负责分析师，透过转介连结留资料的顾客暂时不会自动分派跟进人 — 请联系后台设置。
-        </p>
+        <p className="text-xs text-muted-foreground">{noAnalystNote}</p>
       )}
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatCard label="Total Introduced Customers" value={String(summary.total_introduced_customers)} />
-        <StatCard label="Total Bonus" value={formatMYR(summary.total_bonus)} />
-        <StatCard label="Pending Bonus" value={formatMYR(summary.pending_bonus)} />
-        <StatCard label="Paid Bonus" value={formatMYR(summary.paid_bonus)} />
+        <StatCard label={statTotalIntroducedCustomers} value={String(summary.total_introduced_customers)} />
+        <StatCard label={statTotalBonus} value={formatMYR(summary.total_bonus)} />
+        <StatCard label={statPendingBonus} value={formatMYR(summary.pending_bonus)} />
+        <StatCard label={statPaidBonus} value={formatMYR(summary.paid_bonus)} />
       </div>
 
       <div>
-        <h3 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">每月介绍统计</h3>
+        <h3 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{monthlyStatsTitle}</h3>
         <div className="divide-y rounded-md border">
-          {(!monthlyRows || monthlyRows.length === 0) && <p className="p-4 text-sm text-muted-foreground">暂无纪录</p>}
+          {(!monthlyRows || monthlyRows.length === 0) && <p className="p-4 text-sm text-muted-foreground">{emptyMonthly}</p>}
           {monthlyRows?.map((m: { month: string; new_customers: number; bonus_total: number }) => (
             <div key={m.month} className="flex items-center justify-between px-4 py-3 text-sm">
-              <span className="text-muted-foreground">{formatMonth(m.month)}</span>
-              <span>新增客户 {m.new_customers} 位</span>
+              <span className="text-muted-foreground">{formatMonth(m.month, locale)}</span>
+              <span>{newCustomersPrefix}{m.new_customers}{newCustomersSuffix}</span>
               <span className="tabular-nums font-medium">{formatMYR(m.bonus_total)}</span>
             </div>
           ))}
@@ -86,9 +133,9 @@ export async function IntroducerSection({ introducerId }: { introducerId: string
       </div>
 
       <div>
-        <h3 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">Bonus History</h3>
+        <h3 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{bonusHistoryTitle}</h3>
         <div className="divide-y rounded-md border">
-          {(!history || history.length === 0) && <p className="p-4 text-sm text-muted-foreground">暂无奖金纪录</p>}
+          {(!history || history.length === 0) && <p className="p-4 text-sm text-muted-foreground">{emptyBonus}</p>}
           {history?.map((h) => (
             <div key={h.id} className="flex items-center justify-between px-4 py-3 text-sm">
               <span className="text-muted-foreground tabular-nums">
@@ -96,10 +143,10 @@ export async function IntroducerSection({ introducerId }: { introducerId: string
               </span>
               <span className="tabular-nums">
                 {formatMYR(h.commission_amount)}
-                {h.calculation_type === "flat" ? "（固定金额）" : `（${h.rate_applied}% of ${formatMYR(h.base_amount)}）`}
+                {h.calculation_type === "flat" ? flatAmount : `${ratePrefix}${h.rate_applied}${percentOf}${formatMYR(h.base_amount)}${rateSuffix}`}
               </span>
               <Badge variant={h.status === "paid" ? "secondary" : "outline"}>
-                {h.status === "paid" ? "已发放" : h.status === "pending" ? "待处理" : h.status}
+                {h.status === "paid" ? statusPaid : h.status === "pending" ? statusPending : h.status}
               </Badge>
             </div>
           ))}

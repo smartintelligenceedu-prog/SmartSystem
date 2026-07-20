@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { postToLedger } from "./actions";
+import { ct } from "@/lib/i18n-client";
 
 export function PostToLedgerButton({ unpostedCount }: { unpostedCount: number }) {
   const router = useRouter();
@@ -22,7 +23,9 @@ export function PostToLedgerButton({ unpostedCount }: { unpostedCount: number })
           })
         }
       >
-        {isPending ? "过帐中…" : `过帐 (${unpostedCount})`}
+        {isPending
+          ? ct("finance.unposted_list.posting")
+          : `${ct("finance.post_button.post_prefix")}${unpostedCount}${ct("finance.post_button.post_suffix")}`}
       </Button>
       {message && <p className="text-sm text-muted-foreground">{message}</p>}
     </div>

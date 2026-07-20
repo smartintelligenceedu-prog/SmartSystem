@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { t } from "@/lib/i18n";
+import { ct } from "@/lib/i18n-client";
 import { createDevice, type CreateDeviceState } from "./actions";
 
 const initialState: CreateDeviceState = { status: "idle" };
@@ -23,15 +23,15 @@ export function CreateDeviceForm() {
       <CardContent className="pt-6">
         <form ref={formRef} action={formAction} className="flex flex-wrap items-end gap-3">
           <div className="space-y-2">
-            <Label htmlFor="serial_no">{t("devices.form.serial_no_label")}</Label>
+            <Label htmlFor="serial_no">{ct("devices.form.serial_no_label")}</Label>
             <Input id="serial_no" name="serial_no" required />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="model">{t("devices.form.model_label")}</Label>
+            <Label htmlFor="model">{ct("devices.form.model_label")}</Label>
             <Input id="model" name="model" />
           </div>
           <Button type="submit" disabled={isPending}>
-            {t("devices.form.submit")}
+            {ct("devices.form.submit")}
           </Button>
         </form>
         {state.status === "error" && (
@@ -39,7 +39,7 @@ export function CreateDeviceForm() {
             {state.message}
           </p>
         )}
-        {state.status === "success" && <p className="mt-2 text-sm">{t("devices.form.success")}</p>}
+        {state.status === "success" && <p className="mt-2 text-sm">{ct("devices.form.success")}</p>}
       </CardContent>
     </Card>
   );

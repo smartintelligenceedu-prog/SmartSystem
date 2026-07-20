@@ -12,13 +12,13 @@ async function requireAnalystUserId(): Promise<{ analystId: string } | { error: 
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: t("certification.error.not_logged_in") };
+  if (!user) return { error: await t("certification.error.not_logged_in") };
 
   const { data: userRow } = await supabase.from("users").select("party_id").eq("auth_user_id", user.id).single();
-  if (!userRow) return { error: t("certification.error.no_user_row") };
+  if (!userRow) return { error: await t("certification.error.no_user_row") };
 
   const { data: analyst } = await supabase.from("analysts").select("id").eq("party_id", userRow.party_id).maybeSingle();
-  if (!analyst) return { error: t("certification.error.not_analyst") };
+  if (!analyst) return { error: await t("certification.error.not_analyst") };
 
   return { analystId: analyst.id };
 }
@@ -28,13 +28,13 @@ async function requireBackOfficeUserId(): Promise<{ userId: string } | { error: 
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: t("certification.error.not_logged_in") };
+  if (!user) return { error: await t("certification.error.not_logged_in") };
 
   const { data: isBackOffice } = await supabase.rpc("is_back_office");
-  if (!isBackOffice) return { error: t("certification.error.no_permission") };
+  if (!isBackOffice) return { error: await t("certification.error.no_permission") };
 
   const { data: userRow } = await supabase.from("users").select("id").eq("auth_user_id", user.id).single();
-  if (!userRow) return { error: t("certification.error.no_user_row") };
+  if (!userRow) return { error: await t("certification.error.no_user_row") };
 
   return { userId: userRow.id };
 }
@@ -54,10 +54,10 @@ export async function submitCertificationExam(_prev: ExamResultState, formData: 
   if ("error" in auth) return { status: "error", message: auth.error };
 
   const eligibility = await getMyCertificationEligibility(auth.analystId);
-  if (!eligibility.eligible) return { status: "error", message: t("certification.error.not_eligible") };
+  if (!eligibility.eligible) return { status: "error", message: await t("certification.error.not_eligible") };
 
   const questionSet = Number(formData.get("question_set"));
-  if (questionSet !== 1 && questionSet !== 2) return { status: "error", message: t("certification.error.invalid_submission") };
+  if (questionSet !== 1 && questionSet !== 2) return { status: "error", message: await t("certification.error.invalid_submission") };
 
   const admin = createAdminClient();
   const { data: questions } = await admin
@@ -65,7 +65,7 @@ export async function submitCertificationExam(_prev: ExamResultState, formData: 
     .select("id, correct_choice_index")
     .eq("question_set", questionSet)
     .eq("is_active", true);
-  if (!questions || questions.length === 0) return { status: "error", message: t("certification.error.invalid_submission") };
+  if (!questions || questions.length === 0) return { status: "error", message: await t("certification.error.invalid_submission") };
 
   const answers = questions.map((q) => {
     const raw = formData.get(`q_${q.id}`);
@@ -85,7 +85,7 @@ export async function submitCertificationExam(_prev: ExamResultState, formData: 
     passed,
     answers,
   });
-  if (attemptError) return { status: "error", message: `${t("certification.error.save_failed")}${attemptError.message}` };
+  if (attemptError) return { status: "error", message: `${await t("certification.error.save_failed")}${attemptError.message}` };
 
   if (passed) {
     // Same column the manual adminApproveCertification() button sets — fires
@@ -95,7 +95,7 @@ export async function submitCertificationExam(_prev: ExamResultState, formData: 
       .update({ certification_passed_at: new Date().toISOString() })
       .eq("id", auth.analystId)
       .is("certification_passed_at", null);
-    if (certifyError) return { status: "error", message: `${t("certification.error.save_failed")}${certifyError.message}` };
+    if (certifyError) return { status: "error", message: `${await t("certification.error.save_failed")}${certifyError.message}` };
   }
 
   revalidatePath("/admin/certification");
@@ -104,11 +104,11 @@ export async function submitCertificationExam(_prev: ExamResultState, formData: 
 
 const questionSchema = z.object({
   question_set: z.coerce.number().int().min(1).max(2),
-  question_text: z.string().trim().min(1, t("certification.admin.error.question_required")),
-  choice_0: z.string().trim().min(1, t("certification.admin.error.choice_required")),
-  choice_1: z.string().trim().min(1, t("certification.admin.error.choice_required")),
-  choice_2: z.string().trim().min(1, t("certification.admin.error.choice_required")),
-  choice_3: z.string().trim().min(1, t("certification.admin.error.choice_required")),
+  question_text: z.string().trim().min(1, await t("certification.admin.error.question_required")),
+  choice_0: z.string().trim().min(1, await t("certification.admin.error.choice_required")),
+  choice_1: z.string().trim().min(1, await t("certification.admin.error.choice_required")),
+  choice_2: z.string().trim().min(1, await t("certification.admin.error.choice_required")),
+  choice_3: z.string().trim().min(1, await t("certification.admin.error.choice_required")),
   correct_choice_index: z.coerce.number().int().min(0).max(3),
 });
 
@@ -127,7 +127,7 @@ export async function createCertificationQuestion(_prev: QuestionFormState, form
     choice_3: formData.get("choice_3"),
     correct_choice_index: formData.get("correct_choice_index"),
   });
-  if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message ?? t("certification.admin.error.invalid_form") };
+  if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message ?? await t("certification.admin.error.invalid_form") };
   const input = parsed.data;
 
   const admin = createAdminClient();
@@ -137,7 +137,7 @@ export async function createCertificationQuestion(_prev: QuestionFormState, form
     choices: [input.choice_0, input.choice_1, input.choice_2, input.choice_3],
     correct_choice_index: input.correct_choice_index,
   });
-  if (error) return { status: "error", message: `${t("certification.admin.error.save_failed")}${error.message}` };
+  if (error) return { status: "error", message: `${await t("certification.admin.error.save_failed")}${error.message}` };
 
   revalidatePath("/admin/certification/questions");
   return { status: "success" };
@@ -156,7 +156,7 @@ export async function updateCertificationQuestion(questionId: string, _prev: Que
     choice_3: formData.get("choice_3"),
     correct_choice_index: formData.get("correct_choice_index"),
   });
-  if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message ?? t("certification.admin.error.invalid_form") };
+  if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message ?? await t("certification.admin.error.invalid_form") };
   const input = parsed.data;
 
   const admin = createAdminClient();
@@ -169,7 +169,7 @@ export async function updateCertificationQuestion(questionId: string, _prev: Que
       correct_choice_index: input.correct_choice_index,
     })
     .eq("id", questionId);
-  if (error) return { status: "error", message: `${t("certification.admin.error.save_failed")}${error.message}` };
+  if (error) return { status: "error", message: `${await t("certification.admin.error.save_failed")}${error.message}` };
 
   revalidatePath("/admin/certification/questions");
   return { status: "success" };
@@ -181,14 +181,14 @@ export async function toggleCertificationQuestionActive(questionId: string, isAc
 
   const admin = createAdminClient();
   const { error } = await admin.from("certification_questions").update({ is_active: isActive }).eq("id", questionId);
-  if (error) return { ok: false, message: `${t("certification.admin.error.save_failed")}${error.message}` };
+  if (error) return { ok: false, message: `${await t("certification.admin.error.save_failed")}${error.message}` };
 
   revalidatePath("/admin/certification/questions");
-  return { ok: true, message: t("certification.admin.toggle_success") };
+  return { ok: true, message: await t("certification.admin.toggle_success") };
 }
 
 const passingScoreSchema = z.object({
-  passing_score: z.coerce.number().int().min(1, t("certification.admin.error.invalid_passing_score")),
+  passing_score: z.coerce.number().int().min(1, await t("certification.admin.error.invalid_passing_score")),
 });
 
 export type PassingScoreState = { status: "idle" } | { status: "error"; message: string } | { status: "success" };
@@ -198,14 +198,14 @@ export async function updatePassingScore(_prev: PassingScoreState, formData: For
   if ("error" in auth) return { status: "error", message: auth.error };
 
   const parsed = passingScoreSchema.safeParse({ passing_score: formData.get("passing_score") });
-  if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message ?? t("certification.admin.error.invalid_form") };
+  if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message ?? await t("certification.admin.error.invalid_form") };
 
   const admin = createAdminClient();
   const { error } = await admin
     .from("certification_settings")
     .update({ passing_score: parsed.data.passing_score, updated_at: new Date().toISOString() })
     .eq("id", true);
-  if (error) return { status: "error", message: `${t("certification.admin.error.save_failed")}${error.message}` };
+  if (error) return { status: "error", message: `${await t("certification.admin.error.save_failed")}${error.message}` };
 
   revalidatePath("/admin/certification/questions");
   return { status: "success" };

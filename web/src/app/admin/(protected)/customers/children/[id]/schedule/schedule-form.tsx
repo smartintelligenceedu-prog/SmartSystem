@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { t } from "@/lib/i18n";
+import { ct } from "@/lib/i18n-client";
 import { scheduleAppointment, type ScheduleAppointmentState } from "./actions";
 import type { CenterOption, DeviceOption } from "@/app/admin/(protected)/_scheduling/data";
 
@@ -37,7 +37,7 @@ export function ScheduleForm({
 
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <div className="space-y-2">
-              <Label htmlFor="center_id">{t("schedule.form.location_label")}</Label>
+              <Label htmlFor="center_id">{ct("schedule.form.location_label")}</Label>
               <Select name="center_id" items={centers.map((c) => ({ value: c.id, label: c.name }))}>
                 <SelectTrigger id="center_id" className="w-full">
                   <SelectValue placeholder="—" />
@@ -52,7 +52,7 @@ export function ScheduleForm({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="device_id">{t("schedule.form.device_label")}</Label>
+              <Label htmlFor="device_id">{ct("schedule.form.device_label")}</Label>
               <Select name="device_id" items={devices.map((d) => ({ value: d.id, label: d.label }))}>
                 <SelectTrigger id="device_id" className="w-full">
                   <SelectValue placeholder="—" />
@@ -67,16 +67,16 @@ export function ScheduleForm({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="detection_date">{t("schedule.form.date_label")}</Label>
+              <Label htmlFor="detection_date">{ct("schedule.form.date_label")}</Label>
               <Input id="detection_date" name="detection_date" type="date" defaultValue={todayDateString()} required />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-2">
-                <Label htmlFor="start_time">{t("schedule.form.start_time_label")}</Label>
+                <Label htmlFor="start_time">{ct("schedule.form.start_time_label")}</Label>
                 <Input id="start_time" name="start_time" type="time" required />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="end_time">{t("schedule.form.end_time_label")}</Label>
+                <Label htmlFor="end_time">{ct("schedule.form.end_time_label")}</Label>
                 <Input id="end_time" name="end_time" type="time" required />
               </div>
             </div>
@@ -87,10 +87,10 @@ export function ScheduleForm({
               {state.message}
             </p>
           )}
-          {state.status === "success" && <p className="text-sm">{t("schedule.form.success")}</p>}
+          {state.status === "success" && <p className="text-sm">{ct("schedule.form.success")}</p>}
 
           <Button type="submit" disabled={isPending}>
-            {t("schedule.form.submit")}
+            {ct("schedule.form.submit")}
           </Button>
         </form>
       </CardContent>

@@ -5,6 +5,7 @@ import { isBackOfficeRole } from "@/lib/auth/roles";
 import { listSalesOrders } from "./data";
 import { Button } from "@/components/ui/button";
 import { SalesOrdersSearch } from "./sales-orders-search";
+import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -25,14 +26,22 @@ export default async function SalesOrdersPage({
     <div className="mx-auto max-w-5xl space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">销售订单</h1>
+          <h1 className="text-xl font-semibold">{await t("sales_orders.page.title")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {status === "pending" ? "待审核付款的订单" : isBackOffice ? "全公司检测服务订单" : "你的检测服务订单"}
+            {status === "pending"
+              ? await t("sales_orders.page.subtitle_pending")
+              : isBackOffice
+                ? await t("sales_orders.page.subtitle_back_office")
+                : await t("sales_orders.page.subtitle_own")}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {isBackOffice && <Button size="sm" variant="outline" render={<Link href="/admin/sales-orders/items">销售项目 / 价目表</Link>} />}
-          {context.analystId && <Button size="sm" render={<Link href="/admin/sales-orders/new">新增销售订单</Link>} />}
+          {isBackOffice && (
+            <Button size="sm" variant="outline" render={<Link href="/admin/sales-orders/items">{await t("sales_orders.page.items_link")}</Link>} />
+          )}
+          {context.analystId && (
+            <Button size="sm" render={<Link href="/admin/sales-orders/new">{await t("sales_orders.page.new_order_link")}</Link>} />
+          )}
         </div>
       </div>
 

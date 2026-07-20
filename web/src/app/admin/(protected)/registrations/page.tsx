@@ -14,15 +14,16 @@ import {
 } from "@/components/ui/table";
 import type { AnalystStatus } from "@/lib/types/registration";
 import { CopyLinkButton } from "../_components/copy-link-button";
+import { t, type TranslationKey } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
-const STATUS_LABEL: Record<AnalystStatus, string> = {
-  pending: "待审核",
-  approved: "已核准",
-  suspended: "已暂停",
-  rejected: "已拒绝",
-  terminated: "已终止",
+const STATUS_KEY: Record<AnalystStatus, TranslationKey> = {
+  pending: "dashboard.agent.status.pending",
+  approved: "dashboard.agent.status.approved",
+  suspended: "dashboard.agent.status.suspended",
+  rejected: "dashboard.agent.status.rejected",
+  terminated: "dashboard.agent.status.terminated",
 };
 
 const STATUS_VARIANT: Record<AnalystStatus, "default" | "secondary" | "destructive" | "outline"> = {
@@ -37,13 +38,14 @@ function formatMYR(amount: number) {
   return new Intl.NumberFormat("ms-MY", { style: "currency", currency: "MYR" }).format(amount);
 }
 
-const TABS: { value: AnalystStatus | "all"; label: string }[] = [
-  { value: "pending", label: "待审核" },
-  { value: "approved", label: "已核准" },
-  { value: "suspended", label: "已暂停" },
-  { value: "rejected", label: "已拒绝" },
-  { value: "all", label: "全部" },
-];
+const TAB_VALUES = ["pending", "approved", "suspended", "rejected", "all"] as const;
+const TAB_KEY: Record<(typeof TAB_VALUES)[number], TranslationKey> = {
+  pending: "dashboard.agent.status.pending",
+  approved: "dashboard.agent.status.approved",
+  suspended: "dashboard.agent.status.suspended",
+  rejected: "dashboard.agent.status.rejected",
+  all: "registrations.tab.all",
+};
 
 export default async function RegistrationsListPage({
   searchParams,
@@ -64,25 +66,32 @@ export default async function RegistrationsListPage({
   const activeStatus = (status as AnalystStatus | undefined) ?? "pending";
   const rows = await listRegistrations(activeStatus === ("all" as never) ? undefined : activeStatus);
 
+  const statusLabelByStatus = Object.fromEntries(
+    await Promise.all(Object.entries(STATUS_KEY).map(async ([k, key]) => [k, await t(key)]))
+  ) as Record<AnalystStatus, string>;
+  const tabLabelByValue = Object.fromEntries(
+    await Promise.all(Object.entries(TAB_KEY).map(async ([k, key]) => [k, await t(key)]))
+  ) as Record<(typeof TAB_VALUES)[number], string>;
+
   return (
     <div className="mx-auto max-w-5xl">
       <div className="flex items-start justify-between gap-4">
-        <h1 className="text-xl font-semibold">分析师注册审核</h1>
-        <CopyLinkButton path="/register" label="复制注册连结" />
+        <h1 className="text-xl font-semibold">{await t("registrations.page.title")}</h1>
+        <CopyLinkButton path="/register" label={await t("registrations.page.copy_link")} />
       </div>
 
       <nav className="mt-4 flex gap-1 border-b">
-        {TABS.map((tab) => (
+        {TAB_VALUES.map((value) => (
           <Link
-            key={tab.value}
-            href={`/admin/registrations?status=${tab.value}`}
+            key={value}
+            href={`/admin/registrations?status=${value}`}
             className={`px-3 py-2 text-sm ${
-              activeStatus === tab.value
+              activeStatus === value
                 ? "border-b-2 border-foreground font-medium"
                 : "text-muted-foreground"
             }`}
           >
-            {tab.label}
+            {tabLabelByValue[value]}
           </Link>
         ))}
       </nav>
@@ -91,20 +100,20 @@ export default async function RegistrationsListPage({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>姓名</TableHead>
-              <TableHead>昵称</TableHead>
-              <TableHead>联络方式</TableHead>
-              <TableHead>推荐人</TableHead>
-              <TableHead>套装</TableHead>
-              <TableHead>状态</TableHead>
-              <TableHead>提交时间</TableHead>
+              <TableHead>{await t("registrations.page.column.name")}</TableHead>
+              <TableHead>{await t("registrations.page.column.nickname")}</TableHead>
+              <TableHead>{await t("registrations.page.column.contact")}</TableHead>
+              <TableHead>{await t("registrations.page.column.sponsor")}</TableHead>
+              <TableHead>{await t("registrations.page.column.kit")}</TableHead>
+              <TableHead>{await t("registrations.page.column.status")}</TableHead>
+              <TableHead>{await t("registrations.page.column.submitted_at")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.length === 0 && (
               <TableRow>
                 <TableCell colSpan={7} className="text-center text-muted-foreground">
-                  没有符合的申请
+                  {await t("registrations.page.empty")}
                 </TableCell>
               </TableRow>
             )}
@@ -125,7 +134,7 @@ export default async function RegistrationsListPage({
                   {row.kit_name} · {formatMYR(row.price)}
                 </TableCell>
                 <TableCell>
-                  <Badge variant={STATUS_VARIANT[row.status]}>{STATUS_LABEL[row.status]}</Badge>
+                  <Badge variant={STATUS_VARIANT[row.status]}>{statusLabelByStatus[row.status]}</Badge>
                 </TableCell>
                 <TableCell className="text-muted-foreground tabular-nums">
                   {new Date(row.created_at).toLocaleString("zh-CN")}

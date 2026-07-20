@@ -2,16 +2,19 @@
 
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { t } from "@/lib/i18n";
 
-const applicationSchema = z.object({
-  full_name: z.string().trim().min(2, "请输入姓名"),
-  email: z.string().trim().email("请输入有效的电邮地址"),
-  phone: z.string().trim().min(8, "请输入有效的电话号码"),
-  bank_name: z.string().trim().optional(),
-  bank_account_name: z.string().trim().optional(),
-  bank_account_no: z.string().trim().optional(),
-  sponsor_referral_code: z.string().trim().optional(),
-});
+async function buildApplicationSchema() {
+  return z.object({
+    full_name: z.string().trim().min(2, await t("register_introducer.error.full_name_required")),
+    email: z.string().trim().email(await t("register_introducer.error.email_invalid")),
+    phone: z.string().trim().min(8, await t("register_introducer.error.phone_invalid")),
+    bank_name: z.string().trim().optional(),
+    bank_account_name: z.string().trim().optional(),
+    bank_account_no: z.string().trim().optional(),
+    sponsor_referral_code: z.string().trim().optional(),
+  });
+}
 
 export type IntroducerApplicationState =
   | { status: "idle" }
@@ -22,6 +25,7 @@ export async function submitIntroducerApplication(
   _prev: IntroducerApplicationState,
   formData: FormData
 ): Promise<IntroducerApplicationState> {
+  const applicationSchema = await buildApplicationSchema();
   const parsed = applicationSchema.safeParse({
     full_name: formData.get("full_name"),
     email: formData.get("email"),
@@ -32,7 +36,7 @@ export async function submitIntroducerApplication(
     sponsor_referral_code: formData.get("sponsor_referral_code") || undefined,
   });
   if (!parsed.success) {
-    return { status: "error", message: parsed.error.issues[0]?.message ?? "表单资料有误" };
+    return { status: "error", message: parsed.error.issues[0]?.message ?? (await t("register_introducer.error.form_invalid")) };
   }
   const input = parsed.data;
 
@@ -49,10 +53,10 @@ export async function submitIntroducerApplication(
       .eq("status", "active")
       .maybeSingle();
     if (sponsorError) {
-      return { status: "error", message: `查询推荐码时发生错误：${sponsorError.message}` };
+      return { status: "error", message: `${await t("register_introducer.error.sponsor_lookup_failed_prefix")}${sponsorError.message}` };
     }
     if (!sponsor) {
-      return { status: "error", message: "找不到这个推荐码，请跟推荐人确认后再试一次" };
+      return { status: "error", message: await t("register_introducer.error.sponsor_not_found") };
     }
     sponsorId = sponsor.id;
   }
@@ -69,7 +73,7 @@ export async function submitIntroducerApplication(
     status: "pending",
   });
   if (error) {
-    return { status: "error", message: `提交申请时发生错误：${error.message}` };
+    return { status: "error", message: `${await t("register_introducer.error.submit_failed_prefix")}${error.message}` };
   }
 
   return { status: "success" };

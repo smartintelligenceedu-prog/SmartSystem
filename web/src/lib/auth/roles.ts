@@ -1,18 +1,9 @@
 // Pure role types/helpers with no server-only dependency, so client
-// components (e.g. profile-form.tsx) can import ROLE_LABEL without pulling
-// in the server-only getPortalUserContext() from context.ts.
+// components can import PortalRole without pulling in the server-only
+// getPortalUserContext() from context.ts. Display labels now live in
+// locales/*.json under the "role.*" keys (see ROLE_KEY maps at each call site).
 
 export type PortalRole = "admin" | "finance" | "back_office" | "agent" | "leader" | "introducer" | "pic";
-
-export const ROLE_LABEL: Record<PortalRole, string> = {
-  admin: "管理员",
-  finance: "财务",
-  back_office: "后台人员",
-  agent: "分析师",
-  leader: "团队主管",
-  introducer: "引荐人",
-  pic: "通路负责人",
-};
 
 export interface RolesBearer {
   roles: PortalRole[];

@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { submitIntroducerApplication, type IntroducerApplicationState } from "./actions";
+import { ct } from "@/lib/i18n-client";
 
 const initialState: IntroducerApplicationState = { status: "idle" };
 
@@ -14,8 +15,8 @@ export function RegisterIntroducerForm() {
   if (state.status === "success") {
     return (
       <div className="rounded-md border p-6 text-sm">
-        <p className="font-medium">申请已提交</p>
-        <p className="mt-1 text-muted-foreground">请等待后台审核，审核通过后我们会与您联系。</p>
+        <p className="font-medium">{ct("register_introducer.form.success_title")}</p>
+        <p className="mt-1 text-muted-foreground">{ct("register_introducer.form.success_body")}</p>
       </div>
     );
   }
@@ -24,33 +25,33 @@ export function RegisterIntroducerForm() {
     <form action={formAction} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="full_name">姓名</Label>
+          <Label htmlFor="full_name">{ct("register_introducer.form.full_name_label")}</Label>
           <Input id="full_name" name="full_name" required />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="phone">电话</Label>
+          <Label htmlFor="phone">{ct("register_introducer.form.phone_label")}</Label>
           <Input id="phone" name="phone" required />
         </div>
       </div>
       <div className="space-y-2">
-        <Label htmlFor="email">电邮</Label>
+        <Label htmlFor="email">{ct("register_introducer.form.email_label")}</Label>
         <Input id="email" name="email" type="email" required />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="sponsor_referral_code">推荐人推荐码（选填）</Label>
-        <Input id="sponsor_referral_code" name="sponsor_referral_code" placeholder="如果是被别的引荐人邀请，请填写对方的推荐码" />
+        <Label htmlFor="sponsor_referral_code">{ct("register_introducer.form.sponsor_code_label")}</Label>
+        <Input id="sponsor_referral_code" name="sponsor_referral_code" placeholder={ct("register_introducer.form.sponsor_code_placeholder")} />
       </div>
       <div className="grid grid-cols-3 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="bank_name">银行名称（选填）</Label>
+          <Label htmlFor="bank_name">{ct("register_introducer.form.bank_name_label")}</Label>
           <Input id="bank_name" name="bank_name" />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="bank_account_name">户口持有人（选填）</Label>
+          <Label htmlFor="bank_account_name">{ct("register_introducer.form.bank_account_name_label")}</Label>
           <Input id="bank_account_name" name="bank_account_name" />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="bank_account_no">户口号码（选填）</Label>
+          <Label htmlFor="bank_account_no">{ct("register_introducer.form.bank_account_no_label")}</Label>
           <Input id="bank_account_no" name="bank_account_no" />
         </div>
       </div>
@@ -62,7 +63,7 @@ export function RegisterIntroducerForm() {
       )}
 
       <Button type="submit" disabled={isPending} className="w-full">
-        {isPending ? "提交中…" : "提交申请"}
+        {isPending ? ct("register_introducer.form.submitting") : ct("register_introducer.form.submit")}
       </Button>
     </form>
   );

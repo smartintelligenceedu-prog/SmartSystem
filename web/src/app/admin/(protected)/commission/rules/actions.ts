@@ -4,35 +4,40 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { t } from "@/lib/i18n";
 
 async function requireBackOfficeUserId(): Promise<{ userId: string } | { error: string }> {
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "请先登入" };
+  if (!user) return { error: await t("commission.rules.error.not_signed_in") };
 
   const { data: isBackOffice } = await supabase.rpc("is_back_office");
-  if (!isBackOffice) return { error: "没有权限执行此操作" };
+  if (!isBackOffice) return { error: await t("commission.rules.error.no_permission") };
 
   const { data: userRow } = await supabase.from("users").select("id").eq("auth_user_id", user.id).single();
-  if (!userRow) return { error: "找不到对应的后台使用者资料" };
+  if (!userRow) return { error: await t("commission.rules.error.no_user_row") };
 
   return { userId: userRow.id };
 }
 
-const updateRuleSchema = z
-  .object({
-    trigger_type: z.enum(["personal_sale", "pic_channel", "introducer", "recruitment", "voucher_resale", "report_override", "analyst_report_fee"]),
-    level_number: z.coerce.number().int(),
-    calculation_type: z.enum(["percentage", "flat"]),
-    rate_percent: z.coerce.number().min(0).max(100).optional(),
-    flat_amount: z.coerce.number().min(0).optional(),
-    cap_amount: z.coerce.number().min(0).optional(),
-  })
-  .refine((v) => (v.calculation_type === "percentage" ? v.rate_percent !== undefined : v.flat_amount !== undefined), {
-    message: "请填写对应的费率或金额",
-  });
+// Built per-call, not a module-scope constant — see the identical note in
+// customers/actions.ts's buildCustomerFormSchema.
+async function buildUpdateRuleSchema() {
+  return z
+    .object({
+      trigger_type: z.enum(["personal_sale", "pic_channel", "introducer", "recruitment", "voucher_resale", "report_override", "analyst_report_fee"]),
+      level_number: z.coerce.number().int(),
+      calculation_type: z.enum(["percentage", "flat"]),
+      rate_percent: z.coerce.number().min(0).max(100).optional(),
+      flat_amount: z.coerce.number().min(0).optional(),
+      cap_amount: z.coerce.number().min(0).optional(),
+    })
+    .refine((v) => (v.calculation_type === "percentage" ? v.rate_percent !== undefined : v.flat_amount !== undefined), {
+      message: await t("commission.rules.error.rate_or_amount_required"),
+    });
+}
 
 export type UpdateCommissionRuleState = { status: "idle" } | { status: "error"; message: string } | { status: "success" };
 
@@ -47,6 +52,7 @@ export async function updateCommissionRule(_prev: UpdateCommissionRuleState, for
   const auth = await requireBackOfficeUserId();
   if ("error" in auth) return { status: "error", message: auth.error };
 
+  const updateRuleSchema = await buildUpdateRuleSchema();
   const parsed = updateRuleSchema.safeParse({
     trigger_type: formData.get("trigger_type"),
     level_number: formData.get("level_number"),
@@ -55,13 +61,13 @@ export async function updateCommissionRule(_prev: UpdateCommissionRuleState, for
     flat_amount: formData.get("flat_amount") || undefined,
     cap_amount: formData.get("cap_amount") || undefined,
   });
-  if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message ?? "表单资料有误" };
+  if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message ?? (await t("commission.rules.error.invalid_form")) };
   const input = parsed.data;
 
   const admin = createAdminClient();
 
   const { data: plan } = await admin.from("compensation_plans").select("id").eq("is_active", true).limit(1).single();
-  if (!plan) return { status: "error", message: "找不到生效中的薪酬计划" };
+  if (!plan) return { status: "error", message: await t("commission.rules.error.no_active_plan") };
 
   const today = new Date();
   const todayStr = today.toISOString().slice(0, 10);
@@ -83,7 +89,7 @@ export async function updateCommissionRule(_prev: UpdateCommissionRuleState, for
         "id",
         currentRules.map((r) => r.id)
       );
-    if (closeError) return { status: "error", message: `结束旧规则失败：${closeError.message}` };
+    if (closeError) return { status: "error", message: `${await t("commission.rules.error.close_old_rule_failed_prefix")}${closeError.message}` };
   }
 
   const { error: insertError } = await admin.from("commission_rules").insert({
@@ -96,7 +102,7 @@ export async function updateCommissionRule(_prev: UpdateCommissionRuleState, for
     cap_amount: input.cap_amount ?? null,
     effective_from: todayStr,
   });
-  if (insertError) return { status: "error", message: `建立新规则失败：${insertError.message}` };
+  if (insertError) return { status: "error", message: `${await t("commission.rules.error.create_rule_failed_prefix")}${insertError.message}` };
 
   revalidatePath("/admin/commission/rules");
   return { status: "success" };

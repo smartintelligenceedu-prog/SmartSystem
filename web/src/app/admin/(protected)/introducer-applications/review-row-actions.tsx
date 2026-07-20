@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { approveIntroducerApplication, rejectIntroducerApplication } from "./actions";
+import { ct } from "@/lib/i18n-client";
 
 export function ReviewRowActions({ applicationId }: { applicationId: string }) {
   const router = useRouter();
@@ -17,7 +18,12 @@ export function ReviewRowActions({ applicationId }: { applicationId: string }) {
     return (
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-1">
-          <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="拒绝原因" className="h-8 w-36" />
+          <Input
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder={ct("introducer_applications.row.reason_placeholder")}
+            className="h-8 w-36"
+          />
           <Button
             size="sm"
             variant="destructive"
@@ -30,10 +36,10 @@ export function ReviewRowActions({ applicationId }: { applicationId: string }) {
               })
             }
           >
-            确认拒绝
+            {ct("introducer_applications.row.confirm_reject")}
           </Button>
           <Button size="sm" variant="ghost" disabled={isPending} onClick={() => setRejecting(false)}>
-            取消
+            {ct("introducer_applications.row.cancel")}
           </Button>
         </div>
         {message && <p className="text-xs text-muted-foreground">{message}</p>}
@@ -55,10 +61,10 @@ export function ReviewRowActions({ applicationId }: { applicationId: string }) {
             })
           }
         >
-          {isPending ? "处理中…" : "核准"}
+          {isPending ? ct("introducer_applications.row.processing") : ct("introducer_applications.row.approve")}
         </Button>
         <Button size="sm" variant="outline" disabled={isPending} onClick={() => setRejecting(true)}>
-          拒绝
+          {ct("introducer_applications.row.reject")}
         </Button>
       </div>
       {message && <p className="text-xs text-muted-foreground">{message}</p>}

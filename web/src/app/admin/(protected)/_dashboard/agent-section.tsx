@@ -7,7 +7,7 @@ import { t } from "@/lib/i18n";
 import type { AnalystStatus } from "@/lib/types/registration";
 import { VoucherProgressBar } from "../finance/institutional/voucher-progress-bar";
 import { getAgentInstitutionalStats, getFollowUpChildren } from "./agent-institutional-stats";
-import { TQC_TAG_I18N_KEY } from "@/lib/tqc-tags";
+import { buildTagLabelMap } from "@/lib/tqc-tags";
 import { CopyLinkButton } from "../_components/copy-link-button";
 
 function formatMYR(amount: number) {
@@ -92,18 +92,22 @@ export async function AgentSection({ analystId }: { analystId: string }) {
 
   const notifications = [
     (pendingApprovalCount ?? 0) > 0 && {
-      label: t("dashboard.agent.notification.pending_approval.label"),
-      detail: `${pendingApprovalCount} ${t("dashboard.agent.notification.pending_approval.suffix")}`,
+      label: await t("dashboard.agent.notification.pending_approval.label"),
+      detail: `${pendingApprovalCount} ${await t("dashboard.agent.notification.pending_approval.suffix")}`,
     },
     (newCommissionCount ?? 0) > 0 && {
-      label: t("dashboard.agent.notification.new_commission.label"),
-      detail: `${t("dashboard.agent.notification.new_commission.prefix")} ${newCommissionCount} ${t("dashboard.agent.notification.new_commission.suffix")}`,
+      label: await t("dashboard.agent.notification.new_commission.label"),
+      detail: `${await t("dashboard.agent.notification.new_commission.prefix")} ${newCommissionCount} ${await t("dashboard.agent.notification.new_commission.suffix")}`,
     },
   ].filter((n): n is { label: string; detail: string } => !!n);
 
+  const tagLabelByTag = await buildTagLabelMap(followUpChildren.flatMap((c) => c.tags));
+  const daysSincePrefix = await t("dashboard.agent.followup.days_since_prefix");
+  const daysSinceSuffix = await t("dashboard.agent.followup.days_since_suffix");
+
   return (
     <section className="space-y-4">
-      <h2 className="text-sm font-medium tracking-wide text-muted-foreground uppercase">{t("dashboard.agent.title")}</h2>
+      <h2 className="text-sm font-medium tracking-wide text-muted-foreground uppercase">{await t("dashboard.agent.title")}</h2>
 
       <Card>
         <CardContent className="flex flex-wrap items-center justify-between gap-4 pt-6">
@@ -112,43 +116,43 @@ export async function AgentSection({ analystId }: { analystId: string }) {
               {identity?.full_name ?? "—"} <span className="text-sm font-normal text-muted-foreground">({identity?.nickname})</span>
             </p>
             <p className="text-sm text-muted-foreground">
-              {t("dashboard.agent.field.agent_id")}: {analyst?.referral_code}
+              {await t("dashboard.agent.field.agent_id")}: {analyst?.referral_code}
             </p>
           </div>
           <div className="flex items-center gap-3">
             {analyst?.referral_code && (
-              <CopyLinkButton path={`/register?ref=${analyst.referral_code}`} label={t("dashboard.agent.copy_referral_link")} />
+              <CopyLinkButton path={`/register?ref=${analyst.referral_code}`} label={await t("dashboard.agent.copy_referral_link")} />
             )}
-            <Badge variant="secondary">{t(STATUS_LABEL_KEY[(analyst?.status as AnalystStatus) ?? "pending"])}</Badge>
+            <Badge variant="secondary">{await t(STATUS_LABEL_KEY[(analyst?.status as AnalystStatus) ?? "pending"])}</Badge>
           </div>
         </CardContent>
       </Card>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-        <StatCard label={t("dashboard.agent.stat.available_report_credit")} value={String(availableCredit ?? 0)} />
-        <StatCard label={t("dashboard.agent.stat.total_customers")} value={String(totalCustomers ?? 0)} />
-        <StatCard label={t("dashboard.agent.stat.total_sales_orders")} value={String(totalSalesOrders ?? 0)} />
-        <StatCard label={t("dashboard.agent.stat.monthly_sales")} value={formatMYR(monthlySales)} />
-        <StatCard label={t("dashboard.agent.stat.pending_orders")} value={String(pendingOrders ?? 0)} />
-        <StatCard label={t("dashboard.agent.stat.commission_this_month")} value={formatMYR(commissionThisMonth)} />
+        <StatCard label={await t("dashboard.agent.stat.available_report_credit")} value={String(availableCredit ?? 0)} />
+        <StatCard label={await t("dashboard.agent.stat.total_customers")} value={String(totalCustomers ?? 0)} />
+        <StatCard label={await t("dashboard.agent.stat.total_sales_orders")} value={String(totalSalesOrders ?? 0)} />
+        <StatCard label={await t("dashboard.agent.stat.monthly_sales")} value={formatMYR(monthlySales)} />
+        <StatCard label={await t("dashboard.agent.stat.pending_orders")} value={String(pendingOrders ?? 0)} />
+        <StatCard label={await t("dashboard.agent.stat.commission_this_month")} value={formatMYR(commissionThisMonth)} />
       </div>
 
       <div>
-        <h3 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{t("dashboard.agent.section.institutional")}</h3>
+        <h3 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{await t("dashboard.agent.section.institutional")}</h3>
         <Card>
           <CardContent className="flex flex-wrap items-center gap-6 pt-6">
             <VoucherProgressBar total={institutionalStats.voucher_total} used={institutionalStats.voucher_used} />
             <div className="grid flex-1 grid-cols-3 gap-4">
               <div>
-                <p className="text-xs text-muted-foreground">{t("dashboard.agent.stat.institution_count")}</p>
+                <p className="text-xs text-muted-foreground">{await t("dashboard.agent.stat.institution_count")}</p>
                 <p className="mt-1 text-xl font-semibold tabular-nums">{institutionalStats.institution_count}</p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">{t("dashboard.agent.stat.assessed_children")}</p>
+                <p className="text-xs text-muted-foreground">{await t("dashboard.agent.stat.assessed_children")}</p>
                 <p className="mt-1 text-xl font-semibold tabular-nums">{institutionalStats.assessed_children_count}</p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">{t("dashboard.agent.stat.new_children_this_month")}</p>
+                <p className="text-xs text-muted-foreground">{await t("dashboard.agent.stat.new_children_this_month")}</p>
                 <p className="mt-1 text-xl font-semibold tabular-nums">{institutionalStats.new_children_this_month}</p>
               </div>
             </div>
@@ -157,9 +161,9 @@ export async function AgentSection({ analystId }: { analystId: string }) {
       </div>
 
       <div>
-        <h3 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{t("dashboard.agent.followup.title")}</h3>
+        <h3 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{await t("dashboard.agent.followup.title")}</h3>
         <div className="divide-y rounded-md border">
-          {followUpChildren.length === 0 && <p className="p-4 text-sm text-muted-foreground">{t("dashboard.agent.followup.empty")}</p>}
+          {followUpChildren.length === 0 && <p className="p-4 text-sm text-muted-foreground">{await t("dashboard.agent.followup.empty")}</p>}
           {followUpChildren.map((c) => (
             <Link
               key={c.child_id}
@@ -171,13 +175,13 @@ export async function AgentSection({ analystId }: { analystId: string }) {
                 <div className="mt-1 flex flex-wrap gap-1">
                   {c.tags.map((tag) => (
                     <Badge key={tag} variant="outline">
-                      {t((TQC_TAG_I18N_KEY[tag] ?? tag) as Parameters<typeof t>[0])}
+                      {tagLabelByTag[tag] ?? tag}
                     </Badge>
                   ))}
                 </div>
               </div>
               <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                {t("dashboard.agent.followup.days_since_prefix")} {c.days_since_assessment} {t("dashboard.agent.followup.days_since_suffix")}
+                {daysSincePrefix} {c.days_since_assessment} {daysSinceSuffix}
               </span>
             </Link>
           ))}
@@ -185,22 +189,22 @@ export async function AgentSection({ analystId }: { analystId: string }) {
       </div>
 
       <div>
-        <h3 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{t("dashboard.agent.quick_actions")}</h3>
+        <h3 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{await t("dashboard.agent.quick_actions")}</h3>
         <div className="flex flex-wrap gap-2">
           {/* Base UI Button uses a `render` prop instead of Radix's asChild —
               see the same note in select.tsx. */}
-          <Button size="sm" render={<Link href="/admin/customers/new">{t("dashboard.agent.action.register_customer")}</Link>} />
-          <Button size="sm" variant="secondary" render={<Link href="/admin/sales-orders/new">{t("dashboard.agent.action.new_sales_order")}</Link>} />
-          <Button size="sm" variant="secondary" render={<Link href="/admin/customers">{t("dashboard.agent.action.view_customers")}</Link>} />
-          <Button size="sm" variant="secondary" render={<Link href="/admin/commission">{t("dashboard.agent.action.my_commission")}</Link>} />
-          <Button size="sm" variant="secondary" render={<Link href="/admin/reports">{t("dashboard.agent.action.my_reports")}</Link>} />
+          <Button size="sm" render={<Link href="/admin/customers/new">{await t("dashboard.agent.action.register_customer")}</Link>} />
+          <Button size="sm" variant="secondary" render={<Link href="/admin/sales-orders/new">{await t("dashboard.agent.action.new_sales_order")}</Link>} />
+          <Button size="sm" variant="secondary" render={<Link href="/admin/customers">{await t("dashboard.agent.action.view_customers")}</Link>} />
+          <Button size="sm" variant="secondary" render={<Link href="/admin/commission">{await t("dashboard.agent.action.my_commission")}</Link>} />
+          <Button size="sm" variant="secondary" render={<Link href="/admin/reports">{await t("dashboard.agent.action.my_reports")}</Link>} />
         </div>
       </div>
 
       <div>
-        <h3 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{t("dashboard.agent.notifications")}</h3>
+        <h3 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{await t("dashboard.agent.notifications")}</h3>
         <div className="divide-y rounded-md border">
-          {notifications.length === 0 && <p className="p-4 text-sm text-muted-foreground">{t("dashboard.agent.notifications.empty")}</p>}
+          {notifications.length === 0 && <p className="p-4 text-sm text-muted-foreground">{await t("dashboard.agent.notifications.empty")}</p>}
           {notifications.map((n) => (
             <div key={n.label} className="px-4 py-3 text-sm">
               <p className="font-medium">{n.label}</p>

@@ -6,6 +6,7 @@ import { LeaderSection } from "./_dashboard/leader-section";
 import { AgentSection } from "./_dashboard/agent-section";
 import { IntroducerSection } from "./_dashboard/introducer-section";
 import { PicSection } from "./_dashboard/pic-section";
+import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -26,11 +27,11 @@ export default async function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-10">
-      <h1 className="text-xl font-semibold">Dashboard</h1>
+      <h1 className="text-xl font-semibold">{await t("dashboard.nav.label")}</h1>
 
       {nothingToShow && (
         <p className="text-sm text-muted-foreground">
-          你的帐号目前没有对应任何仪表板内容，请联系管理员确认角色设定。
+          {await t("dashboard.nothing_to_show")}
         </p>
       )}
 

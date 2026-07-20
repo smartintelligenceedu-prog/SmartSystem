@@ -13,10 +13,10 @@ async function requireCallerContext(): Promise<{ analystId: string | null; isBac
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "请先登入" };
+  if (!user) return { error: await t("tqc.form.error.not_signed_in") };
 
   const { data: userRow } = await supabase.from("users").select("id, party_id").eq("auth_user_id", user.id).single();
-  if (!userRow) return { error: "找不到对应的使用者资料" };
+  if (!userRow) return { error: await t("tqc.form.error.no_user_row") };
 
   const { data: isBackOffice } = await supabase.rpc("is_back_office");
   const { data: analyst } = await supabase.from("analysts").select("id").eq("party_id", userRow.party_id).maybeSingle();
@@ -24,26 +24,33 @@ async function requireCallerContext(): Promise<{ analystId: string | null; isBac
   return { analystId: analyst?.id ?? null, isBackOffice: !!isBackOffice };
 }
 
-const scoreSchema = z.coerce.number().min(0, "分数必须介于 0-100 之间").max(100, "分数必须介于 0-100 之间");
-const zoneCategorySchema = z.enum(ZONE_CATEGORIES, { message: "请为每个脑区选择分类" });
 const learningStyleValues = LEARNING_STYLES.map((s) => s.value) as [string, ...string[]];
 
-const saveReportSchema = z.object({
-  child_id: z.string().uuid().optional(),
-  customer_id: z.string().uuid().optional(),
-  appointment_id: z.string().uuid(t("tqc.form.error.appointment_required")),
-  left_brain_pct: scoreSchema,
-  right_brain_pct: scoreSchema,
-  personality_type: z.enum(PERSONALITY_TYPE_VALUES, { message: "请选择性格类型" }),
-  tqc_activity_score: z.coerce.number().min(0, "脑活跃度分数不能为负数"),
-  learning_styles: z.array(z.enum(learningStyleValues)),
-  analyst_summary: z.string().trim().optional(),
-  ...Object.fromEntries(BRAIN_ZONES.map((zone) => [zone.field, scoreSchema])),
-  // Loop variable deliberately not named `z` here — this codebase's `z` import
-  // is the zod namespace, and `zoneCategorySchema` (built from it) is
-  // referenced inside this same map callback.
-  ...Object.fromEntries(BRAIN_ZONES.map((zone) => [`zone_category_${zone.field}`, zoneCategorySchema])),
-});
+// Built per-call (not a module-scope constant) — every message here uses
+// t(), which is locale-aware; a module-scope schema would freeze those
+// lookups at whatever locale happened to be active the first time this
+// module loaded, and never update again for other requests/users.
+async function buildSaveReportSchema() {
+  const scoreRangeMessage = await t("tqc.form.error.score_range");
+  const scoreSchema = z.coerce.number().min(0, scoreRangeMessage).max(100, scoreRangeMessage);
+  const zoneCategorySchema = z.enum(ZONE_CATEGORIES, { message: await t("tqc.form.error.zone_category_required") });
+  return z.object({
+    child_id: z.string().uuid().optional(),
+    customer_id: z.string().uuid().optional(),
+    appointment_id: z.string().uuid(await t("tqc.form.error.appointment_required")),
+    left_brain_pct: scoreSchema,
+    right_brain_pct: scoreSchema,
+    personality_type: z.enum(PERSONALITY_TYPE_VALUES, { message: await t("tqc.form.error.personality_required") }),
+    tqc_activity_score: z.coerce.number().min(0, await t("tqc.form.error.activity_score_negative")),
+    learning_styles: z.array(z.enum(learningStyleValues)),
+    analyst_summary: z.string().trim().optional(),
+    ...Object.fromEntries(BRAIN_ZONES.map((zone) => [zone.field, scoreSchema])),
+    // Loop variable deliberately not named `z` here — this codebase's `z` import
+    // is the zod namespace, and `zoneCategorySchema` (built from it) is
+    // referenced inside this same map callback.
+    ...Object.fromEntries(BRAIN_ZONES.map((zone) => [`zone_category_${zone.field}`, zoneCategorySchema])),
+  });
+}
 
 export type SaveOnePageReportState = { status: "idle" } | { status: "error"; message: string } | { status: "success" };
 
@@ -65,20 +72,21 @@ export async function saveOnePageReport(_prev: SaveOnePageReportState, formData:
   const childId = typeof childIdRaw === "string" && childIdRaw ? childIdRaw : null;
   const customerIdRaw = formData.get("customer_id");
   const customerId = typeof customerIdRaw === "string" && customerIdRaw ? customerIdRaw : null;
-  if (!childId && !customerId) return { status: "error", message: "找不到受测者的资料" };
+  if (!childId && !customerId) return { status: "error", message: await t("tqc.form.error.subject_not_found") };
 
   // Migration 028 — the subject is either a customer_children row or the
   // customer themselves (adult self-assessment); exactly one of
   // childId/customerId is set by the form.
   const subject = childId ? await getChildContext(childId) : await getCustomerSelfContext(customerId as string);
-  if (!subject) return { status: "error", message: "找不到受测者的资料" };
+  if (!subject) return { status: "error", message: await t("tqc.form.error.subject_not_found") };
 
   if (!auth.isBackOffice && auth.analystId !== subject.owner_analyst_id) {
-    return { status: "error", message: "没有权限执行此操作" };
+    return { status: "error", message: await t("tqc.form.error.no_permission") };
   }
 
   const learningStyles = formData.getAll("learning_styles");
 
+  const saveReportSchema = await buildSaveReportSchema();
   const parsed = saveReportSchema.safeParse({
     child_id: childId ?? undefined,
     customer_id: childId ? undefined : (customerId ?? undefined),
@@ -93,7 +101,7 @@ export async function saveOnePageReport(_prev: SaveOnePageReportState, formData:
     ...Object.fromEntries(BRAIN_ZONES.map((zone) => [`zone_category_${zone.field}`, formData.get(`zone_category_${zone.field}`)])),
   });
   if (!parsed.success) {
-    return { status: "error", message: parsed.error.issues[0]?.message ?? "表单资料有误" };
+    return { status: "error", message: parsed.error.issues[0]?.message ?? (await t("tqc.form.error.invalid_form")) };
   }
 
   // zone_category_<field> fields aren't real table columns — collapse them
@@ -121,16 +129,16 @@ export async function saveOnePageReport(_prev: SaveOnePageReportState, formData:
     ? appointmentQuery.eq("child_id", child_id)
     : appointmentQuery.eq("customer_id", subject.customer_id).is("child_id", null);
   const { data: appointment } = await appointmentQuery.maybeSingle();
-  if (!appointment) return { status: "error", message: t("tqc.form.error.appointment_not_found") };
+  if (!appointment) return { status: "error", message: await t("tqc.form.error.appointment_not_found") };
   if (appointment.status !== "pending_assessment") {
-    return { status: "error", message: t("tqc.form.error.appointment_already_completed") };
+    return { status: "error", message: await t("tqc.form.error.appointment_already_completed") };
   }
 
   const { error: appointmentError } = await admin
     .from("detection_appointments")
     .update({ status: "completed" })
     .eq("id", appointment_id);
-  if (appointmentError) return { status: "error", message: `${t("tqc.form.error.appointment_save_failed")}${appointmentError.message}` };
+  if (appointmentError) return { status: "error", message: `${await t("tqc.form.error.appointment_save_failed")}${appointmentError.message}` };
 
   const { error: sessionError } = await admin.from("detection_sessions").insert({
     appointment_id,
@@ -140,7 +148,7 @@ export async function saveOnePageReport(_prev: SaveOnePageReportState, formData:
     device_id: appointment.device_id,
     status: "completed",
   });
-  if (sessionError) return { status: "error", message: `登记检测纪录失败：${sessionError.message}` };
+  if (sessionError) return { status: "error", message: `${await t("tqc.form.error.session_save_failed")}${sessionError.message}` };
 
   // A new historical row every save (a subject can be retested); the
   // tag-derivation trigger only acts on whichever row is currently the
@@ -153,7 +161,7 @@ export async function saveOnePageReport(_prev: SaveOnePageReportState, formData:
     analyst_summary: rest.analyst_summary || null,
     zone_categories: zoneCategories,
   });
-  if (error) return { status: "error", message: `保存报告失败：${error.message}` };
+  if (error) return { status: "error", message: `${await t("tqc.form.error.report_save_failed")}${error.message}` };
 
   if (child_id) {
     revalidatePath(`/admin/customers/children/${child_id}/report`);

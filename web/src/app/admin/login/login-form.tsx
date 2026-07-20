@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { signIn, type LoginState } from "./actions";
+import { ct } from "@/lib/i18n-client";
 
 const initialState: LoginState = { status: "idle" };
 
@@ -15,11 +16,11 @@ export function LoginForm({ next }: { next: string }) {
     <form action={formAction} className="space-y-4">
       <input type="hidden" name="next" value={next} />
       <div className="space-y-2">
-        <Label htmlFor="email">Email</Label>
+        <Label htmlFor="email">{ct("login.field.email")}</Label>
         <Input id="email" name="email" type="email" required autoFocus />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="password">密码</Label>
+        <Label htmlFor="password">{ct("login.field.password")}</Label>
         <Input id="password" name="password" type="password" required />
       </div>
       {state.status === "error" && (
@@ -28,7 +29,7 @@ export function LoginForm({ next }: { next: string }) {
         </p>
       )}
       <Button type="submit" className="w-full" disabled={isPending}>
-        {isPending ? "登入中…" : "登入"}
+        {isPending ? ct("login.submitting") : ct("login.submit")}
       </Button>
     </form>
   );

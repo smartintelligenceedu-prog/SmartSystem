@@ -12,8 +12,8 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { t } from "@/lib/i18n";
-import { TQC_TAG_I18N_KEY } from "@/lib/tqc-tags";
+import { t, type TranslationKey } from "@/lib/i18n";
+import { buildTagLabelMap } from "@/lib/tqc-tags";
 
 export const dynamic = "force-dynamic";
 
@@ -25,8 +25,8 @@ function formatDate(value: string | null) {
   return value ? new Date(value).toLocaleDateString("zh-CN") : "—";
 }
 
-function ageFromDob(dob: string | null): string {
-  if (!dob) return t("customer.child.age_unknown");
+function ageFromDob(dob: string | null, unknownLabel: string): string {
+  if (!dob) return unknownLabel;
   const birth = new Date(dob);
   const now = new Date();
   let age = now.getFullYear() - birth.getFullYear();
@@ -35,25 +35,25 @@ function ageFromDob(dob: string | null): string {
   return String(age);
 }
 
-const ITEM_TYPE_LABEL: Record<string, string> = {
-  detection_session: "检测服务（现场付款）",
-  voucher_redemption: "检测券兑换",
-};
-const ORDER_STATUS_LABEL: Record<string, string> = {
-  pending: "待处理",
-  paid: "已付款",
-  cancelled: "已取消",
-  refunded: "已退款",
-};
-const TRIGGER_LABEL: Record<string, string> = {
-  personal_sale: "个人销售",
-  pic_channel: "通路销售（PIC）",
-  introducer: "引荐人佣金",
-  recruitment: "招募佣金",
-  voucher_resale: "兑换券转售",
-  report_override: "报告上线抽成",
-  analyst_report_fee: "分析师解读费",
-};
+const ITEM_TYPE_KEY = {
+  detection_session: "reports.item_type.detection_session",
+  voucher_redemption: "reports.item_type.voucher_redemption",
+} satisfies Record<string, TranslationKey>;
+const ORDER_STATUS_KEY = {
+  pending: "order.status.pending",
+  paid: "order.status.paid",
+  cancelled: "order.status.cancelled",
+  refunded: "order.status.refunded",
+} satisfies Record<string, TranslationKey>;
+const TRIGGER_KEY = {
+  personal_sale: "payroll.trigger_type.personal_sale",
+  pic_channel: "payroll.trigger_type.pic_channel",
+  introducer: "payroll.trigger_type.introducer",
+  recruitment: "payroll.trigger_type.recruitment",
+  voucher_resale: "payroll.trigger_type.voucher_resale",
+  report_override: "payroll.trigger_type.report_override",
+  analyst_report_fee: "payroll.trigger_type.analyst_report_fee",
+} satisfies Record<string, TranslationKey>;
 
 function Field({ label, value }: { label: string; value: string }) {
   return (
@@ -89,73 +89,96 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
   const reportEligibleOrders = orders.filter((o) => o.status === "paid");
   const deliveredCount = reportEligibleOrders.filter((o) => o.report_delivered_at).length;
 
+  // t() is async (locale-aware) and can't be called inside a plain .map()
+  // callback — every label a .map() below needs gets resolved up front here.
+  const tagLabelByTag = await buildTagLabelMap([...detail.tags, ...children.flatMap((c) => c.tags)]);
+  const unknownAgeLabel = await t("customer.child.age_unknown");
+  const childAgeLabel = await t("customer.child.age");
+  const scheduleNavLabel = await t("schedule.appointment.nav_link");
+  const reportViewLabel = await t("tqc.report.view_link");
+  const printReceiptLabel = await t("customer.detail.print_receipt");
+  const itemTypeLabelByType = Object.fromEntries(
+    await Promise.all(Object.entries(ITEM_TYPE_KEY).map(async ([k, key]) => [k, await t(key)]))
+  ) as Record<string, string>;
+  const orderStatusLabelByStatus = Object.fromEntries(
+    await Promise.all(Object.entries(ORDER_STATUS_KEY).map(async ([k, key]) => [k, await t(key)]))
+  ) as Record<string, string>;
+  const triggerLabelByType = Object.fromEntries(
+    await Promise.all(Object.entries(TRIGGER_KEY).map(async ([k, key]) => [k, await t(key)]))
+  ) as Record<string, string>;
+  const distinctTimelineActions = [...new Set(timeline.map((entry) => entry.action))];
+  const timelineActionLabels = await Promise.all(
+    distinctTimelineActions.map((action) => t(`customer.timeline.${action}` as Parameters<typeof t>[0]))
+  );
+  const timelineLabelByAction = Object.fromEntries(distinctTimelineActions.map((action, i) => [action, timelineActionLabels[i]]));
+
   return (
     <div className="mx-auto max-w-4xl space-y-8">
       <div className="flex items-start justify-between">
         <div>
           <Link href="/admin/customers" className="text-xs text-muted-foreground hover:underline">
-            ← {t("customer.detail.back_to_list")}
+            ← {await t("customer.detail.back_to_list")}
           </Link>
           <h1 className="mt-1 text-xl font-semibold">{detail.full_name}</h1>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant={detail.status === "active" ? "secondary" : "outline"}>
-            {detail.status === "active" ? t("customer.status.active") : t("customer.status.inactive")}
+            {detail.status === "active" ? await t("customer.status.active") : await t("customer.status.inactive")}
           </Badge>
-          {canEdit && <Button size="sm" render={<Link href={`/admin/customers/${customerId}/edit`}>{t("customer.detail.edit_button")}</Link>} />}
+          {canEdit && <Button size="sm" render={<Link href={`/admin/customers/${customerId}/edit`}>{await t("customer.detail.edit_button")}</Link>} />}
         </div>
       </div>
 
       <div>
-        <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{t("customer.detail.section.profile")}</h2>
+        <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{await t("customer.detail.section.profile")}</h2>
         <Card>
           <CardContent className="grid grid-cols-2 gap-4 pt-6 md:grid-cols-3">
-            <Field label={t("customer.field.phone")} value={detail.phone ?? ""} />
-            <Field label={t("customer.field.email")} value={detail.email ?? ""} />
+            <Field label={await t("customer.field.phone")} value={detail.phone ?? ""} />
+            <Field label={await t("customer.field.email")} value={detail.email ?? ""} />
             <Field
-              label={t("customer.field.gender")}
-              value={detail.gender ? t(`customer.field.gender.${detail.gender}` as Parameters<typeof t>[0]) : ""}
+              label={await t("customer.field.gender")}
+              value={detail.gender ? await t(`customer.field.gender.${detail.gender}` as Parameters<typeof t>[0]) : ""}
             />
-            <Field label={t("customer.field.date_of_birth")} value={formatDate(detail.date_of_birth)} />
-            <Field label={t("customer.field.occupation")} value={detail.occupation ?? ""} />
+            <Field label={await t("customer.field.date_of_birth")} value={formatDate(detail.date_of_birth)} />
+            <Field label={await t("customer.field.occupation")} value={detail.occupation ?? ""} />
             <Field
-              label={t("customer.field.marital_status")}
-              value={detail.marital_status ? t(`customer.field.marital_status.${detail.marital_status}` as Parameters<typeof t>[0]) : ""}
+              label={await t("customer.field.marital_status")}
+              value={detail.marital_status ? await t(`customer.field.marital_status.${detail.marital_status}` as Parameters<typeof t>[0]) : ""}
             />
-            <Field label={t("customer.list.column.agent")} value={detail.owner_name} />
-            <Field label={t("customer.list.column.introducer")} value={detail.introducer_name ?? ""} />
+            <Field label={await t("customer.list.column.agent")} value={detail.owner_name} />
+            <Field label={await t("customer.list.column.introducer")} value={detail.introducer_name ?? ""} />
           </CardContent>
         </Card>
       </div>
 
       <div>
-        <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{t("customer.detail.section.self_assessment")}</h2>
+        <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{await t("customer.detail.section.self_assessment")}</h2>
         <Card>
           <CardContent className="flex items-center justify-between pt-6 text-sm">
             <div>
-              <p className="text-xs text-muted-foreground">{t("customer.detail.self_assessment_hint")}</p>
+              <p className="text-xs text-muted-foreground">{await t("customer.detail.self_assessment_hint")}</p>
               {detail.tags.length > 0 && (
                 <div className="mt-1 flex flex-wrap gap-1">
                   {detail.tags.map((tag) => (
                     <Badge key={tag} variant="secondary" className="text-[10px]">
-                      {t((TQC_TAG_I18N_KEY[tag] ?? tag) as Parameters<typeof t>[0])}
+                      {tagLabelByTag[tag] ?? tag}
                     </Badge>
                   ))}
                 </div>
               )}
             </div>
             <div className="flex items-center gap-3">
-              <Button size="sm" variant="ghost" render={<Link href={`/admin/customers/${customerId}/self-schedule`}>{t("schedule.appointment.nav_link")}</Link>} />
-              <Button size="sm" variant="ghost" render={<Link href={`/admin/customers/${customerId}/self-report`}>{t("tqc.report.view_link")}</Link>} />
+              <Button size="sm" variant="ghost" render={<Link href={`/admin/customers/${customerId}/self-schedule`}>{scheduleNavLabel}</Link>} />
+              <Button size="sm" variant="ghost" render={<Link href={`/admin/customers/${customerId}/self-report`}>{reportViewLabel}</Link>} />
             </div>
           </CardContent>
         </Card>
       </div>
 
       <div>
-        <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{t("customer.detail.section.children")}</h2>
+        <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{await t("customer.detail.section.children")}</h2>
         {children.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t("customer.child.none")}</p>
+          <p className="text-sm text-muted-foreground">{await t("customer.child.none")}</p>
         ) : (
           <div className="divide-y rounded-md border">
             {children.map((c) => (
@@ -169,7 +192,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
                     <div className="mt-1 flex flex-wrap gap-1">
                       {c.tags.map((tag) => (
                         <Badge key={tag} variant="secondary" className="text-[10px]">
-                          {t((TQC_TAG_I18N_KEY[tag] ?? tag) as Parameters<typeof t>[0])}
+                          {tagLabelByTag[tag] ?? tag}
                         </Badge>
                       ))}
                     </div>
@@ -177,10 +200,10 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-muted-foreground tabular-nums">
-                    {t("customer.child.age")}: {ageFromDob(c.date_of_birth)}
+                    {childAgeLabel}: {ageFromDob(c.date_of_birth, unknownAgeLabel)}
                   </span>
-                  <Button size="sm" variant="ghost" render={<Link href={`/admin/customers/children/${c.id}/schedule`}>{t("schedule.appointment.nav_link")}</Link>} />
-                  <Button size="sm" variant="ghost" render={<Link href={`/admin/customers/children/${c.id}/report`}>{t("tqc.report.view_link")}</Link>} />
+                  <Button size="sm" variant="ghost" render={<Link href={`/admin/customers/children/${c.id}/schedule`}>{scheduleNavLabel}</Link>} />
+                  <Button size="sm" variant="ghost" render={<Link href={`/admin/customers/children/${c.id}/report`}>{reportViewLabel}</Link>} />
                 </div>
               </div>
             ))}
@@ -189,22 +212,22 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
       </div>
 
       <div>
-        <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{t("customer.detail.section.sales_orders")}</h2>
+        <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{await t("customer.detail.section.sales_orders")}</h2>
         {orders.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t("customer.detail.no_orders")}</p>
+          <p className="text-sm text-muted-foreground">{await t("customer.detail.no_orders")}</p>
         ) : (
           <div className="divide-y rounded-md border">
             {orders.map((o) => (
               <div key={o.order_id} className="flex items-center justify-between px-4 py-3 text-sm">
                 <div>
-                  <p>{ITEM_TYPE_LABEL[o.item_type] ?? o.item_type}</p>
+                  <p>{itemTypeLabelByType[o.item_type] ?? o.item_type}</p>
                   <p className="text-xs text-muted-foreground">{formatDate(o.created_at)}</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="tabular-nums">{formatMYR(o.total_amount)}</span>
-                  <Badge variant={o.status === "paid" ? "secondary" : "outline"}>{ORDER_STATUS_LABEL[o.status] ?? o.status}</Badge>
+                  <Badge variant={o.status === "paid" ? "secondary" : "outline"}>{orderStatusLabelByStatus[o.status] ?? o.status}</Badge>
                   {o.status === "paid" && (
-                    <Button size="sm" variant="ghost" render={<Link href={`/admin/sales-orders/${o.order_id}/receipt`}>打印收据</Link>} />
+                    <Button size="sm" variant="ghost" render={<Link href={`/admin/sales-orders/${o.order_id}/receipt`}>{printReceiptLabel}</Link>} />
                   )}
                 </div>
               </div>
@@ -214,25 +237,25 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
       </div>
 
       <div>
-        <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{t("customer.detail.section.reports")}</h2>
+        <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{await t("customer.detail.section.reports")}</h2>
         <Card>
           <CardContent className="pt-6 text-sm text-muted-foreground">
             {reportEligibleOrders.length === 0
-              ? t("customer.detail.no_orders")
+              ? await t("customer.detail.no_orders")
               : `${deliveredCount} / ${reportEligibleOrders.length}`}
           </CardContent>
         </Card>
       </div>
 
       <div>
-        <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{t("customer.detail.section.commission")}</h2>
+        <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{await t("customer.detail.section.commission")}</h2>
         {commissions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t("customer.detail.no_commission")}</p>
+          <p className="text-sm text-muted-foreground">{await t("customer.detail.no_commission")}</p>
         ) : (
           <div className="divide-y rounded-md border">
             {commissions.map((c) => (
               <div key={c.id} className="flex items-center justify-between px-4 py-3 text-sm">
-                <span className="text-muted-foreground">{TRIGGER_LABEL[c.trigger_type] ?? c.trigger_type}</span>
+                <span className="text-muted-foreground">{triggerLabelByType[c.trigger_type] ?? c.trigger_type}</span>
                 <div className="flex items-center gap-3">
                   <span className="tabular-nums">{formatMYR(c.commission_amount)}</span>
                   <span className="text-xs text-muted-foreground">{formatDate(c.calculated_at)}</span>
@@ -244,14 +267,14 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
       </div>
 
       <div>
-        <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{t("customer.detail.section.timeline")}</h2>
+        <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{await t("customer.detail.section.timeline")}</h2>
         {timeline.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t("customer.detail.no_timeline")}</p>
+          <p className="text-sm text-muted-foreground">{await t("customer.detail.no_timeline")}</p>
         ) : (
           <div className="divide-y rounded-md border">
             {timeline.map((entry) => (
               <div key={entry.id} className="flex items-center justify-between px-4 py-3 text-sm">
-                <span>{t(`customer.timeline.${entry.action}` as Parameters<typeof t>[0])}</span>
+                <span>{timelineLabelByAction[entry.action]}</span>
                 <div className="flex items-center gap-3 text-xs text-muted-foreground">
                   <span>{entry.actor_name}</span>
                   <span>{new Date(entry.occurred_at).toLocaleString("zh-CN")}</span>

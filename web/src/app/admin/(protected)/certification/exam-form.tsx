@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { submitCertificationExam, type ExamResultState } from "./actions";
-import { t } from "@/lib/i18n";
+import { ct } from "@/lib/i18n-client";
 import type { ExamQuestion } from "./data";
 
 const initialState: ExamResultState = { status: "idle" };
@@ -29,20 +29,20 @@ export function ExamForm({
         <CardContent className="space-y-4 pt-6">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium">
-              {t("certification.exam.score_label")} {state.correctCount} / {state.totalQuestions}
+              {ct("certification.exam.score_label")} {state.correctCount} / {state.totalQuestions}
               {" "}
-              ({t("certification.exam.passing_score_label")} {state.passingScore})
+              ({ct("certification.exam.passing_score_label")} {state.passingScore})
             </p>
             <Badge variant={state.passed ? "secondary" : "outline"}>
-              {state.passed ? t("certification.exam.passed") : t("certification.exam.failed")}
+              {state.passed ? ct("certification.exam.passed") : ct("certification.exam.failed")}
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground">
-            {state.passed ? t("certification.exam.passed_description") : t("certification.exam.failed_description")}
+            {state.passed ? ct("certification.exam.passed_description") : ct("certification.exam.failed_description")}
           </p>
           {!state.passed && (
             <Button size="sm" onClick={() => router.refresh()}>
-              {t("certification.exam.retry_button")}
+              {ct("certification.exam.retry_button")}
             </Button>
           )}
         </CardContent>
@@ -55,7 +55,7 @@ export function ExamForm({
       <input type="hidden" name="question_set" value={questionSet} />
       <div className="space-y-4">
         <p className="text-xs text-muted-foreground">
-          {t("certification.exam.passing_score_prefix")} {passingScore} / {questions.length} {t("certification.exam.passing_score_suffix")}
+          {ct("certification.exam.passing_score_prefix")} {passingScore} / {questions.length} {ct("certification.exam.passing_score_suffix")}
         </p>
         {questions.map((q, qIndex) => (
           <Card key={q.id}>
@@ -82,7 +82,7 @@ export function ExamForm({
         )}
 
         <Button type="submit" disabled={isPending}>
-          {isPending ? t("certification.exam.submitting") : t("certification.exam.submit_button")}
+          {isPending ? ct("certification.exam.submitting") : ct("certification.exam.submit_button")}
         </Button>
       </div>
     </form>

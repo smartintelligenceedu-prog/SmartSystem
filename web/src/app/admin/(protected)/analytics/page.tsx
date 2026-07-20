@@ -42,32 +42,33 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   const { summary, top_institutions, monthly_trend } = analytics;
 
   const maxTopUsed = Math.max(1, ...top_institutions.map((i) => i.voucher_used));
+  const usedPrefixLabel = await t("analytics.top_institutions.used_prefix");
   const maxTrendValue = Math.max(1, ...monthly_trend.flatMap((p) => [p.order_count, p.voucher_used_count]));
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">{t("analytics.title")}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{t("analytics.subtitle")}</p>
+          <h1 className="text-xl font-semibold">{await t("analytics.title")}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{await t("analytics.subtitle")}</p>
         </div>
         <div className="flex gap-2">
-          <Button size="sm" variant={period === "month" ? "default" : "outline"} render={<Link href="/admin/analytics?period=month">{t("analytics.period.month")}</Link>} />
-          <Button size="sm" variant={period === "quarter" ? "default" : "outline"} render={<Link href="/admin/analytics?period=quarter">{t("analytics.period.quarter")}</Link>} />
+          <Button size="sm" variant={period === "month" ? "default" : "outline"} render={<Link href="/admin/analytics?period=month">{await t("analytics.period.month")}</Link>} />
+          <Button size="sm" variant={period === "quarter" ? "default" : "outline"} render={<Link href="/admin/analytics?period=quarter">{await t("analytics.period.quarter")}</Link>} />
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <MetricCard label={t("analytics.metric.total_revenue")} value={formatMYR(summary.total_revenue)} />
-        <MetricCard label={t("analytics.metric.accounts_receivable")} value={formatMYR(summary.accounts_receivable)} note={t("analytics.metric.accounts_receivable_note")} />
-        <MetricCard label={t("analytics.metric.recognized_revenue")} value={formatMYR(summary.recognized_revenue)} note={t("analytics.metric.recognized_revenue_note")} />
+        <MetricCard label={await t("analytics.metric.total_revenue")} value={formatMYR(summary.total_revenue)} />
+        <MetricCard label={await t("analytics.metric.accounts_receivable")} value={formatMYR(summary.accounts_receivable)} note={await t("analytics.metric.accounts_receivable_note")} />
+        <MetricCard label={await t("analytics.metric.recognized_revenue")} value={formatMYR(summary.recognized_revenue)} note={await t("analytics.metric.recognized_revenue_note")} />
       </div>
 
       <Card>
         <CardContent className="pt-6">
-          <h2 className="mb-4 text-sm font-medium tracking-wide text-muted-foreground uppercase">{t("analytics.top_institutions.title")}</h2>
+          <h2 className="mb-4 text-sm font-medium tracking-wide text-muted-foreground uppercase">{await t("analytics.top_institutions.title")}</h2>
           {top_institutions.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t("analytics.top_institutions.empty")}</p>
+            <p className="text-sm text-muted-foreground">{await t("analytics.top_institutions.empty")}</p>
           ) : (
             <div className="space-y-3">
               {top_institutions.map((inst) => (
@@ -75,7 +76,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
                   <div className="flex items-center justify-between text-sm">
                     <span className="font-medium">{inst.institution_name}</span>
                     <span className="tabular-nums text-muted-foreground">
-                      {t("analytics.top_institutions.used_prefix")} {inst.voucher_used}/{inst.voucher_total}
+                      {usedPrefixLabel} {inst.voucher_used}/{inst.voucher_total}
                     </span>
                   </div>
                   <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
@@ -93,17 +94,17 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
 
       <Card>
         <CardContent className="pt-6">
-          <h2 className="mb-4 text-sm font-medium tracking-wide text-muted-foreground uppercase">{t("analytics.trend.title")}</h2>
+          <h2 className="mb-4 text-sm font-medium tracking-wide text-muted-foreground uppercase">{await t("analytics.trend.title")}</h2>
           <div className="flex items-center gap-4 text-xs text-muted-foreground">
             <span className="flex items-center gap-1.5">
-              <span className="inline-block size-2.5 rounded-full bg-sky-600" /> {t("analytics.trend.orders_label")}
+              <span className="inline-block size-2.5 rounded-full bg-sky-600" /> {await t("analytics.trend.orders_label")}
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="inline-block size-2.5 rounded-full bg-emerald-600" /> {t("analytics.trend.vouchers_label")}
+              <span className="inline-block size-2.5 rounded-full bg-emerald-600" /> {await t("analytics.trend.vouchers_label")}
             </span>
           </div>
           {monthly_trend.every((p) => p.order_count === 0 && p.voucher_used_count === 0) ? (
-            <p className="mt-4 text-sm text-muted-foreground">{t("analytics.trend.empty")}</p>
+            <p className="mt-4 text-sm text-muted-foreground">{await t("analytics.trend.empty")}</p>
           ) : (
             <div className="mt-4 flex items-end gap-4">
               {monthly_trend.map((p) => (

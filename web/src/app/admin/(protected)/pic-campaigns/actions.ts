@@ -11,21 +11,21 @@ async function requireBackOfficeUserId(): Promise<{ userId: string } | { error: 
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: t("pic_campaigns.error.not_logged_in") };
+  if (!user) return { error: await t("pic_campaigns.error.not_logged_in") };
 
   const { data: isBackOffice } = await supabase.rpc("is_back_office");
-  if (!isBackOffice) return { error: t("pic_campaigns.error.no_permission") };
+  if (!isBackOffice) return { error: await t("pic_campaigns.error.no_permission") };
 
   const { data: userRow } = await supabase.from("users").select("id").eq("auth_user_id", user.id).single();
-  if (!userRow) return { error: t("pic_campaigns.error.no_user_row") };
+  if (!userRow) return { error: await t("pic_campaigns.error.no_user_row") };
 
   return { userId: userRow.id };
 }
 
 const createCampaignSchema = z.object({
-  name: z.string().trim().min(1, t("pic_campaigns.error.name_required")),
+  name: z.string().trim().min(1, await t("pic_campaigns.error.name_required")),
   campaign_type: z.enum(["school", "institution", "roadshow", "other"]),
-  pic_analyst_id: z.string().uuid(t("pic_campaigns.error.pic_required")),
+  pic_analyst_id: z.string().uuid(await t("pic_campaigns.error.pic_required")),
   location: z.string().trim().optional(),
   pic_report_override_amount: z.coerce.number().min(0).optional(),
   pic_analyst_report_fee_amount: z.coerce.number().min(0).optional(),
@@ -46,7 +46,7 @@ export async function createCampaign(_prev: CreateCampaignState, formData: FormD
     pic_analyst_report_fee_amount: formData.get("pic_analyst_report_fee_amount") || undefined,
   });
   if (!parsed.success) {
-    return { status: "error", message: parsed.error.issues[0]?.message ?? t("pic_campaigns.error.invalid_form") };
+    return { status: "error", message: parsed.error.issues[0]?.message ?? await t("pic_campaigns.error.invalid_form") };
   }
 
   const admin = createAdminClient();
@@ -58,7 +58,7 @@ export async function createCampaign(_prev: CreateCampaignState, formData: FormD
     pic_report_override_amount: parsed.data.pic_report_override_amount ?? null,
     pic_analyst_report_fee_amount: parsed.data.pic_analyst_report_fee_amount ?? null,
   });
-  if (error) return { status: "error", message: `${t("pic_campaigns.error.create_failed")}${error.message}` };
+  if (error) return { status: "error", message: `${await t("pic_campaigns.error.create_failed")}${error.message}` };
 
   revalidatePath("/admin/pic-campaigns");
   return { status: "success" };

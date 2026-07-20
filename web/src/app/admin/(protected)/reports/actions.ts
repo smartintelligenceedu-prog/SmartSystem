@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { ReportTier } from "./data";
+import { t } from "@/lib/i18n";
 
 async function requireCallerContext(): Promise<
   { analystId: string | null; isBackOffice: boolean } | { error: string }
@@ -12,10 +13,10 @@ async function requireCallerContext(): Promise<
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "请先登入" };
+  if (!user) return { error: await t("reports.error.not_signed_in") };
 
   const { data: userRow } = await supabase.from("users").select("id, party_id").eq("auth_user_id", user.id).single();
-  if (!userRow) return { error: "找不到对应的使用者资料" };
+  if (!userRow) return { error: await t("reports.error.no_user_row") };
 
   const { data: isBackOffice } = await supabase.rpc("is_back_office");
   const { data: analyst } = await supabase.from("analysts").select("id").eq("party_id", userRow.party_id).maybeSingle();
@@ -33,8 +34,8 @@ async function requireCallerContext(): Promise<
 export async function markReportDelivered(orderItemId: string, tier: ReportTier): Promise<{ ok: boolean; message: string }> {
   const auth = await requireCallerContext();
   if ("error" in auth) return { ok: false, message: auth.error };
-  if (!auth.isBackOffice && !auth.analystId) return { ok: false, message: "没有权限执行此操作" };
-  if (tier !== "standard" && tier !== "upgrade") return { ok: false, message: "请选择报告分类" };
+  if (!auth.isBackOffice && !auth.analystId) return { ok: false, message: await t("reports.error.no_permission") };
+  if (tier !== "standard" && tier !== "upgrade") return { ok: false, message: await t("reports.error.select_tier") };
 
   const admin = createAdminClient();
 
@@ -43,28 +44,28 @@ export async function markReportDelivered(orderItemId: string, tier: ReportTier)
     .select("id, order_id, item_type, analyst_id, report_delivered_at")
     .eq("id", orderItemId)
     .maybeSingle();
-  if (!item) return { ok: false, message: "找不到这个报告项目" };
+  if (!item) return { ok: false, message: await t("reports.error.item_not_found") };
   if (item.item_type !== "detection_session" && item.item_type !== "voucher_redemption") {
-    return { ok: false, message: "这个项目不是检测服务，无法标记报告交付" };
+    return { ok: false, message: await t("reports.error.not_detection_service") };
   }
   if (!auth.isBackOffice && item.analyst_id !== auth.analystId) {
-    return { ok: false, message: "这个项目不属于你" };
+    return { ok: false, message: await t("reports.error.not_your_item") };
   }
   if (item.report_delivered_at) {
-    return { ok: false, message: "这份报告已经标记为交付" };
+    return { ok: false, message: await t("reports.error.already_delivered") };
   }
 
   const { data: order } = await admin.from("orders").select("order_type, status").eq("id", item.order_id).maybeSingle();
   if (!order || order.order_type !== "detection_service" || order.status !== "paid") {
-    return { ok: false, message: "只有已付款的检测服务订单可以标记报告交付" };
+    return { ok: false, message: await t("reports.error.order_not_paid") };
   }
 
   const { error } = await admin
     .from("order_items")
     .update({ report_delivered_at: new Date().toISOString(), report_tier: tier })
     .eq("id", orderItemId);
-  if (error) return { ok: false, message: `标记失败：${error.message}` };
+  if (error) return { ok: false, message: `${await t("reports.error.mark_failed_prefix")}${error.message}` };
 
   revalidatePath("/admin/reports");
-  return { ok: true, message: "已标记报告交付" };
+  return { ok: true, message: await t("reports.success.marked_delivered") };
 }

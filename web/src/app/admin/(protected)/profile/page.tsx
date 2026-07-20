@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getPortalUserContext } from "@/lib/auth/context";
 import { ProfileForm } from "./profile-form";
+import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,7 @@ export default async function ProfilePage() {
 
   return (
     <div className="mx-auto max-w-md">
-      <h1 className="text-xl font-semibold">我的帐户</h1>
+      <h1 className="text-xl font-semibold">{await t("profile.page.title")}</h1>
       <ProfileForm context={context} />
     </div>
   );

@@ -4,6 +4,7 @@ import { hasRole } from "@/lib/auth/roles";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { t, type TranslationKey } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -11,13 +12,13 @@ function formatMYR(amount: number) {
   return new Intl.NumberFormat("ms-MY", { style: "currency", currency: "MYR" }).format(amount);
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  pending: "待审核",
-  approved: "已核准",
-  suspended: "已暂停",
-  rejected: "已拒绝",
-  terminated: "已终止",
-};
+const STATUS_KEY = {
+  pending: "dashboard.agent.status.pending",
+  approved: "dashboard.agent.status.approved",
+  suspended: "dashboard.agent.status.suspended",
+  rejected: "dashboard.agent.status.rejected",
+  terminated: "dashboard.agent.status.terminated",
+} satisfies Record<string, TranslationKey>;
 
 interface TeamMember {
   analyst_id: string;
@@ -64,35 +65,41 @@ export default async function TeamPage() {
     pending_team_count: 0,
   };
 
+  const statusLabelByStatus = Object.fromEntries(
+    await Promise.all(Object.entries(STATUS_KEY).map(async ([k, key]) => [k, await t(key)]))
+  ) as Record<string, string>;
+  const customerCountSuffix = await t("team.page.customer_count_suffix");
+
   return (
     <div className="mx-auto max-w-4xl space-y-8">
       <div>
-        <h1 className="text-xl font-semibold">团队</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          只显示团队汇总数字与成员各自的顾客数/业绩，不显示顾客名单明细——避免上线看到下线经营的顾客资料。你只能看到自己团队，看不到其他 Leader 的资料。
-        </p>
+        <h1 className="text-xl font-semibold">{await t("team.page.title")}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{await t("team.page.subtitle")}</p>
       </div>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-        <StatCard label="团队人数" value={String(summary.analyst_count)} />
-        <StatCard label="团队顾客数" value={String(summary.customer_count)} />
-        <StatCard label="团队检测次数" value={String(summary.session_count)} />
+        <StatCard label={await t("team.page.stat.member_count")} value={String(summary.analyst_count)} />
+        <StatCard label={await t("team.page.stat.customer_count")} value={String(summary.customer_count)} />
+        <StatCard label={await t("team.page.stat.session_count")} value={String(summary.session_count)} />
         <StatCard label="Team Sales" value={formatMYR(summary.total_revenue)} />
         <StatCard label="Team Commission" value={formatMYR(summary.team_commission_total)} />
-        <StatCard label="待审核团队成员" value={String(summary.pending_team_count)} />
+        <StatCard label={await t("team.page.stat.pending_members")} value={String(summary.pending_team_count)} />
       </div>
 
       <div>
-        <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">团队成员</h2>
+        <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{await t("team.page.members_title")}</h2>
         <div className="divide-y rounded-md border">
-          {(!members || members.length === 0) && <p className="p-4 text-sm text-muted-foreground">目前没有团队成员</p>}
+          {(!members || members.length === 0) && <p className="p-4 text-sm text-muted-foreground">{await t("team.page.empty")}</p>}
           {members?.map((m) => (
             <div key={m.analyst_id} className="flex items-center justify-between px-4 py-3 text-sm">
               <span>{m.full_name}</span>
               <div className="flex items-center gap-3">
-                <span className="text-muted-foreground tabular-nums">{m.customer_count} 位顾客</span>
+                <span className="text-muted-foreground tabular-nums">
+                  {m.customer_count}
+                  {customerCountSuffix}
+                </span>
                 <span className="tabular-nums">{formatMYR(m.revenue)}</span>
-                <Badge variant="secondary">{STATUS_LABEL[m.status] ?? m.status}</Badge>
+                <Badge variant="secondary">{statusLabelByStatus[m.status] ?? m.status}</Badge>
               </div>
             </div>
           ))}

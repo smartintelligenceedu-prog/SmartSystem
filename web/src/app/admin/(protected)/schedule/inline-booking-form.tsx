@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { t } from "@/lib/i18n";
+import { ct } from "@/lib/i18n-client";
 import { scheduleAppointment, type ScheduleAppointmentState } from "../customers/children/[id]/schedule/actions";
 import type { CenterOption, DeviceOption, CustomerChildOption } from "../_scheduling/data";
 
@@ -46,7 +46,7 @@ export function InlineBookingForm({
   if (!open) {
     return (
       <Button onClick={() => setOpen(true)} size="sm">
-        {t("schedule.booking.toggle")}
+        {ct("schedule.booking.toggle")}
       </Button>
     );
   }
@@ -57,12 +57,12 @@ export function InlineBookingForm({
     <Card>
       <CardContent className="pt-6">
         {customers.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t("schedule.booking.no_customers")}</p>
+          <p className="text-sm text-muted-foreground">{ct("schedule.booking.no_customers")}</p>
         ) : (
           <form action={formAction} className="space-y-4">
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               <div className="space-y-2">
-                <Label htmlFor="customer_select">{t("schedule.booking.customer_label")}</Label>
+                <Label htmlFor="customer_select">{ct("schedule.booking.customer_label")}</Label>
                 <Select
                   items={customers.map((c) => ({ value: c.customer_id, label: c.customer_name }))}
                   value={customerId ?? undefined}
@@ -84,7 +84,7 @@ export function InlineBookingForm({
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="child_select">{t("schedule.booking.child_label")}</Label>
+                <Label htmlFor="child_select">{ct("schedule.booking.child_label")}</Label>
                 <Select
                   key={customerId ?? "none"}
                   value={subjectValue ?? undefined}
@@ -92,10 +92,10 @@ export function InlineBookingForm({
                   disabled={!selectedCustomer}
                 >
                   <SelectTrigger id="child_select" className="w-full">
-                    <SelectValue placeholder={selectedCustomer ? "—" : t("schedule.booking.select_customer_first")} />
+                    <SelectValue placeholder={selectedCustomer ? "—" : ct("schedule.booking.select_customer_first")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={SELF_VALUE}>{t("schedule.booking.self_option")}</SelectItem>
+                    <SelectItem value={SELF_VALUE}>{ct("schedule.booking.self_option")}</SelectItem>
                     {(selectedCustomer?.children ?? []).map((c) => (
                       <SelectItem key={c.id} value={c.id}>
                         {c.name}
@@ -107,7 +107,7 @@ export function InlineBookingForm({
                 <input type="hidden" name="customer_id" value={selectedCustomer?.customer_id ?? ""} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="center_id">{t("schedule.form.location_label")}</Label>
+                <Label htmlFor="center_id">{ct("schedule.form.location_label")}</Label>
                 <Select name="center_id" items={centers.map((c) => ({ value: c.id, label: c.name }))}>
                   <SelectTrigger id="center_id" className="w-full">
                     <SelectValue placeholder="—" />
@@ -122,7 +122,7 @@ export function InlineBookingForm({
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="device_id">{t("schedule.form.device_label")}</Label>
+                <Label htmlFor="device_id">{ct("schedule.form.device_label")}</Label>
                 <Select name="device_id" items={devices.map((d) => ({ value: d.id, label: d.label }))}>
                   <SelectTrigger id="device_id" className="w-full">
                     <SelectValue placeholder="—" />
@@ -140,15 +140,15 @@ export function InlineBookingForm({
 
             <div className="grid grid-cols-3 gap-4 sm:grid-cols-3">
               <div className="space-y-2">
-                <Label htmlFor="detection_date">{t("schedule.form.date_label")}</Label>
+                <Label htmlFor="detection_date">{ct("schedule.form.date_label")}</Label>
                 <Input id="detection_date" name="detection_date" type="date" defaultValue={todayDateString()} required />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="start_time">{t("schedule.form.start_time_label")}</Label>
+                <Label htmlFor="start_time">{ct("schedule.form.start_time_label")}</Label>
                 <Input id="start_time" name="start_time" type="time" required />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="end_time">{t("schedule.form.end_time_label")}</Label>
+                <Label htmlFor="end_time">{ct("schedule.form.end_time_label")}</Label>
                 <Input id="end_time" name="end_time" type="time" required />
               </div>
             </div>
@@ -161,10 +161,10 @@ export function InlineBookingForm({
 
             <div className="flex gap-2">
               <Button type="submit" disabled={isPending || !selectedCustomer || !subjectValue}>
-                {t("schedule.form.submit")}
+                {ct("schedule.form.submit")}
               </Button>
               <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={isPending}>
-                {t("schedule.booking.cancel")}
+                {ct("schedule.booking.cancel")}
               </Button>
             </div>
           </form>

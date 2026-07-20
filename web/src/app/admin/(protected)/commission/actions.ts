@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { t } from "@/lib/i18n";
 
 /**
  * Same pattern as every other admin Server Action in this codebase: re-check
@@ -14,13 +15,13 @@ async function requireBackOfficeUserId(): Promise<{ userId: string } | { error: 
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "请先登入" };
+  if (!user) return { error: await t("commission.error.not_signed_in") };
 
   const { data: isBackOffice } = await supabase.rpc("is_back_office");
-  if (!isBackOffice) return { error: "没有权限执行此操作" };
+  if (!isBackOffice) return { error: await t("commission.error.no_permission") };
 
   const { data: userRow } = await supabase.from("users").select("id").eq("auth_user_id", user.id).single();
-  if (!userRow) return { error: "找不到对应的后台使用者资料" };
+  if (!userRow) return { error: await t("commission.error.no_user_row") };
 
   return { userId: userRow.id };
 }
@@ -33,8 +34,8 @@ export async function adminAdjustCommission(
   const auth = await requireBackOfficeUserId();
   if ("error" in auth) return { ok: false, message: auth.error };
 
-  if (!Number.isFinite(newAmount) || newAmount < 0) return { ok: false, message: "请输入正确的金额" };
-  if (!reason.trim()) return { ok: false, message: "请填写调整原因" };
+  if (!Number.isFinite(newAmount) || newAmount < 0) return { ok: false, message: await t("commission.error.valid_amount") };
+  if (!reason.trim()) return { ok: false, message: await t("commission.error.reason_required") };
 
   const admin = createAdminClient();
 
@@ -43,7 +44,7 @@ export async function adminAdjustCommission(
     .select("commission_amount, original_amount")
     .eq("id", recordId)
     .single();
-  if (!record) return { ok: false, message: "找不到这笔佣金记录" };
+  if (!record) return { ok: false, message: await t("commission.error.record_not_found") };
 
   // original_amount is only ever set the first time a record is overridden,
   // so it always preserves what the engine originally computed — see the
@@ -58,10 +59,10 @@ export async function adminAdjustCommission(
       adjustment_reason: reason.trim(),
     })
     .eq("id", recordId);
-  if (error) return { ok: false, message: `调整失败：${error.message}` };
+  if (error) return { ok: false, message: `${await t("commission.error.adjust_failed_prefix")}${error.message}` };
 
   revalidatePath("/admin/commission");
-  return { ok: true, message: "已调整佣金金额" };
+  return { ok: true, message: await t("commission.success.adjusted") };
 }
 
 // The pending -> approved step commission_engine.sql leaves as a manual SQL
@@ -83,9 +84,9 @@ export async function adminApproveCommission(recordId: string): Promise<{ ok: bo
     .eq("status", "pending")
     .select("id")
     .maybeSingle();
-  if (error) return { ok: false, message: `核准失败：${error.message}` };
-  if (!data) return { ok: false, message: "这笔记录已经不是待处理状态，可能已被处理过了" };
+  if (error) return { ok: false, message: `${await t("commission.error.approve_failed_prefix")}${error.message}` };
+  if (!data) return { ok: false, message: await t("commission.error.already_processed") };
 
   revalidatePath("/admin/commission");
-  return { ok: true, message: "已核准" };
+  return { ok: true, message: await t("commission.success.approved") };
 }

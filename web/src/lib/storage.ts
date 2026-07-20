@@ -1,20 +1,23 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { t } from "@/lib/i18n";
 
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024; // 8MB
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
 
 export type UploadBucket = "ic-documents" | "payment-screenshots";
 
-export function validateUploadFile(file: File | null, label: string, required: boolean): string | null {
+// `label` is a caller-supplied, already-translated noun (e.g. "payment
+// screenshot") — this function only owns the surrounding sentence.
+export async function validateUploadFile(file: File | null, label: string, required: boolean): Promise<string | null> {
   if (!file || file.size === 0) {
-    return required ? `请上传${label}` : null;
+    return required ? `${await t("upload.error.required_prefix")}${label}` : null;
   }
   if (file.size > MAX_UPLOAD_BYTES) {
-    return `${label}档案过大，请控制在 8MB 以内`;
+    return `${label}${await t("upload.error.too_large_suffix")}`;
   }
   if (!ALLOWED_TYPES.includes(file.type)) {
-    return `${label}只接受 JPG / PNG / WEBP / PDF 格式`;
+    return `${label}${await t("upload.error.invalid_type_suffix")}`;
   }
   return null;
 }

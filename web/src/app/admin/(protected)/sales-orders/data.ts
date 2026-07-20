@@ -2,6 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getSignedDocumentUrl } from "@/lib/storage";
+import { t } from "@/lib/i18n";
 
 export interface SalesOrderRow {
   order_id: string;
@@ -59,6 +60,7 @@ export async function listSalesOrders(isBackOffice: boolean, statusFilter?: stri
   const nameByParty = new Map((identities ?? []).map((i) => [i.party_id, i.full_name]));
 
   const reviewStatusByOrder = new Map((salesOrders ?? []).map((s) => [s.order_id, s.status]));
+  const multipleCustomersSuffix = await t("sales_orders.list.multiple_customers_suffix");
 
   let rows = orders.map((o) => {
     const orderItems = itemsByOrder.get(o.id) ?? [];
@@ -73,7 +75,7 @@ export async function listSalesOrders(isBackOffice: boolean, statusFilter?: stri
     if (itemCustomerIds.length === 1) {
       customerName = customerNames[0] ?? "—";
     } else if (itemCustomerIds.length > 1) {
-      customerName = `${itemCustomerIds.length} 位顾客`;
+      customerName = `${itemCustomerIds.length}${multipleCustomersSuffix}`;
     }
     const analystParty = o.analyst_id ? analystPartyById.get(o.analyst_id) : null;
     return {
@@ -311,5 +313,9 @@ export async function listOwnRedeemableVouchers(analystId: string): Promise<{ id
     .eq("voucher_type", "resale")
     .eq("status", "issued")
     .order("issued_at", { ascending: true });
-  return (vouchers ?? []).map((v) => ({ id: v.id, label: `检测券 · ${new Date(v.issued_at).toLocaleDateString("zh-CN")} 发放` }));
+  const [labelPrefix, labelSuffix] = await Promise.all([t("sales_orders.voucher.label_prefix"), t("sales_orders.voucher.label_suffix")]);
+  return (vouchers ?? []).map((v) => ({
+    id: v.id,
+    label: `${labelPrefix}${new Date(v.issued_at).toLocaleDateString("zh-CN")}${labelSuffix}`,
+  }));
 }

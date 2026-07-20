@@ -1,5 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { t, type TranslationKey } from "@/lib/i18n";
 
 export interface UnpostedSummary {
   unpostedOrderCount: number;
@@ -26,20 +27,20 @@ export async function getUnpostedSummary(): Promise<UnpostedSummary> {
   };
 }
 
-const ORDER_TYPE_LABEL: Record<string, string> = {
-  registration: "分析师注册费",
-  detection_service: "检测服务收入",
-};
+const ORDER_TYPE_KEY = {
+  registration: "finance.order_type.registration",
+  detection_service: "finance.order_type.detection_service",
+} satisfies Record<string, TranslationKey>;
 
-const TRIGGER_TYPE_LABEL: Record<string, string> = {
-  personal_sale: "个人销售",
-  pic_channel: "通路销售（PIC）",
-  introducer: "引荐人佣金",
-  recruitment: "招募佣金",
-  voucher_resale: "兑换券转售",
-  report_override: "报告上线抽成",
-  analyst_report_fee: "分析师解读费",
-};
+const TRIGGER_TYPE_KEY = {
+  personal_sale: "payroll.trigger_type.personal_sale",
+  pic_channel: "payroll.trigger_type.pic_channel",
+  introducer: "payroll.trigger_type.introducer",
+  recruitment: "payroll.trigger_type.recruitment",
+  voucher_resale: "payroll.trigger_type.voucher_resale",
+  report_override: "payroll.trigger_type.report_override",
+  analyst_report_fee: "payroll.trigger_type.analyst_report_fee",
+} satisfies Record<string, TranslationKey>;
 
 export interface UnpostedTransactionRow {
   type: "order" | "commission";
@@ -104,15 +105,25 @@ export async function listUnpostedTransactions(): Promise<UnpostedTransactionRow
     allPartyIds.length > 0 ? await admin.from("individuals").select("party_id, full_name").in("party_id", allPartyIds) : { data: [] };
   const nameByParty = new Map((identities ?? []).map((i) => [i.party_id, i.full_name]));
 
+  // t() is async (locale-aware) and can't be called inside a plain .map()
+  // callback — resolved up front instead.
+  const [andOthersSuffix, peopleSuffix] = await Promise.all([t("finance.list.and_others_suffix"), t("finance.list.people_suffix")]);
+  const orderTypeLabelByType = Object.fromEntries(
+    await Promise.all(Object.entries(ORDER_TYPE_KEY).map(async ([k, key]) => [k, await t(key)]))
+  ) as Record<string, string>;
+  const triggerTypeLabelByType = Object.fromEntries(
+    await Promise.all(Object.entries(TRIGGER_TYPE_KEY).map(async ([k, key]) => [k, await t(key)]))
+  ) as Record<string, string>;
+
   const orderRows: UnpostedTransactionRow[] = unpostedOrders.map((o) => {
     const custIds = [...new Set(customerIdsByOrder.get(o.id) ?? [])];
     const names = custIds.map((cid) => nameByParty.get(partyIdByCustomer.get(cid) ?? "") ?? null).filter((n): n is string => !!n);
-    const subject = names.length === 0 ? "—" : names.length === 1 ? names[0] : `${names[0]} 等 ${names.length} 人`;
+    const subject = names.length === 0 ? "—" : names.length === 1 ? names[0] : `${names[0]}${andOthersSuffix}${names.length}${peopleSuffix}`;
     return {
       type: "order",
       id: o.id,
       date: o.created_at.slice(0, 10),
-      description: ORDER_TYPE_LABEL[o.order_type] ?? o.order_type,
+      description: orderTypeLabelByType[o.order_type] ?? o.order_type,
       subject,
       amount: Number(o.total_amount),
       pending: false,
@@ -126,7 +137,7 @@ export async function listUnpostedTransactions(): Promise<UnpostedTransactionRow
       type: "commission",
       id: c.id,
       date: c.calculated_at.slice(0, 10),
-      description: TRIGGER_TYPE_LABEL[c.trigger_type] ?? c.trigger_type,
+      description: triggerTypeLabelByType[c.trigger_type] ?? c.trigger_type,
       subject: (partyId && nameByParty.get(partyId)) ?? "—",
       amount: Number(c.commission_amount),
       pending: c.status === "pending",

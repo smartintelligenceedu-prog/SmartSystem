@@ -7,10 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { createSalesItem, type CreateSalesItemState } from "../actions";
+import { ct } from "@/lib/i18n-client";
 
 const KIND_OPTIONS = [
-  { value: "item", label: "一般项目" },
-  { value: "discount", label: "折扣 / 促销（金额可为负数）" },
+  { value: "item", label: ct("sales_orders.item_form.kind.item") },
+  { value: "discount", label: ct("sales_orders.item_form.kind.discount") },
 ];
 
 const initialState: CreateSalesItemState = { status: "idle" };
@@ -31,16 +32,16 @@ export function CreateSalesItemForm() {
         <form ref={formRef} action={formAction} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="name">项目名称</Label>
-              <Input id="name" name="name" placeholder="例如：Standard Report" required />
+              <Label htmlFor="name">{ct("sales_orders.item_form.name_label")}</Label>
+              <Input id="name" name="name" placeholder={ct("sales_orders.item_form.name_placeholder")} required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="price">价格 (RM)</Label>
+              <Label htmlFor="price">{ct("sales_orders.item_form.price_label")}</Label>
               <Input id="price" name="price" type="number" step="0.01" required />
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="item_kind">类型</Label>
+            <Label htmlFor="item_kind">{ct("sales_orders.item_form.kind_label")}</Label>
             <Select name="item_kind" defaultValue="item" items={KIND_OPTIONS}>
               <SelectTrigger id="item_kind" className="w-full">
                 <SelectValue />
@@ -60,10 +61,10 @@ export function CreateSalesItemForm() {
               {state.message}
             </p>
           )}
-          {state.status === "success" && <p className="text-sm">已建立</p>}
+          {state.status === "success" && <p className="text-sm">{ct("sales_orders.item_form.created")}</p>}
 
           <Button type="submit" disabled={isPending}>
-            {isPending ? "建立中…" : "新增项目"}
+            {isPending ? ct("sales_orders.item_form.creating") : ct("sales_orders.item_form.submit")}
           </Button>
         </form>
       </CardContent>

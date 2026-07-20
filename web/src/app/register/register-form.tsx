@@ -16,6 +16,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { submitRegistration, type RegistrationState } from "./actions";
 import type { RegistrationKit } from "@/lib/types/registration";
+import { ct } from "@/lib/i18n-client";
 
 const initialState: RegistrationState = { status: "idle" };
 
@@ -52,36 +53,36 @@ export function RegisterForm({
       <CardContent className="pt-6">
         <form action={formAction} className="space-y-6">
           <section className="space-y-5">
-            <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">个人资料</p>
+            <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{ct("register.form.personal_info_heading")}</p>
 
             <div className="space-y-2">
-              <Label htmlFor="full_name">姓名（与身份证件一致）</Label>
+              <Label htmlFor="full_name">{ct("register.form.full_name_label")}</Label>
               <Input id="full_name" name="full_name" required />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="nickname">昵称</Label>
-              <Input id="nickname" name="nickname" required placeholder="系统内显示用的称呼" />
+              <Label htmlFor="nickname">{ct("register.form.nickname_label")}</Label>
+              <Input id="nickname" name="nickname" required placeholder={ct("register.form.nickname_placeholder")} />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="ic_or_passport_no">身份证 / 护照号码</Label>
+              <Label htmlFor="ic_or_passport_no">{ct("register.form.ic_label")}</Label>
               <Input id="ic_or_passport_no" name="ic_or_passport_no" required />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="phone">电话</Label>
-                <Input id="phone" name="phone" type="tel" required placeholder="01x-xxxxxxx" />
+                <Label htmlFor="phone">{ct("register.form.phone_label")}</Label>
+                <Input id="phone" name="phone" type="tel" required placeholder={ct("register.form.phone_placeholder")} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="email">电邮</Label>
+                <Label htmlFor="email">{ct("register.form.email_label")}</Label>
                 <Input id="email" name="email" type="email" required />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="ic_document">上传身份证照片</Label>
+              <Label htmlFor="ic_document">{ct("register.form.ic_document_label")}</Label>
               <Input id="ic_document" name="ic_document" type="file" accept="image/*,.pdf" required />
             </div>
           </section>
@@ -90,21 +91,21 @@ export function RegisterForm({
 
           <section className="space-y-5">
             <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-              银行资料（用于佣金发放）
+              {ct("register.form.bank_info_heading")}
             </p>
 
             <div className="space-y-2">
-              <Label htmlFor="bank_name">银行名称</Label>
-              <Input id="bank_name" name="bank_name" required placeholder="例：Maybank" />
+              <Label htmlFor="bank_name">{ct("register.form.bank_name_label")}</Label>
+              <Input id="bank_name" name="bank_name" required placeholder={ct("register.form.bank_name_placeholder")} />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="bank_account_name">户口持有人姓名</Label>
+                <Label htmlFor="bank_account_name">{ct("register.form.bank_account_name_label")}</Label>
                 <Input id="bank_account_name" name="bank_account_name" required />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="bank_account_no">银行户口号码</Label>
+                <Label htmlFor="bank_account_no">{ct("register.form.bank_account_no_label")}</Label>
                 <Input id="bank_account_no" name="bank_account_no" required />
               </div>
             </div>
@@ -113,23 +114,23 @@ export function RegisterForm({
           <Separator />
 
           <section className="space-y-5">
-            <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">注册与缴费</p>
+            <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{ct("register.form.registration_payment_heading")}</p>
 
             <div className="space-y-2">
-              <Label htmlFor="sponsor_referral_code">推荐人推荐码（选填）</Label>
+              <Label htmlFor="sponsor_referral_code">{ct("register.form.sponsor_code_label")}</Label>
               <Input
                 id="sponsor_referral_code"
                 name="sponsor_referral_code"
-                placeholder="没有推荐人可留空"
+                placeholder={ct("register.form.sponsor_code_placeholder")}
                 defaultValue={sponsorReferralCode ?? ""}
               />
               {sponsorReferralCode && (
-                <p className="text-xs text-muted-foreground">已透过推荐连结自动带入，如有需要仍可自行修改。</p>
+                <p className="text-xs text-muted-foreground">{ct("register.form.sponsor_code_hint")}</p>
               )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="kit_id">选择注册套装</Label>
+              <Label htmlFor="kit_id">{ct("register.form.kit_label")}</Label>
               {/* Base UI's Select.Value shows the raw value unless the Root gets an
                   `items` map — unlike Radix, it does not resolve the label from the
                   matching SelectItem's children automatically. */}
@@ -140,7 +141,7 @@ export function RegisterForm({
                 required
               >
                 <SelectTrigger id="kit_id" className="w-full">
-                  <SelectValue placeholder="请选择套装" />
+                  <SelectValue placeholder={ct("register.form.kit_placeholder")} />
                 </SelectTrigger>
                 <SelectContent>
                   {kits.map((kit) => (
@@ -151,14 +152,14 @@ export function RegisterForm({
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                套装内含 {kits[0]?.voucher_self_use_count ?? 1} 张自用检测券、
-                {kits[0]?.voucher_resale_count ?? 1} 张认证后可转售检测券
-                {kits[0]?.includes_business_card ? "、名片" : ""}与培训课程。
+                {ct("register.form.kit_hint_prefix")}{kits[0]?.voucher_self_use_count ?? 1}{ct("register.form.kit_hint_self_use_suffix")}
+                {kits[0]?.voucher_resale_count ?? 1}{ct("register.form.kit_hint_resale_suffix")}
+                {kits[0]?.includes_business_card ? ct("register.form.kit_hint_business_card") : ""}{ct("register.form.kit_hint_suffix")}
               </p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="payment_screenshot">上传缴费截图</Label>
+              <Label htmlFor="payment_screenshot">{ct("register.form.payment_screenshot_label")}</Label>
               <Input
                 id="payment_screenshot"
                 name="payment_screenshot"
@@ -167,7 +168,7 @@ export function RegisterForm({
                 required
               />
               <p className="text-xs text-muted-foreground">
-                请先依后台提供的银行户口完成转账，再上传缴费截图；后台核实后会开通你的帐号。
+                {ct("register.form.payment_screenshot_hint")}
               </p>
             </div>
           </section>
@@ -178,7 +179,7 @@ export function RegisterForm({
               <input type="hidden" name="agreement_link_opened" value={linkOpened ? "true" : "false"} />
               <div className="space-y-2 text-sm">
                 <p>
-                  请先阅读{" "}
+                  {ct("register.form.agreement_prefix")}
                   <a
                     href={agreementUrl}
                     target="_blank"
@@ -188,7 +189,7 @@ export function RegisterForm({
                   >
                     Agent Agreement / Terms and Conditions
                   </a>
-                  ，才可以勾选同意并完成注册。
+                  {ct("register.form.agreement_suffix")}
                 </p>
                 <label className="flex items-start gap-2">
                   <input
@@ -199,8 +200,8 @@ export function RegisterForm({
                     className="mt-0.5 size-4 shrink-0"
                   />
                   <span className={linkOpened ? undefined : "text-muted-foreground"}>
-                    我已阅读并同意 Agent Agreement / Terms and Conditions
-                    {!linkOpened && "（请先点击上方链接）"}
+                    {ct("register.form.agree_checkbox_prefix")}
+                    {!linkOpened && ct("register.form.agree_checkbox_note")}
                   </span>
                 </label>
               </div>
@@ -214,7 +215,7 @@ export function RegisterForm({
           )}
 
           <Button type="submit" className="w-full" disabled={isPending}>
-            {isPending ? "处理中…" : "提交注册"}
+            {isPending ? ct("register.form.submitting") : ct("register.form.submit")}
           </Button>
         </form>
       </CardContent>

@@ -52,10 +52,17 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
   const canManageRow = (ownerAnalystId: string) => isBackOffice || ownerAnalystId === context.analystId;
 
   const subtitle = isBackOffice
-    ? t("customer.list.subtitle_all")
+    ? await t("customer.list.subtitle_all")
     : context.analystId
-      ? t("customer.list.subtitle_own")
-      : t("customer.list.subtitle_introducer");
+      ? await t("customer.list.subtitle_own")
+      : await t("customer.list.subtitle_introducer");
+
+  // t() is async (locale-aware) and can't be called inside the rows.map()
+  // callback below — resolved up front instead.
+  const activeStatusLabel = await t("customer.status.active");
+  const inactiveStatusLabel = await t("customer.status.inactive");
+  const viewActionLabel = await t("customer.list.action.view");
+  const editActionLabel = await t("customer.list.action.edit");
 
   function pageHref(targetPage: number) {
     const params = new URLSearchParams();
@@ -73,35 +80,35 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
     <div className="mx-auto max-w-6xl space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">{t("customer.list.title")}</h1>
+          <h1 className="text-xl font-semibold">{await t("customer.list.title")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>
         </div>
-        {context.analystId && <Button size="sm" render={<Link href="/admin/customers/new">{t("customer.list.create_button")}</Link>} />}
+        {context.analystId && <Button size="sm" render={<Link href="/admin/customers/new">{await t("customer.list.create_button")}</Link>} />}
       </div>
 
       <form method="get" action="/admin/customers" className="flex flex-wrap items-end gap-3 rounded-md border p-4">
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-muted-foreground">{t("customer.list.search_placeholder")}</label>
+          <label className="text-xs text-muted-foreground">{await t("customer.list.search_placeholder")}</label>
           <input
             name="search"
             defaultValue={sp.search}
-            placeholder={t("customer.list.search_placeholder")}
+            placeholder={await t("customer.list.search_placeholder")}
             className="h-9 w-56 rounded-md border bg-background px-3 text-sm"
           />
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-muted-foreground">{t("customer.list.filter.status")}</label>
+          <label className="text-xs text-muted-foreground">{await t("customer.list.filter.status")}</label>
           <select name="status" defaultValue={sp.status ?? ""} className="h-9 rounded-md border bg-background px-2 text-sm">
-            <option value="">{t("customer.list.filter.status_all")}</option>
-            <option value="active">{t("customer.list.filter.status_active")}</option>
-            <option value="inactive">{t("customer.list.filter.status_inactive")}</option>
+            <option value="">{await t("customer.list.filter.status_all")}</option>
+            <option value="active">{await t("customer.list.filter.status_active")}</option>
+            <option value="inactive">{await t("customer.list.filter.status_inactive")}</option>
           </select>
         </div>
         {isBackOffice && (
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted-foreground">{t("customer.list.filter.agent")}</label>
+            <label className="text-xs text-muted-foreground">{await t("customer.list.filter.agent")}</label>
             <select name="agent" defaultValue={sp.agent ?? ""} className="h-9 rounded-md border bg-background px-2 text-sm">
-              <option value="">{t("customer.list.filter.agent_all")}</option>
+              <option value="">{await t("customer.list.filter.agent_all")}</option>
               {agents.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.name}
@@ -112,9 +119,9 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
         )}
         {isBackOffice && (
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted-foreground">{t("customer.list.filter.introducer")}</label>
+            <label className="text-xs text-muted-foreground">{await t("customer.list.filter.introducer")}</label>
             <select name="introducer" defaultValue={sp.introducer ?? ""} className="h-9 rounded-md border bg-background px-2 text-sm">
-              <option value="">{t("customer.list.filter.introducer_all")}</option>
+              <option value="">{await t("customer.list.filter.introducer_all")}</option>
               {introducers.map((i) => (
                 <option key={i.id} value={i.id}>
                   {i.name}
@@ -124,38 +131,38 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
           </div>
         )}
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-muted-foreground">{t("customer.list.filter.date_from")}</label>
+          <label className="text-xs text-muted-foreground">{await t("customer.list.filter.date_from")}</label>
           <input type="date" name="from" defaultValue={sp.from} className="h-9 rounded-md border bg-background px-2 text-sm" />
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-muted-foreground">{t("customer.list.filter.date_to")}</label>
+          <label className="text-xs text-muted-foreground">{await t("customer.list.filter.date_to")}</label>
           <input type="date" name="to" defaultValue={sp.to} className="h-9 rounded-md border bg-background px-2 text-sm" />
         </div>
         <Button size="sm" type="submit">
-          {t("customer.list.filter.apply")}
+          {await t("customer.list.filter.apply")}
         </Button>
-        <Button size="sm" variant="ghost" render={<Link href="/admin/customers">{t("customer.list.filter.reset")}</Link>} />
+        <Button size="sm" variant="ghost" render={<Link href="/admin/customers">{await t("customer.list.filter.reset")}</Link>} />
       </form>
 
       <div className="overflow-x-auto rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>{t("customer.list.column.name")}</TableHead>
-              <TableHead>{t("customer.list.column.contact")}</TableHead>
-              {isBackOffice && <TableHead>{t("customer.list.column.agent")}</TableHead>}
-              <TableHead>{t("customer.list.column.introducer")}</TableHead>
-              <TableHead>{t("customer.list.column.orders")}</TableHead>
-              <TableHead>{t("customer.list.column.spent")}</TableHead>
-              <TableHead>{t("customer.list.column.status")}</TableHead>
-              <TableHead>{t("customer.list.column.actions")}</TableHead>
+              <TableHead>{await t("customer.list.column.name")}</TableHead>
+              <TableHead>{await t("customer.list.column.contact")}</TableHead>
+              {isBackOffice && <TableHead>{await t("customer.list.column.agent")}</TableHead>}
+              <TableHead>{await t("customer.list.column.introducer")}</TableHead>
+              <TableHead>{await t("customer.list.column.orders")}</TableHead>
+              <TableHead>{await t("customer.list.column.spent")}</TableHead>
+              <TableHead>{await t("customer.list.column.status")}</TableHead>
+              <TableHead>{await t("customer.list.column.actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.length === 0 && (
               <TableRow>
                 <TableCell colSpan={isBackOffice ? 8 : 7} className="text-center text-muted-foreground">
-                  {t("customer.list.empty")}
+                  {await t("customer.list.empty")}
                 </TableCell>
               </TableRow>
             )}
@@ -172,18 +179,18 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
                 <TableCell className="tabular-nums">{formatMYR(c.total_spent)}</TableCell>
                 <TableCell>
                   <Badge variant={c.status === "active" ? "secondary" : "outline"}>
-                    {c.status === "active" ? t("customer.status.active") : t("customer.status.inactive")}
+                    {c.status === "active" ? activeStatusLabel : inactiveStatusLabel}
                   </Badge>
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    <Button size="sm" variant="ghost" render={<Link href={`/admin/customers/${c.customer_id}`}>{t("customer.list.action.view")}</Link>} />
+                    <Button size="sm" variant="ghost" render={<Link href={`/admin/customers/${c.customer_id}`}>{viewActionLabel}</Link>} />
                     {canManageRow(c.owner_analyst_id) && (
                       <>
                         <Button
                           size="sm"
                           variant="ghost"
-                          render={<Link href={`/admin/customers/${c.customer_id}/edit`}>{t("customer.list.action.edit")}</Link>}
+                          render={<Link href={`/admin/customers/${c.customer_id}/edit`}>{editActionLabel}</Link>}
                         />
                         <ArchiveCustomerButton customerId={c.customer_id} isArchived={c.status === "inactive"} />
                       </>
@@ -199,20 +206,20 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
       {totalPages > 1 && (
         <div className="flex items-center justify-between text-sm">
           {page > 1 ? (
-            <Button size="sm" variant="outline" render={<Link href={pageHref(page - 1)}>{t("customer.list.pagination.prev")}</Link>} />
+            <Button size="sm" variant="outline" render={<Link href={pageHref(page - 1)}>{await t("customer.list.pagination.prev")}</Link>} />
           ) : (
             <Button size="sm" variant="outline" disabled>
-              {t("customer.list.pagination.prev")}
+              {await t("customer.list.pagination.prev")}
             </Button>
           )}
           <span className="text-muted-foreground">
             {page} / {totalPages}
           </span>
           {page < totalPages ? (
-            <Button size="sm" variant="outline" render={<Link href={pageHref(page + 1)}>{t("customer.list.pagination.next")}</Link>} />
+            <Button size="sm" variant="outline" render={<Link href={pageHref(page + 1)}>{await t("customer.list.pagination.next")}</Link>} />
           ) : (
             <Button size="sm" variant="outline" disabled>
-              {t("customer.list.pagination.next")}
+              {await t("customer.list.pagination.next")}
             </Button>
           )}
         </div>

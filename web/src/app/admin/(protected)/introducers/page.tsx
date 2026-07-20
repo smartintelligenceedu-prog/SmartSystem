@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { IntroducerLoginCell } from "./introducer-login-cell";
 import { AssignedAnalystCell } from "./assigned-analyst-cell";
 import { CreateIntroducerForm } from "./create-introducer-form";
+import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -25,36 +26,36 @@ export default async function IntroducersPage() {
     listActiveIntroducersForSponsorPicker(),
     listApprovedAnalystsForAssignment(),
   ]);
+  const activeStatusLabel = await t("introducers.page.status.active");
+  const inactiveStatusLabel = await t("introducers.page.status.inactive");
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">
       <div>
-        <h1 className="text-xl font-semibold">引荐人管理</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Introducer 不属于分析师体系，是外部顾客来源渠道；引荐人也可以介绍别的引荐人，两层都能拿佣金。
-        </p>
+        <h1 className="text-xl font-semibold">{await t("introducers.page.title")}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{await t("introducers.page.subtitle")}</p>
       </div>
 
       <div className="overflow-x-auto rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>姓名</TableHead>
-              <TableHead>联络方式</TableHead>
-              <TableHead>上线引荐人</TableHead>
-              <TableHead>推荐码</TableHead>
-              <TableHead>负责分析师</TableHead>
-              <TableHead>已引荐顾客</TableHead>
-              <TableHead>累计奖金</TableHead>
-              <TableHead>状态</TableHead>
-              <TableHead>登入帐号</TableHead>
+              <TableHead>{await t("introducers.page.column.name")}</TableHead>
+              <TableHead>{await t("introducers.page.column.contact")}</TableHead>
+              <TableHead>{await t("introducers.page.column.sponsor")}</TableHead>
+              <TableHead>{await t("introducers.page.column.referral_code")}</TableHead>
+              <TableHead>{await t("introducers.page.column.assigned_analyst")}</TableHead>
+              <TableHead>{await t("introducers.page.column.referred_customers")}</TableHead>
+              <TableHead>{await t("introducers.page.column.total_bonus")}</TableHead>
+              <TableHead>{await t("introducers.page.column.status")}</TableHead>
+              <TableHead>{await t("introducers.page.column.login")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {introducers.length === 0 && (
               <TableRow>
                 <TableCell colSpan={9} className="text-center text-muted-foreground">
-                  尚未建立任何引荐人
+                  {await t("introducers.page.empty")}
                 </TableCell>
               </TableRow>
             )}
@@ -79,7 +80,7 @@ export default async function IntroducersPage() {
                 <TableCell className="tabular-nums">{formatMYR(row.total_bonus)}</TableCell>
                 <TableCell>
                   <Badge variant={row.status === "active" ? "secondary" : "outline"}>
-                    {row.status === "active" ? "启用中" : "已停用"}
+                    {row.status === "active" ? activeStatusLabel : inactiveStatusLabel}
                   </Badge>
                 </TableCell>
                 <TableCell>
@@ -92,7 +93,7 @@ export default async function IntroducersPage() {
       </div>
 
       <div>
-        <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">新增引荐人</h2>
+        <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{await t("introducers.page.add_title")}</h2>
         <CreateIntroducerForm sponsors={sponsors} analysts={analysts} />
       </div>
     </div>

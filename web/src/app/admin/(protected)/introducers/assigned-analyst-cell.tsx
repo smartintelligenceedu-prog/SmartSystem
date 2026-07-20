@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { adminUpdateIntroducerAssignedAnalyst } from "./actions";
+import { ct } from "@/lib/i18n-client";
 
 export function AssignedAnalystCell({
   introducerId,
@@ -26,9 +27,9 @@ export function AssignedAnalystCell({
   if (!editing) {
     return (
       <div className="flex items-center gap-2">
-        <span className="text-muted-foreground">{currentAnalystName ?? "未指定"}</span>
+        <span className="text-muted-foreground">{currentAnalystName ?? ct("introducers.cell.unassigned")}</span>
         <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
-          更改
+          {ct("introducers.cell.change")}
         </Button>
       </div>
     );
@@ -38,7 +39,7 @@ export function AssignedAnalystCell({
     <div className="flex items-center gap-2">
       <Select value={selected} items={analysts.map((a) => ({ value: a.id, label: a.name }))} onValueChange={(v) => setSelected(v ?? "")}>
         <SelectTrigger className="h-8 w-40">
-          <SelectValue placeholder="不指定" />
+          <SelectValue placeholder={ct("introducers.cell.no_assignment_placeholder")} />
         </SelectTrigger>
         <SelectContent>
           {analysts.map((a) => (
@@ -62,10 +63,10 @@ export function AssignedAnalystCell({
           })
         }
       >
-        储存
+        {ct("introducers.cell.save")}
       </Button>
       <Button size="sm" variant="ghost" disabled={isPending} onClick={() => setEditing(false)}>
-        取消
+        {ct("introducers.cell.cancel")}
       </Button>
       {message && <p className="text-xs text-muted-foreground">{message}</p>}
     </div>

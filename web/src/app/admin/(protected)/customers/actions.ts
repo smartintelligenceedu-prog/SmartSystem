@@ -14,10 +14,10 @@ async function requireCallerContext(): Promise<
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "请先登入" };
+  if (!user) return { error: await t("customer.error.not_signed_in") };
 
   const { data: userRow } = await supabase.from("users").select("id, party_id").eq("auth_user_id", user.id).single();
-  if (!userRow) return { error: "找不到对应的使用者资料" };
+  if (!userRow) return { error: await t("customer.error.no_user_row") };
 
   const { data: isBackOffice } = await supabase.rpc("is_back_office");
   const { data: analyst } = await supabase
@@ -41,20 +41,27 @@ const childSchema = z.object({
   remark: z.string().trim().optional().or(z.literal("")),
 });
 
-const customerFormSchema = z.object({
-  full_name: z.string().trim().min(2, t("customer.error.required_name")),
-  phone: z.string().trim().min(8, t("customer.error.required_phone")),
-  email: z.string().trim().email(t("customer.error.invalid_email")).optional().or(z.literal("")),
-  gender: z.enum(["male", "female", "other", "undisclosed"]).optional().or(z.literal("")),
-  date_of_birth: z.string().optional().or(z.literal("")),
-  occupation: z.string().trim().optional().or(z.literal("")),
-  marital_status: z.enum(["single", "married", "divorced", "widowed", "other"]).optional().or(z.literal("")),
-  acquired_via_introducer_id: z.string().uuid().optional().or(z.literal("")),
-  children_json: z.string().optional().or(z.literal("")),
-  lead_id: z.string().uuid().optional().or(z.literal("")),
-});
+// Built per-call (not a module-scope constant) since the error messages are
+// locale-aware — a module-scope schema would freeze its t() lookups at
+// whatever locale happened to be active the first time this module loaded,
+// and never update again for other requests/users.
+async function buildCustomerFormSchema() {
+  return z.object({
+    full_name: z.string().trim().min(2, await t("customer.error.required_name")),
+    phone: z.string().trim().min(8, await t("customer.error.required_phone")),
+    email: z.string().trim().email(await t("customer.error.invalid_email")).optional().or(z.literal("")),
+    gender: z.enum(["male", "female", "other", "undisclosed"]).optional().or(z.literal("")),
+    date_of_birth: z.string().optional().or(z.literal("")),
+    occupation: z.string().trim().optional().or(z.literal("")),
+    marital_status: z.enum(["single", "married", "divorced", "widowed", "other"]).optional().or(z.literal("")),
+    acquired_via_introducer_id: z.string().uuid().optional().or(z.literal("")),
+    children_json: z.string().optional().or(z.literal("")),
+    lead_id: z.string().uuid().optional().or(z.literal("")),
+  });
+}
 
-function parseCustomerForm(formData: FormData) {
+async function parseCustomerForm(formData: FormData) {
+  const customerFormSchema = await buildCustomerFormSchema();
   return customerFormSchema.safeParse({
     full_name: formData.get("full_name"),
     phone: formData.get("phone"),
@@ -117,22 +124,22 @@ export type CustomerFormState =
 export async function createCustomer(_prev: CustomerFormState, formData: FormData): Promise<CustomerFormState> {
   const auth = await requireCallerContext();
   if ("error" in auth) return { status: "error", message: auth.error };
-  if (!auth.analystId) return { status: "error", message: t("customer.error.no_permission") };
+  if (!auth.analystId) return { status: "error", message: await t("customer.error.no_permission") };
 
-  const parsed = parseCustomerForm(formData);
+  const parsed = await parseCustomerForm(formData);
   if (!parsed.success) {
-    return { status: "error", message: parsed.error.issues[0]?.message ?? "表单资料有误" };
+    return { status: "error", message: parsed.error.issues[0]?.message ?? (await t("customer.error.invalid_form")) };
   }
   const input = parsed.data;
   const children = parseChildren(input.children_json);
 
   const dup = await checkDuplicatePhone(input.phone);
-  if (dup.duplicatePhone) return { status: "error", message: t("customer.error.duplicate_phone") };
+  if (dup.duplicatePhone) return { status: "error", message: await t("customer.error.duplicate_phone") };
 
   const admin = createAdminClient();
 
   const { data: party, error: partyError } = await admin.from("parties").insert({ party_type: "individual" }).select("id").single();
-  if (partyError) return { status: "error", message: `${t("customer.error.no_permission")}: ${partyError.message}` };
+  if (partyError) return { status: "error", message: `${await t("customer.error.no_permission")}: ${partyError.message}` };
 
   const { error: individualError } = await admin.from("individuals").insert({
     party_id: party.id,
@@ -183,20 +190,20 @@ export async function updateCustomer(customerId: string, _prev: CustomerFormStat
 
   const admin = createAdminClient();
   const { data: customer } = await admin.from("customers").select("id, party_id, owner_analyst_id").eq("id", customerId).maybeSingle();
-  if (!customer) return { status: "error", message: t("customer.error.not_found") };
+  if (!customer) return { status: "error", message: await t("customer.error.not_found") };
   if (!auth.isBackOffice && customer.owner_analyst_id !== auth.analystId) {
-    return { status: "error", message: t("customer.error.not_owner") };
+    return { status: "error", message: await t("customer.error.not_owner") };
   }
 
-  const parsed = parseCustomerForm(formData);
+  const parsed = await parseCustomerForm(formData);
   if (!parsed.success) {
-    return { status: "error", message: parsed.error.issues[0]?.message ?? "表单资料有误" };
+    return { status: "error", message: parsed.error.issues[0]?.message ?? (await t("customer.error.invalid_form")) };
   }
   const input = parsed.data;
   const children = parseChildren(input.children_json);
 
   const dup = await checkDuplicatePhone(input.phone, customerId);
-  if (dup.duplicatePhone) return { status: "error", message: t("customer.error.duplicate_phone") };
+  if (dup.duplicatePhone) return { status: "error", message: await t("customer.error.duplicate_phone") };
 
   const { error: individualError } = await admin
     .from("individuals")
@@ -234,9 +241,9 @@ export async function setCustomerArchived(customerId: string, archived: boolean)
 
   const admin = createAdminClient();
   const { data: customer } = await admin.from("customers").select("id, owner_analyst_id, status").eq("id", customerId).maybeSingle();
-  if (!customer) return { ok: false, message: t("customer.error.not_found") };
+  if (!customer) return { ok: false, message: await t("customer.error.not_found") };
   if (!auth.isBackOffice && customer.owner_analyst_id !== auth.analystId) {
-    return { ok: false, message: t("customer.error.not_owner") };
+    return { ok: false, message: await t("customer.error.not_owner") };
   }
 
   const { error } = await admin.from("customers").update({ status: archived ? "inactive" : "active" }).eq("id", customerId);

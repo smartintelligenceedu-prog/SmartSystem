@@ -5,6 +5,7 @@ import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { t } from "@/lib/i18n";
 
 /**
  * Same pattern as every other admin Server Action in this codebase: re-check
@@ -16,27 +17,31 @@ async function requireBackOfficeUserId(): Promise<{ userId: string } | { error: 
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "请先登入" };
+  if (!user) return { error: await t("introducers.error.not_signed_in") };
 
   const { data: isBackOffice } = await supabase.rpc("is_back_office");
-  if (!isBackOffice) return { error: "没有权限执行此操作" };
+  if (!isBackOffice) return { error: await t("introducers.error.no_permission") };
 
   const { data: userRow } = await supabase.from("users").select("id").eq("auth_user_id", user.id).single();
-  if (!userRow) return { error: "找不到对应的后台使用者资料" };
+  if (!userRow) return { error: await t("introducers.error.no_user_row") };
 
   return { userId: userRow.id };
 }
 
-const createIntroducerSchema = z.object({
-  full_name: z.string().trim().min(2, "请输入姓名"),
-  email: z.string().trim().email("请输入有效的电邮地址"),
-  phone: z.string().trim().min(8, "请输入有效的电话号码"),
-  bank_name: z.string().trim().optional(),
-  bank_account_name: z.string().trim().optional(),
-  bank_account_no: z.string().trim().optional(),
-  sponsor_id: z.string().uuid().optional().or(z.literal("")),
-  assigned_analyst_id: z.string().uuid().optional().or(z.literal("")),
-});
+// Built per-call, not a module-scope constant — see the identical note in
+// customers/actions.ts's buildCustomerFormSchema.
+async function buildCreateIntroducerSchema() {
+  return z.object({
+    full_name: z.string().trim().min(2, await t("introducers.error.name_required")),
+    email: z.string().trim().email(await t("introducers.error.invalid_email")),
+    phone: z.string().trim().min(8, await t("introducers.error.invalid_phone")),
+    bank_name: z.string().trim().optional(),
+    bank_account_name: z.string().trim().optional(),
+    bank_account_no: z.string().trim().optional(),
+    sponsor_id: z.string().uuid().optional().or(z.literal("")),
+    assigned_analyst_id: z.string().uuid().optional().or(z.literal("")),
+  });
+}
 
 export type CreateIntroducerState =
   | { status: "idle" }
@@ -50,6 +55,7 @@ export async function adminCreateIntroducer(
   const auth = await requireBackOfficeUserId();
   if ("error" in auth) return { status: "error", message: auth.error };
 
+  const createIntroducerSchema = await buildCreateIntroducerSchema();
   const parsed = createIntroducerSchema.safeParse({
     full_name: formData.get("full_name"),
     email: formData.get("email"),
@@ -61,14 +67,14 @@ export async function adminCreateIntroducer(
     assigned_analyst_id: formData.get("assigned_analyst_id") || undefined,
   });
   if (!parsed.success) {
-    return { status: "error", message: parsed.error.issues[0]?.message ?? "表单资料有误" };
+    return { status: "error", message: parsed.error.issues[0]?.message ?? (await t("introducers.error.invalid_form")) };
   }
   const input = parsed.data;
 
   const admin = createAdminClient();
 
   const { data: party, error: partyError } = await admin.from("parties").insert({ party_type: "individual" }).select("id").single();
-  if (partyError) return { status: "error", message: `建立资料失败：${partyError.message}` };
+  if (partyError) return { status: "error", message: `${await t("introducers.error.create_profile_failed_prefix")}${partyError.message}` };
 
   await admin.from("individuals").insert({
     party_id: party.id,
@@ -90,7 +96,9 @@ export async function adminCreateIntroducer(
     status: "active",
     assigned_analyst_id: input.assigned_analyst_id || null,
   });
-  if (introducerError) return { status: "error", message: `建立引荐人失败：${introducerError.message}` };
+  if (introducerError) {
+    return { status: "error", message: `${await t("introducers.error.create_introducer_failed_prefix")}${introducerError.message}` };
+  }
 
   revalidatePath("/admin/introducers");
   return { status: "success" };
@@ -109,10 +117,10 @@ export async function adminUpdateIntroducerAssignedAnalyst(
 
   const admin = createAdminClient();
   const { error } = await admin.from("introducers").update({ assigned_analyst_id: analystId }).eq("id", introducerId);
-  if (error) return { ok: false, message: `更新失败：${error.message}` };
+  if (error) return { ok: false, message: `${await t("introducers.error.update_failed_prefix")}${error.message}` };
 
   revalidatePath("/admin/introducers");
-  return { ok: true, message: "已更新" };
+  return { ok: true, message: await t("introducers.success.updated") };
 }
 
 export async function adminCreateIntroducerLogin(
@@ -121,18 +129,18 @@ export async function adminCreateIntroducerLogin(
 ): Promise<{ ok: boolean; message: string }> {
   const auth = await requireBackOfficeUserId();
   if ("error" in auth) return { ok: false, message: auth.error };
-  if (password.length < 8) return { ok: false, message: "密码至少需要 8 个字元" };
+  if (password.length < 8) return { ok: false, message: await t("introducers.error.password_min_length") };
 
   const admin = createAdminClient();
 
   const { data: introducer } = await admin.from("introducers").select("party_id").eq("id", introducerId).single();
-  if (!introducer) return { ok: false, message: "找不到这位引荐人" };
+  if (!introducer) return { ok: false, message: await t("introducers.error.introducer_not_found") };
 
   const { data: existingUser } = await admin.from("users").select("id").eq("party_id", introducer.party_id).maybeSingle();
-  if (existingUser) return { ok: false, message: "这位引荐人已经有登入帐号了" };
+  if (existingUser) return { ok: false, message: await t("introducers.error.already_has_login") };
 
   const { data: identity } = await admin.from("individuals").select("email").eq("party_id", introducer.party_id).single();
-  if (!identity?.email) return { ok: false, message: "找不到这位引荐人的电邮资料" };
+  if (!identity?.email) return { ok: false, message: await t("introducers.error.no_email") };
 
   const { data: authUser, error: authError } = await admin.auth.admin.createUser({
     email: identity.email,
@@ -140,7 +148,10 @@ export async function adminCreateIntroducerLogin(
     email_confirm: true,
   });
   if (authError || !authUser.user) {
-    return { ok: false, message: `建立登入帐号失败：${authError?.message ?? "未知错误"}` };
+    return {
+      ok: false,
+      message: `${await t("introducers.error.create_login_failed_prefix")}${authError?.message ?? (await t("introducers.error.unknown_error"))}`,
+    };
   }
 
   const { data: userRow, error: userError } = await admin
@@ -148,7 +159,7 @@ export async function adminCreateIntroducerLogin(
     .insert({ party_id: introducer.party_id, auth_user_id: authUser.user.id })
     .select("id")
     .single();
-  if (userError) return { ok: false, message: `建立使用者失败：${userError.message}` };
+  if (userError) return { ok: false, message: `${await t("introducers.error.create_user_failed_prefix")}${userError.message}` };
 
   const { data: role } = await admin.from("roles").select("id").eq("name", "introducer").single();
   if (role) {
@@ -156,5 +167,5 @@ export async function adminCreateIntroducerLogin(
   }
 
   revalidatePath("/admin/introducers");
-  return { ok: true, message: "已建立登入帐号" };
+  return { ok: true, message: await t("introducers.success.login_created") };
 }

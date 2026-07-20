@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { t } from "@/lib/i18n";
+import { ct } from "@/lib/i18n-client";
 import { issueInvoice, issueFinalSettlementInvoice, recordPayment } from "./actions";
 import type { InstitutionalOrderRow } from "./data";
 
@@ -63,12 +63,12 @@ export function OrderActionsCell({ row }: { row: InstitutionalOrderRow }) {
     <div className="flex flex-wrap justify-end gap-3 text-xs">
       {row.invoice_id && (
         <a href={`/admin/finance/institutional/invoices/${row.invoice_id}`} target="_blank" rel="noreferrer" className="text-primary underline">
-          {t("finance.institutional.action.view_invoice")}
+          {ct("finance.institutional.action.view_invoice")}
         </a>
       )}
       {row.latest_payment_id && (
         <a href={`/admin/finance/institutional/payments/${row.latest_payment_id}`} target="_blank" rel="noreferrer" className="text-primary underline">
-          {t("finance.institutional.action.view_receipt")}
+          {ct("finance.institutional.action.view_receipt")}
         </a>
       )}
     </div>
@@ -87,23 +87,23 @@ export function OrderActionsCell({ row }: { row: InstitutionalOrderRow }) {
             className="w-28"
             type="number"
             step="0.01"
-            placeholder={t("finance.institutional.field.amount")}
+            placeholder={ct("finance.institutional.field.amount")}
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             readOnly={amountReadOnly}
           />
-          <Input className="w-28" placeholder={t("finance.institutional.field.method")} value={method} onChange={(e) => setMethod(e.target.value)} />
+          <Input className="w-28" placeholder={ct("finance.institutional.field.method")} value={method} onChange={(e) => setMethod(e.target.value)} />
           <Input
             className="w-28"
-            placeholder={t("finance.institutional.field.reference_no")}
+            placeholder={ct("finance.institutional.field.reference_no")}
             value={referenceNo}
             onChange={(e) => setReferenceNo(e.target.value)}
           />
           <Button size="sm" disabled={isPending} onClick={submitPayment}>
-            {t("finance.institutional.action.confirm")}
+            {ct("finance.institutional.action.confirm")}
           </Button>
           <Button size="sm" variant="ghost" disabled={isPending} onClick={() => setMode(null)}>
-            {t("finance.institutional.action.cancel")}
+            {ct("finance.institutional.action.cancel")}
           </Button>
         </div>
         {message && <p className="text-xs text-muted-foreground">{message}</p>}
@@ -118,38 +118,38 @@ export function OrderActionsCell({ row }: { row: InstitutionalOrderRow }) {
         {row.state === "no_invoice" && (
           <>
             <Button size="sm" disabled={isPending} onClick={doIssueInvoice}>
-              {t("finance.institutional.action.issue_invoice")}
+              {ct("finance.institutional.action.issue_invoice")}
             </Button>
             <Button size="sm" variant="secondary" disabled={isPending} onClick={() => openPaymentForm("deposit", null)}>
-              {t("finance.institutional.action.record_deposit")}
+              {ct("finance.institutional.action.record_deposit")}
             </Button>
           </>
         )}
         {row.state === "invoiced_awaiting_payment" && (
           <Button size="sm" disabled={isPending} onClick={() => openPaymentForm("full_payment", row.ar_balance)}>
-            {t("finance.institutional.action.record_full_payment")}
+            {ct("finance.institutional.action.record_full_payment")}
           </Button>
         )}
         {row.state === "deposit_received_awaiting_settlement" && (
           <>
             <Button size="sm" variant="secondary" disabled={isPending} onClick={() => openPaymentForm("deposit", null)}>
-              {t("finance.institutional.action.record_deposit")}
+              {ct("finance.institutional.action.record_deposit")}
             </Button>
             <Button size="sm" disabled={isPending} onClick={doIssueFinalSettlement}>
-              {t("finance.institutional.action.issue_final_settlement")}
+              {ct("finance.institutional.action.issue_final_settlement")}
             </Button>
           </>
         )}
         {row.state === "settled_awaiting_final_payment" && (
           <Button size="sm" disabled={isPending} onClick={() => openPaymentForm("final_payment", row.ar_balance)}>
-            {t("finance.institutional.action.record_final_payment")}
+            {ct("finance.institutional.action.record_final_payment")}
           </Button>
         )}
       </div>
       {message && <p className="text-xs text-muted-foreground">{message}</p>}
       {row.state === "deposit_received_awaiting_settlement" && row.deposit_balance > 0 && (
         <p className="text-xs text-muted-foreground">
-          {t("finance.institutional.column.deposit_balance")}: {formatMYR(row.deposit_balance)}
+          {ct("finance.institutional.column.deposit_balance")}: {formatMYR(row.deposit_balance)}
         </p>
       )}
     </div>

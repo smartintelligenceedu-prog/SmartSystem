@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { t } from "@/lib/i18n";
+import { ct } from "@/lib/i18n-client";
 import { createCampaign, type CreateCampaignState } from "./actions";
 import type { AnalystOption } from "./data";
 
@@ -33,26 +33,30 @@ export function CreateCampaignForm({ analysts }: { analysts: AnalystOption[] }) 
         <form ref={formRef} action={formAction} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="name">{t("pic_campaigns.form.name_label")}</Label>
+              <Label htmlFor="name">{ct("pic_campaigns.form.name_label")}</Label>
               <Input id="name" name="name" required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="campaign_type">{t("pic_campaigns.form.type_label")}</Label>
-              <Select name="campaign_type" items={CAMPAIGN_TYPES.map((ct) => ({ value: ct.value, label: t(ct.labelKey) }))} defaultValue="school">
+              <Label htmlFor="campaign_type">{ct("pic_campaigns.form.type_label")}</Label>
+              <Select
+                name="campaign_type"
+                items={CAMPAIGN_TYPES.map((campaignType) => ({ value: campaignType.value, label: ct(campaignType.labelKey) }))}
+                defaultValue="school"
+              >
                 <SelectTrigger id="campaign_type" className="w-full">
                   <SelectValue placeholder="—" />
                 </SelectTrigger>
                 <SelectContent>
-                  {CAMPAIGN_TYPES.map((ct) => (
-                    <SelectItem key={ct.value} value={ct.value}>
-                      {t(ct.labelKey)}
+                  {CAMPAIGN_TYPES.map((campaignType) => (
+                    <SelectItem key={campaignType.value} value={campaignType.value}>
+                      {ct(campaignType.labelKey)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="pic_analyst_id">{t("pic_campaigns.form.pic_label")}</Label>
+              <Label htmlFor="pic_analyst_id">{ct("pic_campaigns.form.pic_label")}</Label>
               <Select name="pic_analyst_id" items={analysts.map((a) => ({ value: a.id, label: a.name }))}>
                 <SelectTrigger id="pic_analyst_id" className="w-full">
                   <SelectValue placeholder="—" />
@@ -67,22 +71,22 @@ export function CreateCampaignForm({ analysts }: { analysts: AnalystOption[] }) 
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="location">{t("pic_campaigns.form.location_label")}</Label>
+              <Label htmlFor="location">{ct("pic_campaigns.form.location_label")}</Label>
               <Input id="location" name="location" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="pic_report_override_amount">{t("pic_campaigns.form.report_override_label")}</Label>
-              <Input id="pic_report_override_amount" name="pic_report_override_amount" type="number" step="0.01" min="0" placeholder={t("pic_campaigns.form.fallback_placeholder")} />
+              <Label htmlFor="pic_report_override_amount">{ct("pic_campaigns.form.report_override_label")}</Label>
+              <Input id="pic_report_override_amount" name="pic_report_override_amount" type="number" step="0.01" min="0" placeholder={ct("pic_campaigns.form.fallback_placeholder")} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="pic_analyst_report_fee_amount">{t("pic_campaigns.form.analyst_fee_label")}</Label>
+              <Label htmlFor="pic_analyst_report_fee_amount">{ct("pic_campaigns.form.analyst_fee_label")}</Label>
               <Input
                 id="pic_analyst_report_fee_amount"
                 name="pic_analyst_report_fee_amount"
                 type="number"
                 step="0.01"
                 min="0"
-                placeholder={t("pic_campaigns.form.fallback_placeholder")}
+                placeholder={ct("pic_campaigns.form.fallback_placeholder")}
               />
             </div>
           </div>
@@ -92,10 +96,10 @@ export function CreateCampaignForm({ analysts }: { analysts: AnalystOption[] }) 
               {state.message}
             </p>
           )}
-          {state.status === "success" && <p className="text-sm">{t("pic_campaigns.form.success")}</p>}
+          {state.status === "success" && <p className="text-sm">{ct("pic_campaigns.form.success")}</p>}
 
           <Button type="submit" disabled={isPending}>
-            {t("pic_campaigns.form.submit")}
+            {ct("pic_campaigns.form.submit")}
           </Button>
         </form>
       </CardContent>

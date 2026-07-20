@@ -18,13 +18,13 @@ async function requireBackOfficeUserId(): Promise<{ userId: string } | { error: 
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: t("leads.error.not_signed_in") };
+  if (!user) return { error: await t("leads.error.not_signed_in") };
 
   const { data: isBackOffice } = await supabase.rpc("is_back_office");
-  if (!isBackOffice) return { error: t("leads.error.no_permission") };
+  if (!isBackOffice) return { error: await t("leads.error.no_permission") };
 
   const { data: userRow } = await supabase.from("users").select("id").eq("auth_user_id", user.id).single();
-  if (!userRow) return { error: t("leads.error.no_permission") };
+  if (!userRow) return { error: await t("leads.error.no_permission") };
 
   return { userId: userRow.id };
 }
@@ -33,19 +33,19 @@ async function requireBackOfficeUserId(): Promise<{ userId: string } | { error: 
 // leads' "for all" policy already allows the assigned analyst or back
 // office to update, so there's no need to re-derive/re-check that here.
 export async function updateLeadStatus(leadId: string, status: LeadStatus): Promise<{ ok: boolean; message: string }> {
-  if (!VALID_STATUSES.includes(status)) return { ok: false, message: t("leads.error.invalid_status") };
+  if (!VALID_STATUSES.includes(status)) return { ok: false, message: await t("leads.error.invalid_status") };
 
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { ok: false, message: t("leads.error.not_signed_in") };
+  if (!user) return { ok: false, message: await t("leads.error.not_signed_in") };
 
   const { error } = await supabase.from("leads").update({ status }).eq("id", leadId);
-  if (error) return { ok: false, message: `${t("leads.error.update_failed_prefix")}${error.message}` };
+  if (error) return { ok: false, message: `${await t("leads.error.update_failed_prefix")}${error.message}` };
 
   revalidatePath("/admin/leads");
-  return { ok: true, message: t("leads.status_updated") };
+  return { ok: true, message: await t("leads.status_updated") };
 }
 
 // Back-office-only: moves a lead to a different analyst regardless of who
@@ -62,8 +62,8 @@ export async function adminReassignLead(leadId: string, analystId: string): Prom
 
   const admin = createAdminClient();
   const { error } = await admin.from("leads").update({ assigned_analyst_id: analystId }).eq("id", leadId);
-  if (error) return { ok: false, message: `${t("leads.error.update_failed_prefix")}${error.message}` };
+  if (error) return { ok: false, message: `${await t("leads.error.update_failed_prefix")}${error.message}` };
 
   revalidatePath("/admin/leads");
-  return { ok: true, message: t("leads.status_updated") };
+  return { ok: true, message: await t("leads.status_updated") };
 }

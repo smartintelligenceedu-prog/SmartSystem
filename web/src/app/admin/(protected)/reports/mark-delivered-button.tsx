@@ -4,13 +4,13 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { t } from "@/lib/i18n";
+import { ct } from "@/lib/i18n-client";
 import { markReportDelivered } from "./actions";
 import type { ReportTier } from "./data";
 
 const TIER_OPTIONS: { value: ReportTier; label: string }[] = [
-  { value: "standard", label: t("reports.tier.standard") },
-  { value: "upgrade", label: t("reports.tier.upgrade") },
+  { value: "standard", label: ct("reports.tier.standard") },
+  { value: "upgrade", label: ct("reports.tier.upgrade") },
 ];
 
 export function MarkDeliveredButton({ orderItemId }: { orderItemId: string }) {
@@ -24,7 +24,7 @@ export function MarkDeliveredButton({ orderItemId }: { orderItemId: string }) {
       <div className="flex items-center gap-2">
         <Select value={tier} items={TIER_OPTIONS} onValueChange={(v) => setTier((v as ReportTier) ?? "standard")}>
           <SelectTrigger className="w-28" size="sm">
-            <SelectValue placeholder={t("reports.mark_delivered.tier_placeholder")} />
+            <SelectValue placeholder={ct("reports.mark_delivered.tier_placeholder")} />
           </SelectTrigger>
           <SelectContent>
             {TIER_OPTIONS.map((opt) => (
@@ -46,7 +46,7 @@ export function MarkDeliveredButton({ orderItemId }: { orderItemId: string }) {
             })
           }
         >
-          {t("reports.mark_delivered.submit")}
+          {ct("reports.mark_delivered.submit")}
         </Button>
       </div>
       {message && <p className="text-xs text-muted-foreground">{message}</p>}

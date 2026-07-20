@@ -6,13 +6,14 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { adminCreateBackOfficeUser, type CreateUserState } from "./actions";
+import { ct } from "@/lib/i18n-client";
 
 const initialState: CreateUserState = { status: "idle" };
 
-const ROLE_OPTIONS: { value: string; label: string }[] = [
-  { value: "back_office", label: "后台人员" },
-  { value: "finance", label: "财务" },
-  { value: "admin", label: "管理员" },
+const ROLE_OPTIONS: { value: string; labelKey: "users.role.back_office" | "users.role.finance" | "users.role.admin" }[] = [
+  { value: "back_office", labelKey: "users.role.back_office" },
+  { value: "finance", labelKey: "users.role.finance" },
+  { value: "admin", labelKey: "users.role.admin" },
 ];
 
 export function CreateUserForm() {
@@ -30,24 +31,24 @@ export function CreateUserForm() {
       <CardContent className="pt-6">
         <form ref={formRef} action={formAction} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="full_name">姓名</Label>
+            <Label htmlFor="full_name">{ct("users.form.full_name")}</Label>
             <Input id="full_name" name="full_name" required />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="email">电邮</Label>
+            <Label htmlFor="email">{ct("users.form.email")}</Label>
             <Input id="email" name="email" type="email" required />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">初始密码</Label>
-            <Input id="password" name="password" type="password" required placeholder="至少 8 个字元" />
+            <Label htmlFor="password">{ct("users.form.password")}</Label>
+            <Input id="password" name="password" type="password" required placeholder={ct("users.form.password_placeholder")} />
           </div>
           <div className="space-y-2">
-            <Label>角色</Label>
+            <Label>{ct("users.form.roles_label")}</Label>
             <div className="flex gap-4">
               {ROLE_OPTIONS.map((role) => (
                 <label key={role.value} className="flex items-center gap-2 text-sm">
                   <input type="checkbox" name="roles" value={role.value} className="size-4" />
-                  {role.label}
+                  {ct(role.labelKey)}
                 </label>
               ))}
             </div>
@@ -58,10 +59,10 @@ export function CreateUserForm() {
               {state.message}
             </p>
           )}
-          {state.status === "success" && <p className="text-sm">已建立帐号</p>}
+          {state.status === "success" && <p className="text-sm">{ct("users.form.success")}</p>}
 
           <Button type="submit" disabled={isPending}>
-            {isPending ? "建立中…" : "建立帐号"}
+            {isPending ? ct("users.form.submitting") : ct("users.form.submit")}
           </Button>
         </form>
       </CardContent>

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { adminCreateIntroducer, type CreateIntroducerState } from "./actions";
+import { ct } from "@/lib/i18n-client";
 
 const initialState: CreateIntroducerState = { status: "idle" };
 
@@ -32,26 +33,26 @@ export function CreateIntroducerForm({
         <form ref={formRef} action={formAction} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="full_name">姓名</Label>
+              <Label htmlFor="full_name">{ct("introducers.form.name_label")}</Label>
               <Input id="full_name" name="full_name" required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="phone">电话</Label>
+              <Label htmlFor="phone">{ct("introducers.form.phone_label")}</Label>
               <Input id="phone" name="phone" required />
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="email">电邮</Label>
+            <Label htmlFor="email">{ct("introducers.form.email_label")}</Label>
             <Input id="email" name="email" type="email" required />
           </div>
           {sponsors.length > 0 && (
             <div className="space-y-2">
-              <Label htmlFor="sponsor_id">上线引荐人（选填）</Label>
+              <Label htmlFor="sponsor_id">{ct("introducers.form.sponsor_label")}</Label>
               {/* Base UI's Select.Value shows the raw value unless Root gets an
                   `items` map — see the same note in register-form.tsx. */}
               <Select name="sponsor_id" items={sponsors.map((s) => ({ value: s.id, label: s.name }))}>
                 <SelectTrigger id="sponsor_id" className="w-full">
-                  <SelectValue placeholder="没有上线引荐人可留空" />
+                  <SelectValue placeholder={ct("introducers.form.sponsor_placeholder")} />
                 </SelectTrigger>
                 <SelectContent>
                   {sponsors.map((s) => (
@@ -61,15 +62,15 @@ export function CreateIntroducerForm({
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">如果这位引荐人是被别的引荐人介绍进来的，选择上线可以让上线也拿到 Level 2 佣金。</p>
+              <p className="text-xs text-muted-foreground">{ct("introducers.form.sponsor_hint")}</p>
             </div>
           )}
           {analysts.length > 0 && (
             <div className="space-y-2">
-              <Label htmlFor="assigned_analyst_id">负责分析师（选填）</Label>
+              <Label htmlFor="assigned_analyst_id">{ct("introducers.form.assigned_analyst_label")}</Label>
               <Select name="assigned_analyst_id" items={analysts.map((a) => ({ value: a.id, label: a.name }))}>
                 <SelectTrigger id="assigned_analyst_id" className="w-full">
-                  <SelectValue placeholder="不指定可留空" />
+                  <SelectValue placeholder={ct("introducers.form.assigned_analyst_placeholder")} />
                 </SelectTrigger>
                 <SelectContent>
                   {analysts.map((a) => (
@@ -79,20 +80,20 @@ export function CreateIntroducerForm({
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">这位引荐人发出的「转介顾客」连结，顾客留资料后会自动分派给这位分析师跟进。</p>
+              <p className="text-xs text-muted-foreground">{ct("introducers.form.assigned_analyst_hint")}</p>
             </div>
           )}
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="bank_name">银行名称（选填）</Label>
+              <Label htmlFor="bank_name">{ct("introducers.form.bank_name_label")}</Label>
               <Input id="bank_name" name="bank_name" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="bank_account_name">户口持有人（选填）</Label>
+              <Label htmlFor="bank_account_name">{ct("introducers.form.bank_account_name_label")}</Label>
               <Input id="bank_account_name" name="bank_account_name" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="bank_account_no">户口号码（选填）</Label>
+              <Label htmlFor="bank_account_no">{ct("introducers.form.bank_account_no_label")}</Label>
               <Input id="bank_account_no" name="bank_account_no" />
             </div>
           </div>
@@ -102,10 +103,10 @@ export function CreateIntroducerForm({
               {state.message}
             </p>
           )}
-          {state.status === "success" && <p className="text-sm">已建立引荐人</p>}
+          {state.status === "success" && <p className="text-sm">{ct("introducers.form.success")}</p>}
 
           <Button type="submit" disabled={isPending}>
-            {isPending ? "建立中…" : "建立引荐人"}
+            {isPending ? ct("introducers.form.creating") : ct("introducers.form.submit")}
           </Button>
         </form>
       </CardContent>

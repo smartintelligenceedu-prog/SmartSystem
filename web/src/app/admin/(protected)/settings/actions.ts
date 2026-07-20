@@ -12,24 +12,24 @@ async function requireBackOfficeUserId(): Promise<{ userId: string } | { error: 
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: t("settings.error.not_logged_in") };
+  if (!user) return { error: await t("settings.error.not_logged_in") };
 
   const { data: isBackOffice } = await supabase.rpc("is_back_office");
-  if (!isBackOffice) return { error: t("settings.error.no_permission") };
+  if (!isBackOffice) return { error: await t("settings.error.no_permission") };
 
   const { data: userRow } = await supabase.from("users").select("id").eq("auth_user_id", user.id).single();
-  if (!userRow) return { error: t("settings.error.no_user_row") };
+  if (!userRow) return { error: await t("settings.error.no_user_row") };
 
   return { userId: userRow.id };
 }
 
 const companyInfoSchema = z.object({
-  name: z.string().trim().min(1, t("settings.error.name_required")),
+  name: z.string().trim().min(1, await t("settings.error.name_required")),
   ssmNumber: z.string().trim(),
   addressLine1: z.string().trim(),
   addressLine2: z.string().trim(),
   phone: z.string().trim(),
-  email: z.string().trim().email(t("settings.error.invalid_email")).or(z.literal("")),
+  email: z.string().trim().email(await t("settings.error.invalid_email")).or(z.literal("")),
   bankName: z.string().trim(),
   bankAccountName: z.string().trim(),
   bankAccountNumber: z.string().trim(),
@@ -56,7 +56,7 @@ export async function updateCompanyInfo(_prev: UpdateCompanyInfoState, formData:
     invoiceTerms: formData.get("invoiceTerms"),
     agreementUrl: formData.get("agreementUrl"),
   });
-  if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message ?? t("settings.error.invalid_form") };
+  if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message ?? await t("settings.error.invalid_form") };
 
   const admin = createAdminClient();
   const { error } = await admin.from("settings").upsert({
@@ -64,7 +64,7 @@ export async function updateCompanyInfo(_prev: UpdateCompanyInfoState, formData:
     value: parsed.data,
     updated_by: auth.userId,
   });
-  if (error) return { status: "error", message: `${t("settings.error.save_failed")}${error.message}` };
+  if (error) return { status: "error", message: `${await t("settings.error.save_failed")}${error.message}` };
 
   revalidatePath("/admin/settings");
   return { status: "success" };

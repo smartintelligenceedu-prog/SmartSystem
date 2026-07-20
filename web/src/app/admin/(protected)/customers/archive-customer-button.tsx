@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { setCustomerArchived } from "./actions";
-import { t } from "@/lib/i18n";
+import { ct } from "@/lib/i18n-client";
 
 export function ArchiveCustomerButton({ customerId, isArchived }: { customerId: string; isArchived: boolean }) {
   const router = useRouter();
@@ -25,7 +25,7 @@ export function ArchiveCustomerButton({ customerId, isArchived }: { customerId: 
           })
         }
       >
-        {isArchived ? t("customer.list.action.restore") : t("customer.list.action.archive")}
+        {isArchived ? ct("customer.list.action.restore") : ct("customer.list.action.archive")}
       </Button>
       {message && <p className="text-xs text-destructive">{message}</p>}
     </div>

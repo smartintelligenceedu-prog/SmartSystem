@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { adminCreateIntroducerLogin } from "./actions";
+import { ct } from "@/lib/i18n-client";
 
 export function IntroducerLoginCell({ introducerId, hasLogin }: { introducerId: string; hasLogin: boolean }) {
   const router = useRouter();
@@ -15,13 +16,13 @@ export function IntroducerLoginCell({ introducerId, hasLogin }: { introducerId: 
   const [message, setMessage] = useState<string | null>(null);
 
   if (hasLogin) {
-    return <Badge variant="secondary">已开通</Badge>;
+    return <Badge variant="secondary">{ct("introducers.login_cell.active")}</Badge>;
   }
 
   if (!showForm) {
     return (
       <Button size="sm" variant="outline" onClick={() => setShowForm(true)}>
-        建立登入
+        {ct("introducers.login_cell.create")}
       </Button>
     );
   }
@@ -33,7 +34,7 @@ export function IntroducerLoginCell({ introducerId, hasLogin }: { introducerId: 
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="初始密码"
+          placeholder={ct("introducers.login_cell.password_placeholder")}
           className="h-8 w-32"
         />
         <Button
@@ -47,7 +48,7 @@ export function IntroducerLoginCell({ introducerId, hasLogin }: { introducerId: 
             })
           }
         >
-          确认
+          {ct("introducers.login_cell.confirm")}
         </Button>
       </div>
       {message && <p className="text-xs text-muted-foreground">{message}</p>}

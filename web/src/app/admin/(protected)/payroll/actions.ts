@@ -11,24 +11,29 @@ async function requireFinanceUserId(): Promise<{ userId: string } | { error: str
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "请先登入" };
+  if (!user) return { error: await t("reports.error.not_signed_in") };
 
   const { data: userRow } = await supabase.from("users").select("id, party_id").eq("auth_user_id", user.id).single();
-  if (!userRow) return { error: "找不到对应的使用者资料" };
+  if (!userRow) return { error: await t("reports.error.no_user_row") };
 
   const { data: roleRows } = await supabase.from("user_roles").select("roles(name)").eq("user_id", userRow.id);
   const roleNames = (roleRows ?? []).map((r) => (r.roles as unknown as { name: string } | null)?.name);
   if (!roleNames.includes("admin") && !roleNames.includes("finance")) {
-    return { error: t("payroll.error.no_permission") };
+    return { error: await t("payroll.error.no_permission") };
   }
 
   return { userId: userRow.id };
 }
 
-const runPayoutSchema = z.object({
-  period_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, t("payroll.error.invalid_period")),
-  period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, t("payroll.error.invalid_period")),
-});
+// Built per-call, not a module-scope constant — see the identical note in
+// customers/actions.ts's buildCustomerFormSchema.
+async function buildRunPayoutSchema() {
+  const invalidPeriodMessage = await t("payroll.error.invalid_period");
+  return z.object({
+    period_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, invalidPeriodMessage),
+    period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, invalidPeriodMessage),
+  });
+}
 
 export type RunPayoutState = { status: "idle" } | { status: "error"; message: string } | { status: "success"; message: string };
 
@@ -43,16 +48,17 @@ export async function runMonthlyPayout(_prev: RunPayoutState, formData: FormData
   const auth = await requireFinanceUserId();
   if ("error" in auth) return { status: "error", message: auth.error };
 
+  const runPayoutSchema = await buildRunPayoutSchema();
   const parsed = runPayoutSchema.safeParse({
     period_start: formData.get("period_start"),
     period_end: formData.get("period_end"),
   });
   if (!parsed.success) {
-    return { status: "error", message: parsed.error.issues[0]?.message ?? t("payroll.error.invalid_period") };
+    return { status: "error", message: parsed.error.issues[0]?.message ?? await t("payroll.error.invalid_period") };
   }
   const { period_start, period_end } = parsed.data;
   if (period_end < period_start) {
-    return { status: "error", message: t("payroll.error.invalid_period_range") };
+    return { status: "error", message: await t("payroll.error.invalid_period_range") };
   }
 
   const admin = createAdminClient();
@@ -63,14 +69,14 @@ export async function runMonthlyPayout(_prev: RunPayoutState, formData: FormData
     .eq("period_start", period_start)
     .eq("period_end", period_end)
     .maybeSingle();
-  if (existingRun) return { status: "error", message: t("payroll.error.period_already_run") };
+  if (existingRun) return { status: "error", message: await t("payroll.error.period_already_run") };
 
   const { data: run, error: runError } = await admin
     .from("commission_payout_runs")
     .insert({ period_start, period_end, processed_by: auth.userId })
     .select("id")
     .single();
-  if (runError) return { status: "error", message: `${t("payroll.error.run_failed")}${runError.message}` };
+  if (runError) return { status: "error", message: `${await t("payroll.error.run_failed")}${runError.message}` };
 
   // period_end is a date; calculated_at is a timestamptz — add one day so
   // the whole end date is included regardless of time-of-day.
@@ -86,7 +92,7 @@ export async function runMonthlyPayout(_prev: RunPayoutState, formData: FormData
     .lt("calculated_at", periodEndExclusive.toISOString());
 
   if (!approvedRecords || approvedRecords.length === 0) {
-    return { status: "success", message: t("payroll.run.no_approved_records") };
+    return { status: "success", message: await t("payroll.run.no_approved_records") };
   }
 
   const recordIds = approvedRecords.map((r) => r.id);
@@ -94,7 +100,7 @@ export async function runMonthlyPayout(_prev: RunPayoutState, formData: FormData
     .from("commission_records")
     .update({ status: "paid", paid_at: new Date().toISOString(), payout_run_id: run.id })
     .in("id", recordIds);
-  if (tagError) return { status: "error", message: `${t("payroll.error.run_failed")}${tagError.message}` };
+  if (tagError) return { status: "error", message: `${await t("payroll.error.run_failed")}${tagError.message}` };
 
   const analystTotals = new Map<string, number>();
   const introducerTotals = new Map<string, number>();
@@ -110,7 +116,7 @@ export async function runMonthlyPayout(_prev: RunPayoutState, formData: FormData
       gross_amount,
     }));
     const { error } = await admin.from("analyst_payslips").insert(payslipRows);
-    if (error) return { status: "error", message: `${t("payroll.error.run_failed")}${error.message}` };
+    if (error) return { status: "error", message: `${await t("payroll.error.run_failed")}${error.message}` };
   }
 
   if (introducerTotals.size > 0) {
@@ -120,21 +126,21 @@ export async function runMonthlyPayout(_prev: RunPayoutState, formData: FormData
       gross_amount,
     }));
     const { error } = await admin.from("introducer_commission_statements").insert(statementRows);
-    if (error) return { status: "error", message: `${t("payroll.error.run_failed")}${error.message}` };
+    if (error) return { status: "error", message: `${await t("payroll.error.run_failed")}${error.message}` };
   }
 
   revalidatePath("/admin/payroll");
   return {
     status: "success",
-    message: `${t("payroll.run.success_prefix")}${analystTotals.size}${t("payroll.run.success_analysts")}${introducerTotals.size}${t("payroll.run.success_introducers")}`,
+    message: `${await t("payroll.run.success_prefix")}${analystTotals.size}${await t("payroll.run.success_analysts")}${introducerTotals.size}${await t("payroll.run.success_introducers")}`,
   };
 }
 
 const createStaffPayslipSchema = z.object({
-  party_id: z.string().uuid(t("payroll.staff.error.select_recipient")),
-  period_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, t("payroll.error.invalid_period")),
-  period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, t("payroll.error.invalid_period")),
-  gross_amount: z.coerce.number().positive(t("payroll.staff.error.invalid_amount")),
+  party_id: z.string().uuid(await t("payroll.staff.error.select_recipient")),
+  period_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, await t("payroll.error.invalid_period")),
+  period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, await t("payroll.error.invalid_period")),
+  gross_amount: z.coerce.number().positive(await t("payroll.staff.error.invalid_amount")),
   description: z.string().trim().optional(),
 });
 
@@ -156,11 +162,11 @@ export async function createStaffPayslip(_prev: CreateStaffPayslipState, formDat
     description: formData.get("description") || undefined,
   });
   if (!parsed.success) {
-    return { status: "error", message: parsed.error.issues[0]?.message ?? t("payroll.error.invalid_period") };
+    return { status: "error", message: parsed.error.issues[0]?.message ?? await t("payroll.error.invalid_period") };
   }
   const input = parsed.data;
   if (input.period_end < input.period_start) {
-    return { status: "error", message: t("payroll.error.invalid_period_range") };
+    return { status: "error", message: await t("payroll.error.invalid_period_range") };
   }
 
   const admin = createAdminClient();
@@ -172,7 +178,7 @@ export async function createStaffPayslip(_prev: CreateStaffPayslipState, formDat
     description: input.description ?? null,
     created_by: auth.userId,
   });
-  if (error) return { status: "error", message: `${t("payroll.error.run_failed")}${error.message}` };
+  if (error) return { status: "error", message: `${await t("payroll.error.run_failed")}${error.message}` };
 
   revalidatePath("/admin/payroll");
   return { status: "success" };

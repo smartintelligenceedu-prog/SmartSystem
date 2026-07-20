@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { createSalesOrder, type CreateSalesOrderState } from "../actions";
 import type { SalesItemRow } from "../data";
+import { ct } from "@/lib/i18n-client";
 
 const initialState: CreateSalesOrderState = { status: "idle" };
 
@@ -97,9 +98,10 @@ export function NewSalesOrderForm({
   }
 
   const agentOptions = agents.length > 0 ? agents : [{ id: ownAnalystId, name: ownAnalystName }];
+  const discountSuffix = ct("sales_orders.item.discount_label_suffix");
   const itemOptions = salesItems.map((si) => ({
     value: si.id,
-    label: si.item_kind === "discount" ? `${si.name}（折扣） RM ${si.price}` : `${si.name} RM ${si.price}`,
+    label: si.item_kind === "discount" ? `${si.name}${discountSuffix} RM ${si.price}` : `${si.name} RM ${si.price}`,
   }));
 
   return (
@@ -109,10 +111,10 @@ export function NewSalesOrderForm({
           <input type="hidden" name="mode" value={mode} />
 
           <div className="space-y-2">
-            <Label>付款方式</Label>
+            <Label>{ct("sales_orders.form.payment_method")}</Label>
             <div className="flex gap-2">
               <Button type="button" size="sm" variant={mode === "pay_now" ? "default" : "outline"} onClick={() => setMode("pay_now")}>
-                现场付款（上传截图）
+                {ct("sales_orders.form.pay_now_button")}
               </Button>
               <Button
                 type="button"
@@ -121,7 +123,8 @@ export function NewSalesOrderForm({
                 disabled={vouchers.length === 0}
                 onClick={() => setMode("redeem_voucher")}
               >
-                兑换检测券{vouchers.length === 0 ? "（没有可用的券）" : ""}
+                {ct("sales_orders.form.redeem_voucher_button")}
+                {vouchers.length === 0 ? ct("sales_orders.form.no_vouchers_available") : ""}
               </Button>
             </div>
           </div>
@@ -131,32 +134,32 @@ export function NewSalesOrderForm({
               <input type="hidden" name="members_json" value={JSON.stringify(members)} />
               {salesItems.length === 0 && (
                 <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
-                  还没有设定任何销售项目，请先请后台去{" "}
+                  {ct("sales_orders.form.no_items_warning_prefix")}{" "}
                   <Link href="/admin/sales-orders/items" className="underline">
-                    价目表
+                    {ct("sales_orders.form.price_list_link")}
                   </Link>{" "}
-                  建立项目才能选择。
+                  {ct("sales_orders.form.no_items_warning_suffix")}
                 </p>
               )}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <Label>顾客（可加入多位，例如一家人一起来）</Label>
+                  <Label>{ct("sales_orders.form.customers_label")}</Label>
                   <Button type="button" size="sm" variant="outline" onClick={addMember}>
-                    新增顾客
+                    {ct("sales_orders.form.add_customer")}
                   </Button>
                 </div>
-                {customers.length === 0 && <p className="text-xs text-muted-foreground">你还没有登记任何顾客，请先登记顾客。</p>}
+                {customers.length === 0 && <p className="text-xs text-muted-foreground">{ct("sales_orders.form.no_customers_hint")}</p>}
                 {members.map((member, index) => (
                   <div key={index} className="space-y-2 rounded-md border p-3">
                     <div className="space-y-1">
-                      <Label className="text-xs">顾客</Label>
+                      <Label className="text-xs">{ct("sales_orders.form.customer_label")}</Label>
                       <Select
                         items={customers.map((c) => ({ value: c.id, label: c.name }))}
                         value={member.customer_id}
                         onValueChange={(v) => updateMember(index, "customer_id", v ?? "")}
                       >
                         <SelectTrigger className="w-full">
-                          <SelectValue placeholder="请选择顾客" />
+                          <SelectValue placeholder={ct("sales_orders.form.select_customer_placeholder")} />
                         </SelectTrigger>
                         <SelectContent>
                           {customers.map((c) => (
@@ -168,14 +171,14 @@ export function NewSalesOrderForm({
                       </Select>
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">负责分析师</Label>
+                      <Label className="text-xs">{ct("sales_orders.form.assigned_analyst_label")}</Label>
                       <Select
                         items={agentOptions.map((a) => ({ value: a.id, label: a.name }))}
                         value={member.analyst_id}
                         onValueChange={(v) => updateMember(index, "analyst_id", v ?? "")}
                       >
                         <SelectTrigger className="w-full">
-                          <SelectValue placeholder="请选择分析师" />
+                          <SelectValue placeholder={ct("sales_orders.form.select_analyst_placeholder")} />
                         </SelectTrigger>
                         <SelectContent>
                           {agentOptions.map((a) => (
@@ -189,9 +192,9 @@ export function NewSalesOrderForm({
 
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <Label className="text-xs">销售项目</Label>
+                        <Label className="text-xs">{ct("sales_orders.form.sales_item_label")}</Label>
                         <Button type="button" size="sm" variant="ghost" onClick={() => addLine(index)}>
-                          加一行（例如折扣）
+                          {ct("sales_orders.form.add_line")}
                         </Button>
                       </div>
                       {member.lines.map((line, lineIndex) => (
@@ -203,7 +206,7 @@ export function NewSalesOrderForm({
                               onValueChange={(v) => updateLineItem(index, lineIndex, v ?? "")}
                             >
                               <SelectTrigger className="w-full">
-                                <SelectValue placeholder="请选择项目" />
+                                <SelectValue placeholder={ct("sales_orders.form.select_item_placeholder")} />
                               </SelectTrigger>
                               <SelectContent>
                                 {itemOptions.map((o) => (
@@ -219,14 +222,14 @@ export function NewSalesOrderForm({
                               type="number"
                               step="0.01"
                               className="w-28"
-                              placeholder="金额 (RM)"
+                              placeholder={ct("sales_orders.form.amount_placeholder")}
                               value={line.amount}
                               onChange={(e) => updateLineAmount(index, lineIndex, e.target.value)}
                             />
                           </div>
                           {member.lines.length > 1 && (
                             <Button type="button" size="sm" variant="ghost" onClick={() => removeLine(index, lineIndex)}>
-                              移除
+                              {ct("sales_orders.form.remove")}
                             </Button>
                           )}
                         </div>
@@ -235,7 +238,7 @@ export function NewSalesOrderForm({
 
                     {members.length > 1 && (
                       <Button type="button" size="sm" variant="ghost" onClick={() => removeMember(index)}>
-                        移除这位顾客
+                        {ct("sales_orders.form.remove_this_customer")}
                       </Button>
                     )}
                   </div>
@@ -243,15 +246,15 @@ export function NewSalesOrderForm({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="payment_screenshot">上传缴费截图（全部顾客共用一张，一次付款）</Label>
+                <Label htmlFor="payment_screenshot">{ct("sales_orders.form.upload_payment_screenshot_label")}</Label>
                 <Input id="payment_screenshot" name="payment_screenshot" type="file" accept="image/*,.pdf" required />
-                <p className="text-xs text-muted-foreground">上传后订单会先是「待处理」，等后台核实截图后才会生效并计算佣金。</p>
+                <p className="text-xs text-muted-foreground">{ct("sales_orders.form.pending_review_hint")}</p>
               </div>
             </>
           ) : (
             <>
               <div className="space-y-2">
-                <Label htmlFor="customer_id">顾客</Label>
+                <Label htmlFor="customer_id">{ct("sales_orders.form.customer_label")}</Label>
                 {/* Base UI's Select.Value shows the raw value unless Root gets an
                     `items` map — see the same note in register-form.tsx. */}
                 <Select
@@ -262,7 +265,7 @@ export function NewSalesOrderForm({
                   required
                 >
                   <SelectTrigger id="customer_id" className="w-full">
-                    <SelectValue placeholder="请选择顾客" />
+                    <SelectValue placeholder={ct("sales_orders.form.select_customer_placeholder")} />
                   </SelectTrigger>
                   <SelectContent>
                     {customers.map((c) => (
@@ -274,7 +277,7 @@ export function NewSalesOrderForm({
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="amount">顾客实付金额 (RM)</Label>
+                <Label htmlFor="amount">{ct("sales_orders.form.paid_amount_label")}</Label>
                 <Input
                   id="amount"
                   name="amount"
@@ -287,10 +290,10 @@ export function NewSalesOrderForm({
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="voucher_id">选择要兑换的检测券</Label>
+                <Label htmlFor="voucher_id">{ct("sales_orders.form.select_voucher_label")}</Label>
                 <Select name="voucher_id" items={vouchers.map((v) => ({ value: v.id, label: v.label }))} required>
                   <SelectTrigger id="voucher_id" className="w-full">
-                    <SelectValue placeholder="请选择检测券" />
+                    <SelectValue placeholder={ct("sales_orders.form.select_voucher_placeholder")} />
                   </SelectTrigger>
                   <SelectContent>
                     {vouchers.map((v) => (
@@ -300,7 +303,7 @@ export function NewSalesOrderForm({
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">兑换检测券的订单会立即生效，不需要后台审核。</p>
+                <p className="text-xs text-muted-foreground">{ct("sales_orders.form.instant_redeem_hint")}</p>
               </div>
             </>
           )}
@@ -312,7 +315,7 @@ export function NewSalesOrderForm({
           )}
 
           <Button type="submit" className="w-full" disabled={isPending || customers.length === 0}>
-            {isPending ? "处理中…" : "建立订单"}
+            {isPending ? ct("sales_orders.form.processing") : ct("sales_orders.form.submit")}
           </Button>
         </form>
       </CardContent>

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { adminApproveCommission } from "./actions";
+import { ct } from "@/lib/i18n-client";
 
 export function ApproveCommissionButton({ recordId }: { recordId: string }) {
   const router = useRouter();
@@ -24,7 +25,7 @@ export function ApproveCommissionButton({ recordId }: { recordId: string }) {
           })
         }
       >
-        {isPending ? "核准中…" : "核准"}
+        {isPending ? ct("commission.approve_button.approving") : ct("commission.approve_button.approve")}
       </Button>
       {message && <p className="text-xs text-muted-foreground">{message}</p>}
     </div>

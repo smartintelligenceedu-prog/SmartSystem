@@ -1,11 +1,13 @@
 import { LoginForm } from "./login-form";
 import { Logo } from "@/components/logo";
+import { LocaleSwitcher } from "@/components/locale-switcher";
+import { t, type TranslationKey } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
-const ERROR_MESSAGE: Record<string, string> = {
-  not_authorized: "此帐号没有后台权限，请联系管理员",
-  incomplete_profile: "帐号资料不完整，请联系管理员",
+const ERROR_KEY: Record<string, TranslationKey> = {
+  not_authorized: "login.error.not_authorized",
+  incomplete_profile: "login.error.incomplete_profile",
 };
 
 export default async function AdminLoginPage({
@@ -17,12 +19,15 @@ export default async function AdminLoginPage({
 
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6">
-      <Logo className="mb-6" />
-      <h1 className="text-xl font-semibold">后台登入</h1>
-      <p className="mt-1 mb-6 text-sm text-muted-foreground">仅限公司后台人员使用</p>
+      <div className="mb-6 flex items-center justify-between">
+        <Logo />
+        <LocaleSwitcher />
+      </div>
+      <h1 className="text-xl font-semibold">{await t("login.title")}</h1>
+      <p className="mt-1 mb-6 text-sm text-muted-foreground">{await t("login.subtitle")}</p>
       {error && (
         <p className="mb-4 text-sm text-destructive" role="alert">
-          {ERROR_MESSAGE[error] ?? "登入时发生错误"}
+          {await t(ERROR_KEY[error] ?? "login.error.generic")}
         </p>
       )}
       <LoginForm next={next ?? "/admin"} />

@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { t } from "@/lib/i18n";
+import { ct } from "@/lib/i18n-client";
 import type { PayeeSettlementRow } from "./data";
 
 function formatMYR(amount: number) {
@@ -31,15 +31,15 @@ export function PayeeSettlementList({ rows }: { rows: PayeeSettlementRow[] }) {
         type="text"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder={t("payroll.run_detail.search_placeholder")}
+        placeholder={ct("payroll.run_detail.search_placeholder")}
         className="max-w-xs"
       />
       <Card>
         <CardContent className="pt-6">
           {rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t("payroll.run.history_empty")}</p>
+            <p className="text-sm text-muted-foreground">{ct("payroll.run.history_empty")}</p>
           ) : filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t("payroll.run_detail.no_search_match")}</p>
+            <p className="text-sm text-muted-foreground">{ct("payroll.run_detail.no_search_match")}</p>
           ) : (
             <div className="divide-y">
               {filtered.map((r) => (
@@ -48,7 +48,7 @@ export function PayeeSettlementList({ rows }: { rows: PayeeSettlementRow[] }) {
                     <p>
                       {r.name}{" "}
                       <Badge variant="outline" className="ml-1">
-                        {r.payee_type === "introducer" ? t("payroll.run_detail.introducer_badge") : t("payroll.run_detail.analyst_badge")}
+                        {r.payee_type === "introducer" ? ct("payroll.run_detail.introducer_badge") : ct("payroll.run_detail.analyst_badge")}
                       </Badge>
                     </p>
                     <p className="text-xs text-muted-foreground">
@@ -57,7 +57,7 @@ export function PayeeSettlementList({ rows }: { rows: PayeeSettlementRow[] }) {
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="tabular-nums font-medium">{formatMYR(r.gross_amount)}</span>
-                    <Button size="sm" variant="ghost" render={<Link href={r.href}>{t("payroll.view_detail_link")}</Link>} />
+                    <Button size="sm" variant="ghost" render={<Link href={r.href}>{ct("payroll.view_detail_link")}</Link>} />
                   </div>
                 </div>
               ))}

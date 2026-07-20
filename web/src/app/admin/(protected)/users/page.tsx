@@ -6,13 +6,14 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CreateUserForm } from "./create-user-form";
 import { RemoveRoleButton } from "./remove-role-button";
+import { t, type TranslationKey } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
-const ROLE_LABEL: Record<string, string> = {
-  admin: "管理员",
-  finance: "财务",
-  back_office: "后台人员",
+const ROLE_KEY: Record<string, TranslationKey> = {
+  admin: "users.role.admin",
+  finance: "users.role.finance",
+  back_office: "users.role.back_office",
 };
 
 export default async function UsersPage() {
@@ -26,20 +27,24 @@ export default async function UsersPage() {
 
   const users = await listBackOfficeUsers();
 
+  const roleLabelByRole = Object.fromEntries(
+    await Promise.all(Object.entries(ROLE_KEY).map(async ([k, key]) => [k, await t(key)]))
+  ) as Record<string, string>;
+
   return (
     <div className="mx-auto max-w-3xl space-y-8">
       <div>
-        <h1 className="text-xl font-semibold">帐号管理</h1>
-        <p className="mt-1 text-sm text-muted-foreground">仅管理员可见 — 新增或调整后台人员的角色权限</p>
+        <h1 className="text-xl font-semibold">{await t("users.page.title")}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{await t("users.page.subtitle")}</p>
       </div>
 
       <div className="overflow-x-auto rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>姓名</TableHead>
-              <TableHead>电邮</TableHead>
-              <TableHead>角色</TableHead>
+              <TableHead>{await t("users.page.column.name")}</TableHead>
+              <TableHead>{await t("users.page.column.email")}</TableHead>
+              <TableHead>{await t("users.page.column.roles")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -51,7 +56,7 @@ export default async function UsersPage() {
                   <div className="flex flex-wrap gap-1">
                     {u.roles.map((role) => (
                       <Badge key={role} variant="secondary" className="gap-1">
-                        {ROLE_LABEL[role] ?? role}
+                        {roleLabelByRole[role] ?? role}
                         <RemoveRoleButton userId={u.user_id} role={role} />
                       </Badge>
                     ))}
@@ -64,7 +69,9 @@ export default async function UsersPage() {
       </div>
 
       <div>
-        <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">新增后台帐号</h2>
+        <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">
+          {await t("users.page.create_heading")}
+        </h2>
         <CreateUserForm />
       </div>
     </div>

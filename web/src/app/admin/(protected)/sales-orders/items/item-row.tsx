@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { updateSalesItem, toggleSalesItemActive } from "../actions";
 import type { SalesItemRow } from "../data";
+import { ct } from "@/lib/i18n-client";
 
 function formatMYR(amount: number) {
   return new Intl.NumberFormat("ms-MY", { style: "currency", currency: "MYR" }).format(amount);
@@ -40,10 +41,10 @@ export function ItemRow({ item }: { item: SalesItemRow }) {
               })
             }
           >
-            储存
+            {ct("sales_orders.item_row.save")}
           </Button>
           <Button size="sm" variant="ghost" disabled={isPending} onClick={() => setEditing(false)}>
-            取消
+            {ct("sales_orders.item_row.cancel")}
           </Button>
         </div>
         {message && <p className="text-xs text-muted-foreground">{message}</p>}
@@ -58,12 +59,12 @@ export function ItemRow({ item }: { item: SalesItemRow }) {
           {item.name}
           {item.item_kind === "discount" && (
             <Badge variant="outline" className="ml-2 text-[10px]">
-              折扣
+              {ct("sales_orders.item_row.discount_badge")}
             </Badge>
           )}
           {!item.is_active && (
             <Badge variant="outline" className="ml-2 text-[10px] text-muted-foreground">
-              已停用
+              {ct("sales_orders.item_row.disabled_badge")}
             </Badge>
           )}
         </p>
@@ -71,7 +72,7 @@ export function ItemRow({ item }: { item: SalesItemRow }) {
       <div className="flex items-center gap-3">
         <span className="tabular-nums">{formatMYR(item.price)}</span>
         <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
-          调整
+          {ct("sales_orders.item_row.edit")}
         </Button>
         <Button
           size="sm"
@@ -84,7 +85,7 @@ export function ItemRow({ item }: { item: SalesItemRow }) {
             })
           }
         >
-          {item.is_active ? "停用" : "启用"}
+          {item.is_active ? ct("sales_orders.item_row.disable") : ct("sales_orders.item_row.enable")}
         </Button>
       </div>
     </div>

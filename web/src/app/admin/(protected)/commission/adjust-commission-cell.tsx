@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { adminAdjustCommission } from "./actions";
+import { ct } from "@/lib/i18n-client";
 
 function formatMYR(amount: number) {
   return new Intl.NumberFormat("ms-MY", { style: "currency", currency: "MYR" }).format(amount);
@@ -33,7 +34,7 @@ export function AdjustCommissionCell({
   if (!editing) {
     return (
       <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
-        调整
+        {ct("commission.cell.adjust")}
       </Button>
     );
   }
@@ -42,11 +43,14 @@ export function AdjustCommissionCell({
     <div className="flex flex-col gap-1">
       {customerName && (
         <p className="text-xs text-muted-foreground">
-          顾客：{customerName}
+          {ct("commission.cell.customer_prefix")}
+          {customerName}
           {customerPhoneMasked && ` ${customerPhoneMasked}`}
           {priorSettlementDate && (
             <span className="ml-1 text-amber-600">
-              ⚠ 该手机号已于 {new Date(priorSettlementDate).toLocaleDateString("zh-CN")} 结算过
+              {ct("commission.cell.prior_settlement_prefix")}
+              {new Date(priorSettlementDate).toLocaleDateString("zh-CN")}
+              {ct("commission.cell.prior_settlement_suffix")}
             </span>
           )}
         </p>
@@ -57,13 +61,13 @@ export function AdjustCommissionCell({
           step="0.01"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
-          placeholder="新金额"
+          placeholder={ct("commission.cell.new_amount_placeholder")}
           className="h-8 w-24"
         />
         <Input
           value={reason}
           onChange={(e) => setReason(e.target.value)}
-          placeholder="调整原因"
+          placeholder={ct("commission.cell.reason_placeholder")}
           className="h-8 w-36"
         />
         <Button
@@ -80,13 +84,16 @@ export function AdjustCommissionCell({
             })
           }
         >
-          确认
+          {ct("commission.cell.confirm")}
         </Button>
         <Button size="sm" variant="ghost" disabled={isPending} onClick={() => setEditing(false)}>
-          取消
+          {ct("commission.cell.cancel")}
         </Button>
       </div>
-      <p className="text-xs text-muted-foreground">原金额 {formatMYR(currentAmount)}</p>
+      <p className="text-xs text-muted-foreground">
+        {ct("commission.cell.original_amount_prefix")}
+        {formatMYR(currentAmount)}
+      </p>
       {message && <p className="text-xs text-muted-foreground">{message}</p>}
     </div>
   );
