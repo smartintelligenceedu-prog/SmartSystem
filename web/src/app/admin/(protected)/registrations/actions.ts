@@ -1,5 +1,6 @@
 "use server";
 
+import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { randomBytes } from "crypto";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -159,6 +160,118 @@ export async function adminRejectRegistration(
 
   revalidatePath("/admin/registrations");
   return { ok: true, message: await t("registrations.success.rejected") };
+}
+
+const editInfoSchema = z.object({
+  full_name: z.string().trim().min(2),
+  nickname: z.string().trim(),
+  ic_or_passport_no: z.string().trim().min(5),
+  phone: z.string().trim().min(8),
+  email: z.string().trim().email(),
+  bank_name: z.string().trim(),
+  bank_account_name: z.string().trim(),
+  bank_account_no: z.string().trim(),
+});
+export type EditInfoInput = z.infer<typeof editInfoSchema>;
+
+/**
+ * Lets back office correct an analyst's personal/bank info after
+ * registration (e.g. a typo caught during review). If this analyst already
+ * has a login, the Supabase Auth email is updated too — individuals.email
+ * and the auth email would otherwise silently drift apart, breaking future
+ * password-reset/notification emails sent to "whatever's in individuals".
+ */
+export async function adminUpdatePersonalInfo(
+  analystId: string,
+  input: EditInfoInput
+): Promise<{ ok: boolean; message: string }> {
+  const auth = await requireBackOfficeUserId();
+  if ("error" in auth) return { ok: false, message: auth.error };
+
+  const parsed = editInfoSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message ?? (await t("registrations.error.form_invalid")) };
+  }
+  const data = parsed.data;
+
+  const admin = createAdminClient();
+  const { data: analyst } = await admin.from("analysts").select("party_id").eq("id", analystId).maybeSingle();
+  if (!analyst) return { ok: false, message: await t("registrations.error.analyst_not_found") };
+
+  const { error: indivError } = await admin
+    .from("individuals")
+    .update({
+      full_name: data.full_name,
+      nickname: data.nickname || null,
+      ic_or_passport_no: data.ic_or_passport_no,
+      phone: data.phone,
+      email: data.email,
+    })
+    .eq("party_id", analyst.party_id);
+  if (indivError) return { ok: false, message: indivError.message };
+
+  const { error: analystError } = await admin
+    .from("analysts")
+    .update({
+      bank_name: data.bank_name || null,
+      bank_account_name: data.bank_account_name || null,
+      bank_account_no: data.bank_account_no || null,
+    })
+    .eq("id", analystId);
+  if (analystError) return { ok: false, message: analystError.message };
+
+  const { data: userRow } = await admin.from("users").select("auth_user_id").eq("party_id", analyst.party_id).maybeSingle();
+  if (userRow) {
+    const { error: authUpdateError } = await admin.auth.admin.updateUserById(userRow.auth_user_id, {
+      email: data.email,
+      email_confirm: true,
+    });
+    if (authUpdateError) {
+      return { ok: false, message: `${await t("registrations.error.update_auth_email_failed_prefix")}${authUpdateError.message}` };
+    }
+  }
+
+  revalidatePath(`/admin/registrations/${analystId}`);
+  return { ok: true, message: await t("registrations.success.info_updated") };
+}
+
+/**
+ * Generates a fresh password for an analyst who already has a login and
+ * emails it to them the same way the initial login-creation email works —
+ * back office never sees or sets the password itself, other than as an
+ * on-screen fallback if the email happens to fail to send.
+ */
+export async function adminResetAnalystPassword(analystId: string): Promise<{ ok: boolean; message: string }> {
+  const auth = await requireBackOfficeUserId();
+  if ("error" in auth) return { ok: false, message: auth.error };
+
+  const admin = createAdminClient();
+  const { data: analyst } = await admin.from("analysts").select("party_id").eq("id", analystId).maybeSingle();
+  if (!analyst) return { ok: false, message: await t("registrations.error.analyst_not_found") };
+
+  const { data: userRow } = await admin.from("users").select("auth_user_id").eq("party_id", analyst.party_id).maybeSingle();
+  if (!userRow) return { ok: false, message: await t("registrations.error.no_login_yet") };
+
+  const { data: identity } = await admin.from("individuals").select("email, full_name").eq("party_id", analyst.party_id).single();
+  if (!identity?.email) return { ok: false, message: await t("registrations.error.no_email") };
+
+  const password = generatePassword();
+  const { error: authError } = await admin.auth.admin.updateUserById(userRow.auth_user_id, { password });
+  if (authError) {
+    return { ok: false, message: `${await t("registrations.error.reset_password_failed_prefix")}${authError.message}` };
+  }
+
+  await sendEmail({
+    to: [identity.email],
+    subject: `你的密码已重设 - ${identity.full_name}`,
+    html: `<p>${identity.full_name} 你好，</p><p>你的 Smart Intelligence Edu 后台账号密码已经重设：</p><p>登入邮箱：${identity.email}<br/>新密码：<strong>${password}</strong></p><p>登入网址：https://mytqc.com.my/admin/login，登入后可在「我的帐户」页面自行更改密码。</p>`,
+  });
+
+  revalidatePath(`/admin/registrations/${analystId}`);
+  return {
+    ok: true,
+    message: `${await t("registrations.success.password_reset")}${await t("registrations.login.password_fallback_prefix")}${password}${await t("registrations.login.password_fallback_suffix")}`,
+  };
 }
 
 export async function adminSetAssignedLeader(

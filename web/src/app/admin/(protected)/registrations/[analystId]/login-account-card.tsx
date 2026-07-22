@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { adminCreateAnalystLogin, adminUpdateAnalystExtraRoles } from "../actions";
+import { adminCreateAnalystLogin, adminResetAnalystPassword, adminUpdateAnalystExtraRoles } from "../actions";
 import type { PortalRole } from "@/lib/auth/roles";
 import type { RegistrationDetail } from "../data";
 import { ct } from "@/lib/i18n-client";
@@ -118,19 +118,36 @@ export function LoginAccountCard({ detail }: { detail: RegistrationDetail }) {
 
         {message && <p className="text-sm">{message}</p>}
 
-        <Button
-          variant="secondary"
-          disabled={isPending}
-          onClick={() =>
-            startTransition(async () => {
-              const result = await adminUpdateAnalystExtraRoles(detail.analyst_id, [...selectedExtraRoles]);
-              setMessage(result.message);
-              if (result.ok) router.refresh();
-            })
-          }
-        >
-          {ct("registrations.login.update_button")}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="secondary"
+            disabled={isPending}
+            onClick={() =>
+              startTransition(async () => {
+                const result = await adminUpdateAnalystExtraRoles(detail.analyst_id, [...selectedExtraRoles]);
+                setMessage(result.message);
+                if (result.ok) router.refresh();
+              })
+            }
+          >
+            {ct("registrations.login.update_button")}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isPending}
+            onClick={() => {
+              if (!window.confirm(ct("registrations.login.confirm_reset_password"))) return;
+              startTransition(async () => {
+                const result = await adminResetAnalystPassword(detail.analyst_id);
+                setMessage(result.message);
+                if (result.ok) router.refresh();
+              });
+            }}
+          >
+            {ct("registrations.login.reset_password_button")}
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

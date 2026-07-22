@@ -24,6 +24,7 @@ import {
 import type { RegistrationDetail } from "../data";
 import type { AnalystStatus } from "@/lib/types/registration";
 import { LoginAccountCard } from "./login-account-card";
+import { EditInfoForm } from "./edit-info-form";
 import { ct } from "@/lib/i18n-client";
 
 const STATUS_KEY: Record<AnalystStatus, "dashboard.agent.status.pending" | "dashboard.agent.status.approved" | "dashboard.agent.status.suspended" | "dashboard.agent.status.rejected" | "dashboard.agent.status.terminated"> = {
@@ -99,6 +100,8 @@ export function ReviewPanel({
         </div>
         <Badge>{ct(STATUS_KEY[detail.status])}</Badge>
       </div>
+
+      <EditInfoForm detail={detail} />
 
       <Card>
         <CardContent className="space-y-4 pt-6">

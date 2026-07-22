@@ -1,12 +1,20 @@
 "use server";
 
 import { z } from "zod";
+import { randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
 import { getPortalUserContext } from "@/lib/auth/context";
 import type { PortalUserContext } from "@/lib/auth/context";
 import { hasRole } from "@/lib/auth/roles";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendEmail } from "@/lib/notifications";
 import { t } from "@/lib/i18n";
+
+// base64url avoids +/= (URL/display-unsafe) — same scheme as the analyst
+// login-creation/reset flow in registrations/actions.ts.
+function generatePassword(): string {
+  return randomBytes(9).toString("base64url");
+}
 
 /**
  * Permission: this whole file requires the 'admin' role specifically, not
@@ -125,6 +133,42 @@ export async function adminSetUserStatus(
 
   revalidatePath("/admin/users");
   return { ok: true, message: await t("users.success.status_updated") };
+}
+
+/**
+ * Generates a fresh password for a back-office account (admin/finance/back
+ * office) and emails it to them — same pattern as the analyst password-reset
+ * flow in registrations/actions.ts. Back office itself never sees or sets
+ * the password, other than as an on-screen fallback if the email fails.
+ */
+export async function adminResetUserPassword(userId: string): Promise<{ ok: boolean; message: string }> {
+  const auth = await requireAdmin();
+  if (!auth.ok) return { ok: false, message: auth.error };
+
+  const admin = createAdminClient();
+  const { data: userRow } = await admin.from("users").select("auth_user_id, party_id").eq("id", userId).maybeSingle();
+  if (!userRow) return { ok: false, message: await t("users.error.user_not_found") };
+
+  const { data: identity } = await admin.from("individuals").select("email, full_name").eq("party_id", userRow.party_id).maybeSingle();
+  if (!identity?.email) return { ok: false, message: await t("users.error.no_email") };
+
+  const password = generatePassword();
+  const { error: authError } = await admin.auth.admin.updateUserById(userRow.auth_user_id, { password });
+  if (authError) {
+    return { ok: false, message: `${await t("users.error.reset_password_failed_prefix")}${authError.message}` };
+  }
+
+  await sendEmail({
+    to: [identity.email],
+    subject: `你的密码已重设 - ${identity.full_name}`,
+    html: `<p>${identity.full_name} 你好，</p><p>你的 Smart Intelligence Edu 后台账号密码已经重设：</p><p>登入邮箱：${identity.email}<br/>新密码：<strong>${password}</strong></p><p>登入网址：https://mytqc.com.my/admin/login，登入后可在「我的帐户」页面自行更改密码。</p>`,
+  });
+
+  revalidatePath("/admin/users");
+  return {
+    ok: true,
+    message: `${await t("users.success.password_reset")}${await t("users.reset_password.fallback_prefix")}${password}${await t("users.reset_password.fallback_suffix")}`,
+  };
 }
 
 export async function adminRemoveRole(

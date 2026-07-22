@@ -8,6 +8,7 @@ import { CreateUserForm } from "./create-user-form";
 import { RemoveRoleButton } from "./remove-role-button";
 import { AddRoleControl } from "./add-role-control";
 import { SuspendUserButton } from "./suspend-user-button";
+import { ResetPasswordButton } from "./reset-password-button";
 import { t, type TranslationKey } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
@@ -78,6 +79,7 @@ export default async function UsersPage() {
                 </TableCell>
                 <TableCell>
                   <SuspendUserButton userId={u.user_id} status={u.status} />
+                  <ResetPasswordButton userId={u.user_id} />
                 </TableCell>
               </TableRow>
             ))}
