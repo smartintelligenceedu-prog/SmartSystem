@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CreateUserForm } from "./create-user-form";
 import { RemoveRoleButton } from "./remove-role-button";
+import { AddRoleControl } from "./add-role-control";
 import { t, type TranslationKey } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +16,7 @@ const ROLE_KEY: Record<string, TranslationKey> = {
   finance: "users.role.finance",
   back_office: "users.role.back_office",
 };
+const ALL_ROLES = Object.keys(ROLE_KEY);
 
 export default async function UsersPage() {
   // Page-level gate: the sidebar already hides this link from non-admins,
@@ -61,6 +63,7 @@ export default async function UsersPage() {
                       </Badge>
                     ))}
                   </div>
+                  <AddRoleControl userId={u.user_id} missingRoles={ALL_ROLES.filter((r) => !(u.roles as string[]).includes(r))} />
                 </TableCell>
               </TableRow>
             ))}

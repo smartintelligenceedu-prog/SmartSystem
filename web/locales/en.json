@@ -1290,6 +1290,8 @@
   "users.error.cannot_remove_own_admin": "You cannot remove your own admin role",
   "users.error.role_not_found": "Role not found",
   "users.success.role_removed": "Role removed",
+  "users.success.role_added": "Role added",
+  "users.add_role.placeholder": "+ Add role",
 
   "role.admin": "Admin",
   "role.finance": "Finance",

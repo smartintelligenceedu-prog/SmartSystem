@@ -93,6 +93,21 @@ export async function adminCreateBackOfficeUser(
   return { status: "success" };
 }
 
+export async function adminAddRole(userId: string, role: string): Promise<{ ok: boolean; message: string }> {
+  const auth = await requireAdmin();
+  if (!auth.ok) return { ok: false, message: auth.error };
+
+  const admin = createAdminClient();
+  const { data: roleRow } = await admin.from("roles").select("id").eq("name", role).single();
+  if (!roleRow) return { ok: false, message: await t("users.error.role_not_found") };
+
+  const { error } = await admin.from("user_roles").insert({ user_id: userId, role_id: roleRow.id });
+  if (error) return { ok: false, message: error.message };
+
+  revalidatePath("/admin/users");
+  return { ok: true, message: await t("users.success.role_added") };
+}
+
 export async function adminRemoveRole(
   userId: string,
   role: string

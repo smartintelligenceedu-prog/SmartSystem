@@ -1290,6 +1290,8 @@
   "users.error.cannot_remove_own_admin": "不能移除自己的管理员权限",
   "users.error.role_not_found": "找不到这个角色",
   "users.success.role_removed": "已移除角色",
+  "users.success.role_added": "已新增角色",
+  "users.add_role.placeholder": "+ 加角色",
 
   "role.admin": "管理员",
   "role.finance": "财务",
