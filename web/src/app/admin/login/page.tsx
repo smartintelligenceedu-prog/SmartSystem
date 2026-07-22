@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 const ERROR_KEY: Record<string, TranslationKey> = {
   not_authorized: "login.error.not_authorized",
   incomplete_profile: "login.error.incomplete_profile",
+  suspended: "login.error.suspended",
 };
 
 export default async function AdminLoginPage({

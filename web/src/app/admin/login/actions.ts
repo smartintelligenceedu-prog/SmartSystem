@@ -32,7 +32,13 @@ export async function signIn(_prev: LoginState, formData: FormData): Promise<Log
   // auth_user_id explicitly — RLS's "self or back office" select policy lets
   // a back-office caller see every row, and .single() would error on more
   // than one.
-  const { data: userRow } = await supabase.from("users").select("locale").eq("auth_user_id", signInData.user.id).single();
+  const { data: userRow } = await supabase.from("users").select("locale, status").eq("auth_user_id", signInData.user.id).single();
+
+  if (userRow?.status === "suspended") {
+    await supabase.auth.signOut();
+    return { status: "error", message: await t("login.error.suspended") };
+  }
+
   if (userRow?.locale) {
     const cookieStore = await cookies();
     cookieStore.set(LOCALE_COOKIE, userRow.locale as Locale, {

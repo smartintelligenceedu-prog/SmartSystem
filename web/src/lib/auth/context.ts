@@ -40,10 +40,11 @@ export async function getPortalUserContext(): Promise<PortalUserContext | null> 
 
   const { data: userRow } = await supabase
     .from("users")
-    .select("id, party_id")
+    .select("id, party_id, status")
     .eq("auth_user_id", authUser.id)
     .maybeSingle();
   if (!userRow) return null;
+  if (userRow.status === "suspended") return null;
 
   const { data: identity } = await supabase
     .from("individuals")

@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { CreateUserForm } from "./create-user-form";
 import { RemoveRoleButton } from "./remove-role-button";
 import { AddRoleControl } from "./add-role-control";
+import { SuspendUserButton } from "./suspend-user-button";
 import { t, type TranslationKey } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +34,11 @@ export default async function UsersPage() {
     await Promise.all(Object.entries(ROLE_KEY).map(async ([k, key]) => [k, await t(key)]))
   ) as Record<string, string>;
 
+  const statusLabel = {
+    active: await t("users.status.active"),
+    suspended: await t("users.status.suspended"),
+  };
+
   return (
     <div className="mx-auto max-w-3xl space-y-8">
       <div>
@@ -47,6 +53,8 @@ export default async function UsersPage() {
               <TableHead>{await t("users.page.column.name")}</TableHead>
               <TableHead>{await t("users.page.column.email")}</TableHead>
               <TableHead>{await t("users.page.column.roles")}</TableHead>
+              <TableHead>{await t("users.page.column.status")}</TableHead>
+              <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -64,6 +72,12 @@ export default async function UsersPage() {
                     ))}
                   </div>
                   <AddRoleControl userId={u.user_id} missingRoles={ALL_ROLES.filter((r) => !(u.roles as string[]).includes(r))} />
+                </TableCell>
+                <TableCell>
+                  <Badge variant={u.status === "active" ? "secondary" : "destructive"}>{statusLabel[u.status]}</Badge>
+                </TableCell>
+                <TableCell>
+                  <SuspendUserButton userId={u.user_id} status={u.status} />
                 </TableCell>
               </TableRow>
             ))}

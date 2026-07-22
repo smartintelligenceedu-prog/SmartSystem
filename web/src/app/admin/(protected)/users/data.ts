@@ -9,6 +9,7 @@ export interface BackOfficeUserRow {
   full_name: string;
   email: string;
   roles: PortalRole[];
+  status: "active" | "suspended";
 }
 
 /**
@@ -20,7 +21,7 @@ export interface BackOfficeUserRow {
 export async function listBackOfficeUsers(): Promise<BackOfficeUserRow[]> {
   const admin = createAdminClient();
 
-  const { data: users } = await admin.from("users").select("id, party_id");
+  const { data: users } = await admin.from("users").select("id, party_id, status");
   if (!users || users.length === 0) return [];
 
   const partyIds = users.map((u) => u.party_id);
@@ -47,6 +48,7 @@ export async function listBackOfficeUsers(): Promise<BackOfficeUserRow[]> {
       full_name: identityByParty.get(u.party_id)?.full_name ?? "—",
       email: identityByParty.get(u.party_id)?.email ?? "—",
       roles: rolesByUser.get(u.id) ?? [],
+      status: u.status as "active" | "suspended",
     }))
     .filter((u) => u.roles.some((r) => BACK_OFFICE_ROLES.includes(r)));
 }

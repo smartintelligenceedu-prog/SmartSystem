@@ -25,6 +25,10 @@ export default async function AdminProtectedLayout({ children }: { children: Rea
 
   const context = await getPortalUserContext();
   if (!context) {
+    const { data: userRow } = await supabase.from("users").select("status").eq("auth_user_id", user.id).maybeSingle();
+    if (userRow?.status === "suspended") {
+      redirect("/admin/login?error=suspended");
+    }
     redirect("/admin/login?error=incomplete_profile");
   }
   if (context.roles.length === 0) {

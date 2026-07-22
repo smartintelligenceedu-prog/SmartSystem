@@ -108,6 +108,25 @@ export async function adminAddRole(userId: string, role: string): Promise<{ ok: 
   return { ok: true, message: await t("users.success.role_added") };
 }
 
+export async function adminSetUserStatus(
+  userId: string,
+  status: "active" | "suspended"
+): Promise<{ ok: boolean; message: string }> {
+  const auth = await requireAdmin();
+  if (!auth.ok) return { ok: false, message: auth.error };
+
+  if (userId === auth.context.userId && status === "suspended") {
+    return { ok: false, message: await t("users.error.cannot_suspend_self") };
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("users").update({ status }).eq("id", userId);
+  if (error) return { ok: false, message: error.message };
+
+  revalidatePath("/admin/users");
+  return { ok: true, message: await t("users.success.status_updated") };
+}
+
 export async function adminRemoveRole(
   userId: string,
   role: string
