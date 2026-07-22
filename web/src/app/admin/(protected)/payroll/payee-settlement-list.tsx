@@ -54,6 +54,11 @@ export function PayeeSettlementList({ rows }: { rows: PayeeSettlementRow[] }) {
                     <p className="text-xs text-muted-foreground">
                       {formatDate(r.period_start)} – {formatDate(r.period_end)}
                     </p>
+                    <p className="text-xs text-muted-foreground">
+                      {r.bank_account_no
+                        ? `🏦 ${r.bank_name ?? "—"} · ${r.bank_account_name ?? "—"} · ${r.bank_account_no}`
+                        : ct("payroll.run.bank_info_missing")}
+                    </p>
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="tabular-nums font-medium">{formatMYR(r.gross_amount)}</span>

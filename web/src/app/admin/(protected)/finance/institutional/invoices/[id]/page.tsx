@@ -26,10 +26,16 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
 
   const context = await getPortalUserContext();
   if (!context) redirect("/admin/login");
-  if (!hasAnyRole(context, ["admin", "finance"])) redirect("/admin");
 
   const invoice = await getInvoiceDetail(id);
   if (!invoice) notFound();
+
+  // Back office can view any invoice; an agent can only view their own
+  // (the analyst set on the order at creation time) — matches the
+  // self-service scoping on the Finance -> Institutional list page.
+  const isBackOffice = hasAnyRole(context, ["admin", "finance"]);
+  const isOwner = !!context.analystId && context.analystId === invoice.responsible_analyst_id;
+  if (!isBackOffice && !isOwner) redirect("/admin");
 
   const ISSUER = await getCompanyInfo();
 

@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { uploadRegistrationDocument, validateUploadFile } from "@/lib/storage";
 import type { RegistrationResult } from "@/lib/types/registration";
 import { getCompanyInfo } from "@/app/admin/(protected)/settings/data";
+import { notifyBackOffice } from "@/lib/notifications";
 import { t } from "@/lib/i18n";
 
 async function buildRegistrationSchema() {
@@ -231,6 +232,11 @@ export async function submitRegistration(
   if (analystError) {
     return { status: "error", message: `${await t("register.error.create_analyst_failed_prefix")}${analystError.message}` };
   }
+
+  await notifyBackOffice(
+    `新分析师注册：${input.full_name}`,
+    `<p>${input.full_name}（${input.email}）刚提交了分析师注册申请。</p><p>套装：${kit.name}</p><p>请登入后台查看：/admin/registrations/${analyst.id}</p>`
+  );
 
   return {
     status: "success",

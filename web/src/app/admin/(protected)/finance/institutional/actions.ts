@@ -222,3 +222,39 @@ export async function recordPayment(
   revalidatePath("/admin/finance/institutional");
   return { ok: true, message: await t("finance.institutional.success.payment_recorded") };
 }
+
+// Agent self-service: an agent can never issue an invoice or record a
+// payment themselves (see requireBackOfficeUserId() above) — this is the one
+// action they DO have, and it only stamps a timestamp so back office sees a
+// "requested" flag on their own list. No invoice/payment side effect at all.
+export async function requestInvoice(orderId: string): Promise<{ ok: boolean; message: string }> {
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: await t("finance.institutional.error.not_signed_in") };
+
+  const { data: userRow } = await supabase.from("users").select("id, party_id").eq("auth_user_id", user.id).single();
+  if (!userRow) return { ok: false, message: await t("finance.institutional.error.no_user_row") };
+
+  const admin = createAdminClient();
+
+  const { data: isBackOffice } = await supabase.rpc("is_back_office");
+  if (!isBackOffice) {
+    const { data: analyst } = await admin.from("analysts").select("id").eq("party_id", userRow.party_id).maybeSingle();
+    const { data: item } = await admin.from("order_items").select("analyst_id").eq("order_id", orderId).maybeSingle();
+    if (!analyst || !item || item.analyst_id !== analyst.id) {
+      return { ok: false, message: await t("finance.institutional.error.not_your_order") };
+    }
+  }
+
+  const { data: order } = await admin.from("orders").select("invoice_requested_at").eq("id", orderId).maybeSingle();
+  if (!order) return { ok: false, message: await t("finance.institutional.error.order_not_found") };
+  if (order.invoice_requested_at) return { ok: false, message: await t("finance.institutional.error.already_requested") };
+
+  const { error } = await admin.from("orders").update({ invoice_requested_at: new Date().toISOString() }).eq("id", orderId);
+  if (error) return { ok: false, message: `${await t("finance.institutional.error.request_failed_prefix")}${error.message}` };
+
+  revalidatePath("/admin/finance/institutional");
+  return { ok: true, message: await t("finance.institutional.success.invoice_requested") };
+}

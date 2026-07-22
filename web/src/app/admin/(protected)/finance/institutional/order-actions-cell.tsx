@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ct } from "@/lib/i18n-client";
-import { issueInvoice, issueFinalSettlementInvoice, recordPayment } from "./actions";
+import { issueInvoice, issueFinalSettlementInvoice, recordPayment, requestInvoice } from "./actions";
 import type { InstitutionalOrderRow } from "./data";
 
 type PaymentMode = "deposit" | "full_payment" | "final_payment";
@@ -14,7 +14,7 @@ function formatMYR(amount: number) {
   return new Intl.NumberFormat("ms-MY", { style: "currency", currency: "MYR" }).format(amount);
 }
 
-export function OrderActionsCell({ row }: { row: InstitutionalOrderRow }) {
+export function OrderActionsCell({ row, canManage }: { row: InstitutionalOrderRow; canManage: boolean }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [mode, setMode] = useState<PaymentMode | null>(null);
@@ -22,6 +22,14 @@ export function OrderActionsCell({ row }: { row: InstitutionalOrderRow }) {
   const [method, setMethod] = useState("");
   const [referenceNo, setReferenceNo] = useState("");
   const [message, setMessage] = useState<string | null>(null);
+
+  function submitRequestInvoice() {
+    startTransition(async () => {
+      const result = await requestInvoice(row.order_id);
+      setMessage(result.message);
+      if (result.ok) router.refresh();
+    });
+  }
 
   function openPaymentForm(next: PaymentMode, prefillAmount: number | null) {
     setMode(next);
@@ -73,6 +81,26 @@ export function OrderActionsCell({ row }: { row: InstitutionalOrderRow }) {
       )}
     </div>
   );
+
+  // Agent self-service view: never issues invoices or records payments —
+  // only "request an invoice" (just flags the order for back office) and
+  // downloading whichever invoice/receipt already exists.
+  if (!canManage) {
+    return (
+      <div className="flex flex-col items-end gap-1">
+        {viewLinks}
+        {row.state === "no_invoice" &&
+          (row.invoice_requested_at ? (
+            <p className="text-xs text-muted-foreground">{ct("finance.institutional.state.invoice_requested_note")}</p>
+          ) : (
+            <Button size="sm" disabled={isPending} onClick={submitRequestInvoice}>
+              {ct("finance.institutional.action.request_invoice")}
+            </Button>
+          ))}
+        {message && <p className="text-xs text-muted-foreground">{message}</p>}
+      </div>
+    );
+  }
 
   if (row.state === "fully_paid" || row.state === "closed") {
     return (row.invoice_id || row.latest_payment_id) ? <div className="flex flex-col items-end gap-1">{viewLinks}</div> : null;

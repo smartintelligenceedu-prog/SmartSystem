@@ -25,9 +25,13 @@ export async function listLeads(isBackOffice: boolean): Promise<LeadRow[]> {
   const selfClient = await createServerSupabaseClient();
   const client = isBackOffice ? createAdminClient() : selfClient;
 
+  // Converted leads are done — the resulting customer record (via
+  // converted_customer_id) is now the source of truth for that person, so
+  // they're excluded here rather than lingering in the working list.
   const { data: leads } = await client
     .from("leads")
     .select("id, contact_name, phone, email, source, status, introducer_id, assigned_analyst_id, converted_customer_id, created_at")
+    .neq("status", "converted")
     .order("created_at", { ascending: false });
   if (!leads || leads.length === 0) return [];
 

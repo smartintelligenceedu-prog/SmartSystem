@@ -38,7 +38,7 @@ export async function approveIntroducerApplication(applicationId: string): Promi
 
   const { data: application } = await admin
     .from("introducer_applications")
-    .select("id, status, full_name, email, phone, bank_name, bank_account_name, bank_account_no, sponsor_id")
+    .select("id, status, full_name, email, phone, bank_name, bank_account_name, bank_account_no, sponsor_id, referring_analyst_id")
     .eq("id", applicationId)
     .maybeSingle();
   if (!application) return { ok: false, message: await t("introducer_applications.error.not_found") };
@@ -65,6 +65,10 @@ export async function approveIntroducerApplication(applicationId: string): Promi
       bank_name: application.bank_name,
       bank_account_name: application.bank_account_name,
       bank_account_no: application.bank_account_no,
+      // From the analyst's own /register-introducer?ref=<code> link, if this
+      // application came in through one — admin can still reassign this
+      // afterward from Introducer Management like any other assigned_analyst_id.
+      assigned_analyst_id: application.referring_analyst_id,
       status: "active",
     })
     .select("id")

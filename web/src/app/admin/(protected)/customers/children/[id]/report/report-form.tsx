@@ -31,11 +31,13 @@ export function ReportForm({
   customerId,
   appointmentId,
   appointmentSummary,
+  availableSelfUseVouchers,
 }: {
   childId: string | null;
   customerId?: string;
   appointmentId: string;
   appointmentSummary: string;
+  availableSelfUseVouchers: number;
 }) {
   const [state, formAction, isPending] = useActionState(saveOnePageReport, initialState);
   const [selectedStyles, setSelectedStyles] = useState<LearningStyleValue[]>([]);
@@ -70,6 +72,15 @@ export function ReportForm({
           <div className="rounded-md border border-dashed border-neutral-300 p-3 text-sm text-muted-foreground">
             {ct("tqc.form.appointment_label")}: {appointmentSummary}
           </div>
+
+          {availableSelfUseVouchers > 0 && (
+            <label className="flex items-center gap-2 rounded-md border border-dashed border-neutral-300 p-3 text-sm">
+              <input type="checkbox" name="use_self_use_voucher" value="true" className="size-4" />
+              {ct("tqc.form.use_self_use_voucher_label_prefix")}
+              {availableSelfUseVouchers}
+              {ct("tqc.form.use_self_use_voucher_label_suffix")}
+            </label>
+          )}
 
           <div>
             <p className="mb-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">{ct("tqc.form.brain_balance_section")}</p>

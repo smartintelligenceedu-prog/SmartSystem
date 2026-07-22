@@ -132,6 +132,7 @@
   "sales_orders.error.voucher_not_redeemable": "这张检测券目前无法兑换",
   "sales_orders.error.create_order_failed_prefix": "建立订单失败：",
   "sales_orders.item.voucher_redemption_description": "检测券兑换",
+  "sales_orders.item.self_use_voucher_description": "自用检测券兑换",
   "sales_orders.error.create_item_failed_prefix": "建立订单明细失败：",
   "sales_orders.error.add_customer_and_amount": "请至少加入一位顾客，并填妥金额",
   "sales_orders.error.customer_not_yours": "有顾客不属于你，请重新选择",
@@ -158,6 +159,8 @@
   "sales_orders.list.multiple_customers_suffix": " 位顾客",
   "sales_orders.voucher.label_prefix": "检测券 · ",
   "sales_orders.voucher.label_suffix": " 发放",
+  "sales_orders.voucher.type_tag_self_use": "（自用券）",
+  "sales_orders.voucher.type_tag_resale": "（转售券）",
   "sales_orders.form.payment_method": "付款方式",
   "sales_orders.form.pay_now_button": "现场付款（上传截图）",
   "sales_orders.form.redeem_voucher_button": "兑换检测券",
@@ -612,6 +615,14 @@
 
   "finance.institutional.action.view_invoice": "📄 查看发票",
   "finance.institutional.action.view_receipt": "🧾 查看收据",
+  "finance.institutional.action.request_invoice": "申请开票",
+  "finance.institutional.state.invoice_requested_badge": "分析师已申请开票",
+  "finance.institutional.state.invoice_requested_note": "已提交申请，请等待后台开票",
+  "finance.institutional.success.invoice_requested": "已提交开票申请，请等待后台处理",
+  "finance.institutional.error.already_requested": "已经申请过了，请等待后台处理",
+  "finance.institutional.error.request_failed_prefix": "提交申请失败：",
+  "finance.institutional.error.not_your_order": "这不是你名下的订单",
+  "finance.institutional.nav.agent_label": "我的机构单据",
 
   "finance.institutional.print.invoice_title": "INVOICE",
   "finance.institutional.print.receipt_title": "RECEIPT",
@@ -918,6 +929,8 @@
   "dashboard.agent.followup.days_since_suffix": "天",
 
   "tqc.form.appointment_label": "对应预约",
+  "tqc.form.use_self_use_voucher_label_prefix": "使用我的自用检测券扣除这份报告（剩余 ",
+  "tqc.form.use_self_use_voucher_label_suffix": " 份）",
   "tqc.form.error.appointment_required": "找不到对应的预约记录",
   "tqc.form.error.appointment_not_found": "找不到对应的预约记录，请重新选择",
   "tqc.form.error.appointment_already_completed": "这笔预约的报告已经补录过了",
@@ -932,6 +945,7 @@
   "tqc.form.error.activity_score_negative": "脑活跃度分数不能为负数",
   "tqc.form.error.subject_not_found": "找不到受测者的资料",
   "tqc.form.error.no_permission": "没有权限执行此操作",
+  "tqc.form.error.no_self_use_voucher_available": "没有可用的自用检测券了",
   "tqc.form.error.invalid_form": "表单资料有误",
   "tqc.form.no_pending_appointment": "这位儿童目前没有待补录的检测预约，请先预约设备检测",
   "tqc.form.schedule_link": "预约设备检测",
@@ -1304,6 +1318,9 @@
   "profile.success.password_updated": "密码已更新",
 
   "header.sign_out": "登出",
+  "notifications.empty": "目前没有新通知",
+  "notifications.pending_sales_orders": "待审核销售订单",
+  "notifications.pending_registrations": "待审批新注册",
   "coming_soon.message": "此功能开发中",
   "copy_link.copied": "已复制",
 
@@ -1510,7 +1527,6 @@
   "registrations.error.not_suspended": "此分析师目前不是暂停状态",
   "registrations.success.suspended": "已暂停此分析师",
   "registrations.success.resumed": "已恢复此分析师",
-  "registrations.error.password_min": "密码至少需要 8 个字元",
   "registrations.error.only_approved_can_create_login": "只有已核准的分析师才能建立登入帐号",
   "registrations.error.already_has_login": "这位分析师已经有登入帐号了",
   "registrations.error.no_email": "找不到这位分析师的电邮资料",
@@ -1553,10 +1569,19 @@
   "registrations.login.no_login_prefix": "尚未建立登入帐号。建立后会自动授予「",
   "registrations.login.no_login_middle": "」角色，登入邮箱为 ",
   "registrations.login.no_login_suffix": "。",
-  "registrations.login.password_label": "初始密码",
-  "registrations.login.password_placeholder": "至少 8 个字元",
+  "registrations.login.password_auto_note": "系统会自动产生初始密码，并直接发邮件给这位分析师本人。",
+  "registrations.login.password_fallback_prefix": "（若邮件寄送失败，初始密码为：",
+  "registrations.login.password_fallback_suffix": "）",
   "registrations.login.extra_roles_label_optional": "额外角色（选填）",
   "registrations.login.extra_roles_label": "额外角色",
   "registrations.login.create_button": "建立登入帐号",
-  "registrations.login.update_button": "更新角色"
+  "registrations.login.update_button": "更新角色",
+
+  "register_introducer.form.referring_analyst_note": "本申请将会自动与邀请你的分析师建立合作关系，审核通过后由这位分析师负责跟进。",
+
+  "introducer_applications.page.column.referring_analyst": "推荐分析师",
+
+  "dashboard.agent.copy_introducer_link": "复制邀请引荐人连结",
+
+  "payroll.run.bank_info_missing": "尚未填写银行资料"
 }

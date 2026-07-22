@@ -24,6 +24,7 @@ export interface InstitutionalOrderRow {
   deposit_balance: number;
   voucher_total: number;
   voucher_used: number;
+  invoice_requested_at: string | null;
 }
 
 // Institutional/B2B orders (orders.billing_mode = 'invoice', migration 016)
@@ -32,12 +33,15 @@ export interface InstitutionalOrderRow {
 // existing pay-now/voucher orders or the sales_orders review table. State
 // and balances are derived from invoices/payments rather than stored, same
 // convention as the rest of this codebase (e.g. commission totals).
-export async function listInstitutionalOrders(): Promise<InstitutionalOrderRow[]> {
+// scopedToAnalystId: when set (agent self-service view), only orders whose
+// order_item.analyst_id matches are returned — an agent never sees another
+// agent's institutional orders. Back office calls this with no argument.
+export async function listInstitutionalOrders(scopedToAnalystId?: string): Promise<InstitutionalOrderRow[]> {
   const admin = createAdminClient();
 
   const { data: orders } = await admin
     .from("orders")
-    .select("id, total_amount, status, created_at")
+    .select("id, total_amount, status, created_at, invoice_requested_at")
     .eq("billing_mode", "invoice")
     .order("created_at", { ascending: false });
   if (!orders || orders.length === 0) return [];
@@ -59,73 +63,76 @@ export async function listInstitutionalOrders(): Promise<InstitutionalOrderRow[]
   const { data: identities } = partyIds.length > 0 ? await admin.from("individuals").select("party_id, full_name").in("party_id", partyIds) : { data: [] };
   const nameByParty = new Map((identities ?? []).map((i) => [i.party_id, i.full_name]));
 
-  return orders.map((o) => {
-    const item = itemByOrder.get(o.id);
-    const analystParty = item?.analyst_id ? analystPartyById.get(item.analyst_id) : null;
-    const orderInvoices = (invoices ?? []).filter((i) => i.order_id === o.id);
-    const orderPayments = (payments ?? []).filter((p) => p.order_id === o.id);
-    const depositTotal = orderPayments.filter((p) => p.payment_type === "deposit").reduce((s, p) => s + Number(p.amount), 0);
-    const standardInvoice = orderInvoices.find((i) => i.invoice_type === "standard");
-    const finalInvoice = orderInvoices.find((i) => i.invoice_type === "final_settlement");
+  return orders
+    .filter((o) => !scopedToAnalystId || itemByOrder.get(o.id)?.analyst_id === scopedToAnalystId)
+    .map((o) => {
+      const item = itemByOrder.get(o.id);
+      const analystParty = item?.analyst_id ? analystPartyById.get(item.analyst_id) : null;
+      const orderInvoices = (invoices ?? []).filter((i) => i.order_id === o.id);
+      const orderPayments = (payments ?? []).filter((p) => p.order_id === o.id);
+      const depositTotal = orderPayments.filter((p) => p.payment_type === "deposit").reduce((s, p) => s + Number(p.amount), 0);
+      const standardInvoice = orderInvoices.find((i) => i.invoice_type === "standard");
+      const finalInvoice = orderInvoices.find((i) => i.invoice_type === "final_settlement");
 
-    let state: InstitutionalOrderState;
-    let arBalance = 0;
-    let depositBalance = 0;
-    let invoiceNo: string | null = null;
-    let invoiceId: string | null = null;
+      let state: InstitutionalOrderState;
+      let arBalance = 0;
+      let depositBalance = 0;
+      let invoiceNo: string | null = null;
+      let invoiceId: string | null = null;
 
-    if (o.status === "paid") {
-      state = "fully_paid";
-    } else if (o.status === "cancelled" || o.status === "refunded") {
-      state = "closed";
-    } else if (finalInvoice) {
-      state = "settled_awaiting_final_payment";
-      arBalance = Number(finalInvoice.amount) - depositTotal;
-      invoiceNo = finalInvoice.invoice_no;
-      invoiceId = finalInvoice.id;
-    } else if (standardInvoice) {
-      state = "invoiced_awaiting_payment";
-      arBalance = Number(standardInvoice.amount);
-      invoiceNo = standardInvoice.invoice_no;
-      invoiceId = standardInvoice.id;
-    } else if (depositTotal > 0) {
-      state = "deposit_received_awaiting_settlement";
-      depositBalance = depositTotal;
-    } else {
-      state = "no_invoice";
-    }
+      if (o.status === "paid") {
+        state = "fully_paid";
+      } else if (o.status === "cancelled" || o.status === "refunded") {
+        state = "closed";
+      } else if (finalInvoice) {
+        state = "settled_awaiting_final_payment";
+        arBalance = Number(finalInvoice.amount) - depositTotal;
+        invoiceNo = finalInvoice.invoice_no;
+        invoiceId = finalInvoice.id;
+      } else if (standardInvoice) {
+        state = "invoiced_awaiting_payment";
+        arBalance = Number(standardInvoice.amount);
+        invoiceNo = standardInvoice.invoice_no;
+        invoiceId = standardInvoice.id;
+      } else if (depositTotal > 0) {
+        state = "deposit_received_awaiting_settlement";
+        depositBalance = depositTotal;
+      } else {
+        state = "no_invoice";
+      }
 
-    // If there's no active standard/final invoice (either state above), an
-    // order can still have an invoice on record once fully paid — surface
-    // whichever invoice exists so "查看发票" keeps working after settlement.
-    if (!invoiceId && orderInvoices.length > 0) {
-      const latest = [...orderInvoices].sort((a, b) => (a.id < b.id ? 1 : -1))[0];
-      invoiceId = latest.id;
-      invoiceNo = latest.invoice_no;
-    }
+      // If there's no active standard/final invoice (either state above), an
+      // order can still have an invoice on record once fully paid — surface
+      // whichever invoice exists so "查看发票" keeps working after settlement.
+      if (!invoiceId && orderInvoices.length > 0) {
+        const latest = [...orderInvoices].sort((a, b) => (a.id < b.id ? 1 : -1))[0];
+        invoiceId = latest.id;
+        invoiceNo = latest.invoice_no;
+      }
 
-    const latestPayment = [...orderPayments].sort((a, b) => new Date(b.paid_at).getTime() - new Date(a.paid_at).getTime())[0];
+      const latestPayment = [...orderPayments].sort((a, b) => new Date(b.paid_at).getTime() - new Date(a.paid_at).getTime())[0];
 
-    const orderVouchers = (vouchers ?? []).filter((v) => v.order_id === o.id);
-    const voucherUsed = orderVouchers.filter((v) => v.status === "used").length;
+      const orderVouchers = (vouchers ?? []).filter((v) => v.order_id === o.id);
+      const voucherUsed = orderVouchers.filter((v) => v.status === "used").length;
 
-    return {
-      order_id: o.id,
-      description: item?.description ?? "—",
-      total_amount: Number(o.total_amount),
-      analyst_name: (analystParty && nameByParty.get(analystParty)) ?? null,
-      created_at: o.created_at,
-      status: o.status,
-      state,
-      invoice_no: invoiceNo,
-      invoice_id: invoiceId,
-      latest_payment_id: latestPayment?.id ?? null,
-      ar_balance: arBalance,
-      deposit_balance: depositBalance,
-      voucher_total: orderVouchers.length,
-      voucher_used: voucherUsed,
-    };
-  });
+      return {
+        order_id: o.id,
+        description: item?.description ?? "—",
+        total_amount: Number(o.total_amount),
+        analyst_name: (analystParty && nameByParty.get(analystParty)) ?? null,
+        created_at: o.created_at,
+        status: o.status,
+        state,
+        invoice_no: invoiceNo,
+        invoice_id: invoiceId,
+        latest_payment_id: latestPayment?.id ?? null,
+        ar_balance: arBalance,
+        deposit_balance: depositBalance,
+        voucher_total: orderVouchers.length,
+        voucher_used: voucherUsed,
+        invoice_requested_at: o.invoice_requested_at,
+      };
+    });
 }
 
 export interface BillingEntity {
@@ -168,15 +175,20 @@ async function getBillingEntity(admin: ReturnType<typeof createAdminClient>, ins
 }
 
 // Same "归属分析师" set on the order_items row at order creation — shown on
-// the printed document as the responsible agent/PIC. One order = one line
-// item for institutional orders, so this is unambiguous.
-async function getResponsibleAnalystName(admin: ReturnType<typeof createAdminClient>, orderId: string): Promise<string | null> {
+// the printed document as the responsible agent/PIC, and used to gate an
+// agent's read access to their own invoice/receipt (see invoices/[id] and
+// payments/[id] pages). One order = one line item for institutional orders,
+// so this is unambiguous.
+async function getResponsibleAnalyst(
+  admin: ReturnType<typeof createAdminClient>,
+  orderId: string
+): Promise<{ id: string | null; name: string | null }> {
   const { data: item } = await admin.from("order_items").select("analyst_id").eq("order_id", orderId).maybeSingle();
-  if (!item?.analyst_id) return null;
+  if (!item?.analyst_id) return { id: null, name: null };
   const { data: analyst } = await admin.from("analysts").select("party_id").eq("id", item.analyst_id).maybeSingle();
-  if (!analyst) return null;
+  if (!analyst) return { id: item.analyst_id, name: null };
   const { data: identity } = await admin.from("individuals").select("full_name").eq("party_id", analyst.party_id).maybeSingle();
-  return identity?.full_name ?? null;
+  return { id: item.analyst_id, name: identity?.full_name ?? null };
 }
 
 export interface InvoiceDetail {
@@ -189,6 +201,7 @@ export interface InvoiceDetail {
   issued_at: string;
   order_id: string;
   billing_entity: BillingEntity | null;
+  responsible_analyst_id: string | null;
   responsible_analyst_name: string | null;
   line_items: OrderLineItem[];
 }
@@ -223,6 +236,8 @@ export async function getInvoiceDetail(invoiceId: string): Promise<InvoiceDetail
     }
   }
 
+  const responsibleAnalyst = await getResponsibleAnalyst(admin, invoice.order_id);
+
   return {
     invoice_id: invoice.id,
     invoice_no: invoice.invoice_no,
@@ -233,7 +248,8 @@ export async function getInvoiceDetail(invoiceId: string): Promise<InvoiceDetail
     issued_at: invoice.issued_at,
     order_id: invoice.order_id,
     billing_entity: await getBillingEntity(admin, order?.institution_party_id ?? null),
-    responsible_analyst_name: await getResponsibleAnalystName(admin, invoice.order_id),
+    responsible_analyst_id: responsibleAnalyst.id,
+    responsible_analyst_name: responsibleAnalyst.name,
     line_items: (items ?? []).map((it) => ({
       description: it.description ?? "—",
       quantity: it.quantity,
@@ -253,6 +269,7 @@ export interface PaymentDetail {
   reference_no: string | null;
   order_id: string;
   billing_entity: BillingEntity | null;
+  responsible_analyst_id: string | null;
   responsible_analyst_name: string | null;
   line_items: OrderLineItem[];
 }
@@ -273,6 +290,8 @@ export async function getPaymentDetail(paymentId: string): Promise<PaymentDetail
     admin.from("receipts").select("receipt_no").eq("payment_id", payment.id).maybeSingle(),
   ]);
 
+  const responsibleAnalyst = await getResponsibleAnalyst(admin, payment.order_id);
+
   return {
     payment_id: payment.id,
     receipt_no: receipt?.receipt_no ?? null,
@@ -283,7 +302,8 @@ export async function getPaymentDetail(paymentId: string): Promise<PaymentDetail
     reference_no: payment.reference_no,
     order_id: payment.order_id,
     billing_entity: await getBillingEntity(admin, order?.institution_party_id ?? null),
-    responsible_analyst_name: await getResponsibleAnalystName(admin, payment.order_id),
+    responsible_analyst_id: responsibleAnalyst.id,
+    responsible_analyst_name: responsibleAnalyst.name,
     line_items: (items ?? []).map((it) => ({
       description: it.description ?? "—",
       quantity: it.quantity,

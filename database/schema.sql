@@ -193,6 +193,10 @@ create table introducer_applications (
   bank_account_no text,
   sponsor_referral_code text,
   sponsor_id uuid references introducers(id),
+  -- Migration 041 — set from ?ref=<analyst_referral_code> on the public
+  -- /register-introducer link; carries through to the new introducer's
+  -- assigned_analyst_id at approval time (see introducer-applications/actions.ts).
+  referring_analyst_id uuid references analysts(id),
   status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
   rejection_reason text,
   resulting_introducer_id uuid references introducers(id),
@@ -622,6 +626,11 @@ create table orders (
   -- reports delivered at different times). Column kept for historical data
   -- backfilled into order_items; no longer written to going forward.
   report_delivered_at timestamptz,
+  -- Migration 040 — an agent viewing their own institutional order can
+  -- "request" an invoice instead of issuing one themselves; this just
+  -- stamps when, so back office sees a flag on Finance -> Institutional.
+  -- Never written to by the agent-facing UI beyond this one field.
+  invoice_requested_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

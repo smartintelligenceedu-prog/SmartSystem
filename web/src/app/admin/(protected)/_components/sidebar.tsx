@@ -38,6 +38,7 @@ export function Sidebar({ context }: { context: PortalUserContext }) {
     ...(hasAnalyst ? [{ href: "/admin/certification", label: ct("certification.nav.label") }] : []),
     ...(isLeader ? [{ href: "/admin/team", label: ct("team.page.title") }] : []),
     ...(isFinance ? [{ href: "/admin/finance", label: ct("finance.page.title") }] : []),
+    ...(hasAnalyst && !isFinance ? [{ href: "/admin/finance/institutional", label: ct("finance.institutional.nav.agent_label") }] : []),
     ...(isFinance ? [{ href: "/admin/pic-campaigns", label: ct("pic_campaigns.nav.label") }] : []),
     ...(isFinance ? [{ href: "/admin/analytics", label: ct("analytics.nav.label") }] : []),
     ...(isBackOffice ? [{ href: "/admin/registrations", label: ct("registrations.nav.label") }] : []),

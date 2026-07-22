@@ -9,7 +9,7 @@ import { ct } from "@/lib/i18n-client";
 
 const initialState: IntroducerApplicationState = { status: "idle" };
 
-export function RegisterIntroducerForm() {
+export function RegisterIntroducerForm({ analystReferralCode }: { analystReferralCode?: string }) {
   const [state, formAction, isPending] = useActionState(submitIntroducerApplication, initialState);
 
   if (state.status === "success") {
@@ -23,6 +23,14 @@ export function RegisterIntroducerForm() {
 
   return (
     <form action={formAction} className="space-y-4">
+      {analystReferralCode && (
+        <>
+          <input type="hidden" name="analyst_referral_code" value={analystReferralCode} />
+          <p className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
+            {ct("register_introducer.form.referring_analyst_note")}
+          </p>
+        </>
+      )}
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="full_name">{ct("register_introducer.form.full_name_label")}</Label>

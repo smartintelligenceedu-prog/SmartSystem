@@ -132,6 +132,7 @@
   "sales_orders.error.voucher_not_redeemable": "This voucher can't be redeemed right now",
   "sales_orders.error.create_order_failed_prefix": "Failed to create order: ",
   "sales_orders.item.voucher_redemption_description": "Voucher Redemption",
+  "sales_orders.item.self_use_voucher_description": "Self-Use Voucher Redemption",
   "sales_orders.error.create_item_failed_prefix": "Failed to create order item: ",
   "sales_orders.error.add_customer_and_amount": "Please add at least one customer with an amount",
   "sales_orders.error.customer_not_yours": "Some customers don't belong to you — please re-select",
@@ -158,6 +159,8 @@
   "sales_orders.list.multiple_customers_suffix": " customers",
   "sales_orders.voucher.label_prefix": "Voucher · issued ",
   "sales_orders.voucher.label_suffix": "",
+  "sales_orders.voucher.type_tag_self_use": " (self-use)",
+  "sales_orders.voucher.type_tag_resale": " (resale)",
   "sales_orders.form.payment_method": "Payment Method",
   "sales_orders.form.pay_now_button": "Pay Now (upload screenshot)",
   "sales_orders.form.redeem_voucher_button": "Redeem Voucher",
@@ -612,6 +615,14 @@
 
   "finance.institutional.action.view_invoice": "📄 View Invoice",
   "finance.institutional.action.view_receipt": "🧾 View Receipt",
+  "finance.institutional.action.request_invoice": "Request Invoice",
+  "finance.institutional.state.invoice_requested_badge": "Invoice Requested by Analyst",
+  "finance.institutional.state.invoice_requested_note": "Request submitted — please wait for back office to issue the invoice",
+  "finance.institutional.success.invoice_requested": "Invoice request submitted — please wait for back office to process it",
+  "finance.institutional.error.already_requested": "Already requested — please wait for back office to process it",
+  "finance.institutional.error.request_failed_prefix": "Failed to submit request: ",
+  "finance.institutional.error.not_your_order": "This is not your order",
+  "finance.institutional.nav.agent_label": "My Institutional Orders",
 
   "finance.institutional.print.invoice_title": "INVOICE",
   "finance.institutional.print.receipt_title": "RECEIPT",
@@ -918,6 +929,8 @@
   "dashboard.agent.followup.days_since_suffix": " days ago",
 
   "tqc.form.appointment_label": "Related Appointment",
+  "tqc.form.use_self_use_voucher_label_prefix": "Use my self-use voucher for this report (",
+  "tqc.form.use_self_use_voucher_label_suffix": " left)",
   "tqc.form.error.appointment_required": "No matching appointment found",
   "tqc.form.error.appointment_not_found": "No matching appointment found — please pick again",
   "tqc.form.error.appointment_already_completed": "This appointment's report has already been recorded",
@@ -931,6 +944,7 @@
   "tqc.form.error.personality_required": "Please choose a personality type",
   "tqc.form.error.activity_score_negative": "Brain activity score can't be negative",
   "tqc.form.error.subject_not_found": "Couldn't find the subject's record",
+  "tqc.form.error.no_self_use_voucher_available": "No self-use voucher available",
   "tqc.form.error.no_permission": "You don't have permission to do this",
   "tqc.form.error.invalid_form": "There's a problem with the form",
   "tqc.form.no_pending_appointment": "This child has no pending detection appointment to record — please book a device detection first",
@@ -1304,6 +1318,9 @@
   "profile.success.password_updated": "Password updated",
 
   "header.sign_out": "Sign Out",
+  "notifications.empty": "No new notifications",
+  "notifications.pending_sales_orders": "Sales orders pending review",
+  "notifications.pending_registrations": "New registrations pending approval",
   "coming_soon.message": "This feature is under development",
   "copy_link.copied": "Copied",
 
@@ -1510,7 +1527,6 @@
   "registrations.error.not_suspended": "This analyst is not currently suspended",
   "registrations.success.suspended": "This analyst has been suspended",
   "registrations.success.resumed": "This analyst has been reinstated",
-  "registrations.error.password_min": "Password must be at least 8 characters",
   "registrations.error.only_approved_can_create_login": "Only approved analysts can have a login account created",
   "registrations.error.already_has_login": "This analyst already has a login account",
   "registrations.error.no_email": "Could not find this analyst's email",
@@ -1553,10 +1569,19 @@
   "registrations.login.no_login_prefix": "No login account yet. Creating one will automatically grant the \"",
   "registrations.login.no_login_middle": "\" role, with login email ",
   "registrations.login.no_login_suffix": ".",
-  "registrations.login.password_label": "Initial Password",
-  "registrations.login.password_placeholder": "At least 8 characters",
+  "registrations.login.password_auto_note": "The system will auto-generate an initial password and email it directly to this analyst.",
+  "registrations.login.password_fallback_prefix": " (if the email failed to send, the initial password is: ",
+  "registrations.login.password_fallback_suffix": ")",
   "registrations.login.extra_roles_label_optional": "Extra Roles (optional)",
   "registrations.login.extra_roles_label": "Extra Roles",
   "registrations.login.create_button": "Create Login Account",
-  "registrations.login.update_button": "Update Roles"
+  "registrations.login.update_button": "Update Roles",
+
+  "register_introducer.form.referring_analyst_note": "This application will be automatically linked to the analyst who invited you — they'll be responsible for following up once it's approved.",
+
+  "introducer_applications.page.column.referring_analyst": "Referring Analyst",
+
+  "dashboard.agent.copy_introducer_link": "Copy Introducer Invite Link",
+
+  "payroll.run.bank_info_missing": "Bank details not provided"
 }

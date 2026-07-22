@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { uploadRegistrationDocument, validateUploadFile } from "@/lib/storage";
+import { notifyBackOffice } from "@/lib/notifications";
 import { t } from "@/lib/i18n";
 
 async function requireAnalystUserId(): Promise<{ userId: string; analystId: string } | { error: string }> {
@@ -123,7 +124,9 @@ export async function createSalesOrder(_prev: CreateSalesOrderState, formData: F
     if (!voucher || voucher.analyst_id !== auth.analystId) {
       return { status: "error", message: await t("sales_orders.error.voucher_not_found_or_not_owned") };
     }
-    if (voucher.voucher_type !== "resale" || voucher.status !== "issued") {
+    // Both resale and self_use vouchers can be sold here — see the note on
+    // listOwnRedeemableVouchers() in data.ts.
+    if (!["resale", "self_use"].includes(voucher.voucher_type) || voucher.status !== "issued") {
       return { status: "error", message: await t("sales_orders.error.voucher_not_redeemable") };
     }
 
@@ -167,6 +170,12 @@ export async function createSalesOrder(_prev: CreateSalesOrderState, formData: F
 
     const { error: payError } = await admin.from("orders").update({ status: "paid" }).eq("id", order.id);
     if (payError) return { status: "error", message: `${await t("sales_orders.error.update_failed_prefix")}${payError.message}` };
+
+    const analystName = await getAnalystName(admin, auth.analystId);
+    await notifyBackOffice(
+      `新销售订单：${analystName} 提交`,
+      `<p>${analystName} 提交了一笔检测券兑换订单，金额 RM ${input.amount.toFixed(2)}。</p><p>请登入后台查看：/admin/sales-orders</p>`
+    );
 
     revalidatePath("/admin/sales-orders");
     revalidatePath("/admin");
@@ -253,8 +262,25 @@ export async function createSalesOrder(_prev: CreateSalesOrderState, formData: F
   });
   if (salesOrderError) return { status: "error", message: `${await t("sales_orders.error.create_review_record_failed_prefix")}${salesOrderError.message}` };
 
+  const analystName = await getAnalystName(admin, auth.analystId);
+  await notifyBackOffice(
+    `新销售订单：${analystName} 提交`,
+    `<p>${analystName} 提交了一笔待审核的销售订单，金额 RM ${totalAmount.toFixed(2)}。</p><p>请登入后台查看：/admin/sales-orders?status=pending</p>`
+  );
+
   revalidatePath("/admin/sales-orders");
   return { status: "success", paid: false };
+}
+
+// analysts and individuals have no direct foreign key to each other — both
+// point at parties — so this can't be a single embedded select. Used only
+// for the best-effort notification email subject/body, never for anything
+// authorization-relevant.
+async function getAnalystName(admin: ReturnType<typeof createAdminClient>, analystId: string): Promise<string> {
+  const { data: analyst } = await admin.from("analysts").select("party_id").eq("id", analystId).maybeSingle();
+  if (!analyst) return "—";
+  const { data: identity } = await admin.from("individuals").select("full_name").eq("party_id", analyst.party_id).maybeSingle();
+  return identity?.full_name ?? "—";
 }
 
 export async function adminApproveSalesOrder(orderId: string): Promise<{ ok: boolean; message: string }> {

@@ -134,20 +134,45 @@ export async function saveOnePageReport(_prev: SaveOnePageReportState, formData:
     return { status: "error", message: await t("tqc.form.error.appointment_already_completed") };
   }
 
+  // Optional: spend one of the analyst's own self-use vouchers on this
+  // report, so it shows up in Sales Orders (RM0, no commission) instead of
+  // being invisible billing-wise. Checked up front, before any writes below,
+  // so a stale checkbox (voucher already spent elsewhere since page load)
+  // fails the whole save cleanly rather than leaving a half-completed report.
+  const useSelfUseVoucher = formData.get("use_self_use_voucher") === "true";
+  let selfUseVoucherId: string | null = null;
+  if (useSelfUseVoucher) {
+    const { data: voucher } = await admin
+      .from("detection_vouchers")
+      .select("id")
+      .eq("analyst_id", appointment.analyst_id)
+      .eq("voucher_type", "self_use")
+      .eq("status", "issued")
+      .order("issued_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (!voucher) return { status: "error", message: await t("tqc.form.error.no_self_use_voucher_available") };
+    selfUseVoucherId = voucher.id;
+  }
+
   const { error: appointmentError } = await admin
     .from("detection_appointments")
     .update({ status: "completed" })
     .eq("id", appointment_id);
   if (appointmentError) return { status: "error", message: `${await t("tqc.form.error.appointment_save_failed")}${appointmentError.message}` };
 
-  const { error: sessionError } = await admin.from("detection_sessions").insert({
-    appointment_id,
-    customer_id: appointment.customer_id,
-    child_id,
-    analyst_id: appointment.analyst_id,
-    device_id: appointment.device_id,
-    status: "completed",
-  });
+  const { data: session, error: sessionError } = await admin
+    .from("detection_sessions")
+    .insert({
+      appointment_id,
+      customer_id: appointment.customer_id,
+      child_id,
+      analyst_id: appointment.analyst_id,
+      device_id: appointment.device_id,
+      status: "completed",
+    })
+    .select("id")
+    .single();
   if (sessionError) return { status: "error", message: `${await t("tqc.form.error.session_save_failed")}${sessionError.message}` };
 
   // A new historical row every save (a subject can be retested); the
@@ -162,6 +187,45 @@ export async function saveOnePageReport(_prev: SaveOnePageReportState, formData:
     zone_categories: zoneCategories,
   });
   if (error) return { status: "error", message: `${await t("tqc.form.error.report_save_failed")}${error.message}` };
+
+  if (selfUseVoucherId) {
+    // item_type 'other' (not 'detection_session') deliberately skips
+    // commission_engine.sql's detection_service loop — a self-use redemption
+    // is free (already paid for at registration), so no commission should
+    // fire. Goes straight to 'paid' like voucher_redemption does, since
+    // there's no payment to review.
+    const { data: order } = await admin
+      .from("orders")
+      .insert({ order_type: "detection_service", analyst_id: appointment.analyst_id, total_amount: 0, status: "pending" })
+      .select("id")
+      .single();
+    if (order) {
+      const { data: orderItem } = await admin
+        .from("order_items")
+        .insert({
+          order_id: order.id,
+          item_type: "other",
+          description: await t("sales_orders.item.self_use_voucher_description"),
+          unit_price: 0,
+          quantity: 1,
+          subtotal: 0,
+          customer_id: appointment.customer_id,
+          analyst_id: appointment.analyst_id,
+        })
+        .select("id")
+        .single();
+      await admin.from("orders").update({ status: "paid" }).eq("id", order.id);
+      if (orderItem) {
+        await admin.from("detection_sessions").update({ order_item_id: orderItem.id }).eq("id", session.id);
+      }
+    }
+    await admin
+      .from("detection_vouchers")
+      .update({ status: "redeemed", redeemed_at: new Date().toISOString(), redeemed_session_id: session.id })
+      .eq("id", selfUseVoucherId);
+    revalidatePath("/admin/sales-orders");
+    revalidatePath("/admin");
+  }
 
   if (child_id) {
     revalidatePath(`/admin/customers/children/${child_id}/report`);

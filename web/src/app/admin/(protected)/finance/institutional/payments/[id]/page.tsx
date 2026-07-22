@@ -27,10 +27,16 @@ export default async function ReceiptPrintPage({ params }: { params: Promise<{ i
 
   const context = await getPortalUserContext();
   if (!context) redirect("/admin/login");
-  if (!hasAnyRole(context, ["admin", "finance"])) redirect("/admin");
 
   const payment = await getPaymentDetail(id);
   if (!payment) notFound();
+
+  // Same ownership scoping as the invoice print page — an agent can
+  // download their own order's receipt to send to the customer, but not
+  // anyone else's.
+  const isBackOffice = hasAnyRole(context, ["admin", "finance"]);
+  const isOwner = !!context.analystId && context.analystId === payment.responsible_analyst_id;
+  if (!isBackOffice && !isOwner) redirect("/admin");
 
   const ISSUER = await getCompanyInfo();
 
@@ -49,10 +55,6 @@ export default async function ReceiptPrintPage({ params }: { params: Promise<{ i
       </div>
 
       <div className="relative rounded-md border border-neutral-300 bg-white p-10 print:border-0 print:p-0">
-        <div className="absolute top-8 right-10 -rotate-12 rounded border-4 border-emerald-600 px-4 py-1 text-2xl font-black tracking-widest text-emerald-600">
-          {t("finance.institutional.print.paid_stamp")}
-        </div>
-
         <div className="flex items-start justify-between border-b-4 border-black pb-6">
           <div>
             <h1 className="text-2xl font-extrabold tracking-tight">{ISSUER.name}</h1>

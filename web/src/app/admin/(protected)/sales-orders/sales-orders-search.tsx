@@ -24,6 +24,10 @@ const ORDER_STATUS_KEY = {
 const ITEM_TYPE_KEY = {
   detection_session: "reports.item_type.detection_session",
   voucher_redemption: "reports.item_type.voucher_redemption",
+  // 'other' also covers pay_now discount lines, but a whole order made of a
+  // single 'other' item (this list's usual shape) only ever comes from the
+  // self-use voucher redemption path in report/actions.ts.
+  other: "sales_orders.item.self_use_voucher_description",
 } satisfies Record<string, TranslationKey>;
 
 // Matches against every individual name in an order (customer_names), not

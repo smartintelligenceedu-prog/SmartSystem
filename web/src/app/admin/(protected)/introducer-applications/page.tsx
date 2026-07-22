@@ -83,6 +83,7 @@ export default async function IntroducerApplicationsPage({
               <TableHead>{await t("introducer_applications.page.column.name")}</TableHead>
               <TableHead>{await t("introducer_applications.page.column.contact")}</TableHead>
               <TableHead>{await t("introducer_applications.page.column.sponsor")}</TableHead>
+              <TableHead>{await t("introducer_applications.page.column.referring_analyst")}</TableHead>
               <TableHead>{await t("introducer_applications.page.column.status")}</TableHead>
               <TableHead>{await t("introducer_applications.page.column.submitted_at")}</TableHead>
               <TableHead>{await t("introducer_applications.page.column.actions")}</TableHead>
@@ -91,7 +92,7 @@ export default async function IntroducerApplicationsPage({
           <TableBody>
             {rows.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground">
+                <TableCell colSpan={7} className="text-center text-muted-foreground">
                   {await t("introducer_applications.page.empty")}
                 </TableCell>
               </TableRow>
@@ -104,6 +105,7 @@ export default async function IntroducerApplicationsPage({
                   <div>{row.phone}</div>
                 </TableCell>
                 <TableCell className="text-muted-foreground">{row.sponsor_name ?? "—"}</TableCell>
+                <TableCell className="text-muted-foreground">{row.referring_analyst_name ?? "—"}</TableCell>
                 <TableCell>
                   <Badge variant={STATUS_VARIANT[row.status]}>{statusLabelByStatus[row.status]}</Badge>
                   {row.rejection_reason && <p className="mt-1 text-xs text-muted-foreground">{row.rejection_reason}</p>}

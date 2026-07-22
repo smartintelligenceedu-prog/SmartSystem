@@ -4,7 +4,6 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { adminCreateAnalystLogin, adminUpdateAnalystExtraRoles } from "../actions";
@@ -29,7 +28,6 @@ export function LoginAccountCard({ detail }: { detail: RegistrationDetail }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
-  const [password, setPassword] = useState("");
   const [selectedExtraRoles, setSelectedExtraRoles] = useState<Set<ExtraRole>>(
     new Set(detail.portal_roles.filter((r): r is ExtraRole => EXTRA_ROLES.includes(r as ExtraRole)))
   );
@@ -51,17 +49,7 @@ export function LoginAccountCard({ detail }: { detail: RegistrationDetail }) {
           <p className="text-sm text-muted-foreground">
             {ct("registrations.login.no_login_prefix")}{ct(ROLE_KEY.agent)}{ct("registrations.login.no_login_middle")}{detail.email}{ct("registrations.login.no_login_suffix")}
           </p>
-
-          <div className="space-y-2">
-            <Label htmlFor="initial_password">{ct("registrations.login.password_label")}</Label>
-            <Input
-              id="initial_password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder={ct("registrations.login.password_placeholder")}
-            />
-          </div>
+          <p className="text-sm text-muted-foreground">{ct("registrations.login.password_auto_note")}</p>
 
           <div className="space-y-2">
             <Label>{ct("registrations.login.extra_roles_label_optional")}</Label>
@@ -86,7 +74,7 @@ export function LoginAccountCard({ detail }: { detail: RegistrationDetail }) {
             disabled={isPending}
             onClick={() =>
               startTransition(async () => {
-                const result = await adminCreateAnalystLogin(detail.analyst_id, password, [...selectedExtraRoles]);
+                const result = await adminCreateAnalystLogin(detail.analyst_id, [...selectedExtraRoles]);
                 setMessage(result.message);
                 if (result.ok) router.refresh();
               })

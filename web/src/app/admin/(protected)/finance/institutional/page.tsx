@@ -39,18 +39,26 @@ const STATE_BADGE_VARIANT: Record<InstitutionalOrderState, "secondary" | "outlin
 export default async function InstitutionalOrdersPage() {
   const context = await getPortalUserContext();
   if (!context) redirect("/admin/login");
-  if (!hasAnyRole(context, ["admin", "finance"])) redirect("/admin");
 
-  const [orders, agents] = await Promise.all([listInstitutionalOrders(), listApprovedAgents()]);
+  const canManage = hasAnyRole(context, ["admin", "finance"]);
+  const isAgentViewer = !canManage && !!context.analystId;
+  if (!canManage && !isAgentViewer) redirect("/admin");
+
+  const [orders, agents] = await Promise.all([
+    listInstitutionalOrders(isAgentViewer ? context.analystId! : undefined),
+    canManage ? listApprovedAgents() : Promise.resolve([]),
+  ]);
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold">{t("finance.institutional.title")}</h1>
+          <h1 className="text-xl font-semibold">{canManage ? t("finance.institutional.title") : t("finance.institutional.nav.agent_label")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{t("finance.institutional.subtitle")}</p>
         </div>
-        <Button size="sm" variant="secondary" render={<Link href="/admin/finance/institutional/redeem">{t("finance.institutional.voucher.redeem_nav_link")}</Link>} />
+        {canManage && (
+          <Button size="sm" variant="secondary" render={<Link href="/admin/finance/institutional/redeem">{t("finance.institutional.voucher.redeem_nav_link")}</Link>} />
+        )}
       </div>
 
       <div className="overflow-x-auto rounded-md border">
@@ -87,9 +95,14 @@ export default async function InstitutionalOrdersPage() {
                 </TableCell>
                 <TableCell>
                   <Badge variant={STATE_BADGE_VARIANT[o.state]}>{t(STATE_KEY[o.state])}</Badge>
+                  {canManage && o.invoice_requested_at && (
+                    <Badge variant="outline" className="ml-1">
+                      {t("finance.institutional.state.invoice_requested_badge")}
+                    </Badge>
+                  )}
                 </TableCell>
                 <TableCell className="text-right">
-                  <OrderActionsCell row={o} />
+                  <OrderActionsCell row={o} canManage={canManage} />
                 </TableCell>
               </TableRow>
             ))}
@@ -97,10 +110,12 @@ export default async function InstitutionalOrdersPage() {
         </Table>
       </div>
 
-      <div>
-        <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{t("finance.institutional.new_order.title")}</h2>
-        <CreateInstitutionalOrderForm agents={agents} />
-      </div>
+      {canManage && (
+        <div>
+          <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{t("finance.institutional.new_order.title")}</h2>
+          <CreateInstitutionalOrderForm agents={agents} />
+        </div>
+      )}
     </div>
   );
 }

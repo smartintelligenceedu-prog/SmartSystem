@@ -14,6 +14,7 @@ export interface IntroducerApplicationRow {
   bank_account_no: string | null;
   sponsor_referral_code: string | null;
   sponsor_name: string | null;
+  referring_analyst_name: string | null;
   rejection_reason: string | null;
   created_at: string;
 }
@@ -23,7 +24,9 @@ export async function listIntroducerApplications(statusFilter?: IntroducerApplic
 
   let query = admin
     .from("introducer_applications")
-    .select("id, status, full_name, email, phone, bank_name, bank_account_name, bank_account_no, sponsor_referral_code, sponsor_id, rejection_reason, created_at")
+    .select(
+      "id, status, full_name, email, phone, bank_name, bank_account_name, bank_account_no, sponsor_referral_code, sponsor_id, referring_analyst_id, rejection_reason, created_at"
+    )
     .order("created_at", { ascending: false });
   if (statusFilter) query = query.eq("status", statusFilter);
 
@@ -45,6 +48,22 @@ export async function listIntroducerApplications(statusFilter?: IntroducerApplic
     }
   }
 
+  // Same pattern for the referring analyst (from ?ref= on the public
+  // /register-introducer link) — analysts <-> individuals also has no
+  // direct foreign key.
+  const analystIds = [...new Set(applications.map((a) => a.referring_analyst_id).filter((id): id is string => !!id))];
+  const analystNameById = new Map<string, string>();
+  if (analystIds.length > 0) {
+    const { data: analysts } = await admin.from("analysts").select("id, party_id").in("id", analystIds);
+    const partyIds = (analysts ?? []).map((a) => a.party_id);
+    const { data: identities } = await admin.from("individuals").select("party_id, full_name").in("party_id", partyIds);
+    const nameByParty = new Map((identities ?? []).map((i) => [i.party_id, i.full_name]));
+    for (const a of analysts ?? []) {
+      const name = nameByParty.get(a.party_id);
+      if (name) analystNameById.set(a.id, name);
+    }
+  }
+
   return applications.map((a) => ({
     id: a.id,
     status: a.status as IntroducerApplicationStatus,
@@ -56,6 +75,7 @@ export async function listIntroducerApplications(statusFilter?: IntroducerApplic
     bank_account_no: a.bank_account_no,
     sponsor_referral_code: a.sponsor_referral_code,
     sponsor_name: a.sponsor_id ? (sponsorNameById.get(a.sponsor_id) ?? null) : null,
+    referring_analyst_name: a.referring_analyst_id ? (analystNameById.get(a.referring_analyst_id) ?? null) : null,
     rejection_reason: a.rejection_reason,
     created_at: a.created_at,
   }));

@@ -22,11 +22,13 @@ export function ReportEntrySection({
   customerId,
   scheduleHref,
   pendingAppointments,
+  availableSelfUseVouchers,
 }: {
   childId: string | null;
   customerId?: string;
   scheduleHref: string;
   pendingAppointments: PendingAppointment[];
+  availableSelfUseVouchers: number;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(pendingAppointments.length === 1 ? pendingAppointments[0].appointment_id : null);
 
@@ -67,7 +69,13 @@ export function ReportEntrySection({
       )}
 
       {selected && (
-        <ReportForm childId={childId} customerId={customerId} appointmentId={selected.appointment_id} appointmentSummary={formatSlot(selected)} />
+        <ReportForm
+          childId={childId}
+          customerId={customerId}
+          appointmentId={selected.appointment_id}
+          appointmentSummary={formatSlot(selected)}
+          availableSelfUseVouchers={availableSelfUseVouchers}
+        />
       )}
 
       <div className="text-right">

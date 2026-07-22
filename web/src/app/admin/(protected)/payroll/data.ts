@@ -11,6 +11,9 @@ export interface PayeeSettlementRow {
   period_end: string;
   gross_amount: number;
   href: string;
+  bank_name: string | null;
+  bank_account_name: string | null;
+  bank_account_no: string | null;
 }
 
 // One row per analyst/introducer per settlement run — not one row per run —
@@ -35,38 +38,50 @@ export async function listPayeeSettlementRows(): Promise<PayeeSettlementRow[]> {
   const analystIds = [...new Set((payslips ?? []).map((p) => p.analyst_id))];
   const introducerIds = [...new Set((statements ?? []).map((s) => s.introducer_id))];
   const [{ data: analysts }, { data: introducers }] = await Promise.all([
-    analystIds.length > 0 ? admin.from("analysts").select("id, party_id").in("id", analystIds) : Promise.resolve({ data: [] }),
-    introducerIds.length > 0 ? admin.from("introducers").select("id, party_id").in("id", introducerIds) : Promise.resolve({ data: [] }),
+    analystIds.length > 0
+      ? admin.from("analysts").select("id, party_id, bank_name, bank_account_name, bank_account_no").in("id", analystIds)
+      : Promise.resolve({ data: [] }),
+    introducerIds.length > 0
+      ? admin.from("introducers").select("id, party_id, bank_name, bank_account_name, bank_account_no").in("id", introducerIds)
+      : Promise.resolve({ data: [] }),
   ]);
   const partyIds = [...new Set([...(analysts ?? []).map((a) => a.party_id), ...(introducers ?? []).map((i) => i.party_id)])];
   const { data: identities } =
     partyIds.length > 0 ? await admin.from("individuals").select("party_id, full_name").in("party_id", partyIds) : { data: [] };
   const nameByParty = new Map((identities ?? []).map((i) => [i.party_id, i.full_name]));
-  const analystPartyById = new Map((analysts ?? []).map((a) => [a.id, a.party_id]));
-  const introducerPartyById = new Map((introducers ?? []).map((i) => [i.id, i.party_id]));
+  const analystById = new Map((analysts ?? []).map((a) => [a.id, a]));
+  const introducerById = new Map((introducers ?? []).map((i) => [i.id, i]));
 
   const analystRows: PayeeSettlementRow[] = (payslips ?? []).map((p) => {
     const run = runById.get(p.payout_run_id);
+    const analyst = analystById.get(p.analyst_id);
     return {
       id: p.id,
       payee_type: "analyst",
-      name: nameByParty.get(analystPartyById.get(p.analyst_id) ?? "") ?? "—",
+      name: nameByParty.get(analyst?.party_id ?? "") ?? "—",
       period_start: run?.period_start ?? "",
       period_end: run?.period_end ?? "",
       gross_amount: Number(p.gross_amount),
       href: `/admin/payroll/payslip/${p.id}`,
+      bank_name: analyst?.bank_name ?? null,
+      bank_account_name: analyst?.bank_account_name ?? null,
+      bank_account_no: analyst?.bank_account_no ?? null,
     };
   });
   const introducerRows: PayeeSettlementRow[] = (statements ?? []).map((s) => {
     const run = runById.get(s.payout_run_id);
+    const introducer = introducerById.get(s.introducer_id);
     return {
       id: s.id,
       payee_type: "introducer",
-      name: nameByParty.get(introducerPartyById.get(s.introducer_id) ?? "") ?? "—",
+      name: nameByParty.get(introducer?.party_id ?? "") ?? "—",
       period_start: run?.period_start ?? "",
       period_end: run?.period_end ?? "",
       gross_amount: Number(s.gross_amount),
       href: `/admin/payroll/statement/${s.id}`,
+      bank_name: introducer?.bank_name ?? null,
+      bank_account_name: introducer?.bank_account_name ?? null,
+      bank_account_no: introducer?.bank_account_no ?? null,
     };
   });
 

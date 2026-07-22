@@ -304,18 +304,32 @@ export async function listApprovedAgents(): Promise<{ id: string; name: string }
   return analysts.map((a) => ({ id: a.id, name: nameByParty.get(a.party_id) ?? "—" }));
 }
 
+// Includes both voucher types — a resale voucher is always meant to be sold,
+// but an analyst can also choose to sell their self_use voucher instead of
+// testing on themselves (e.g. an analyst who already has a report from
+// before joining doesn't need their own free slot). Either type pays the
+// same 100% voucher_resale commission once redeemed here — see
+// commission_engine.sql's detection_service branch, which doesn't
+// distinguish by voucher_type. Self_use vouchers spent this way never touch
+// the report form's separate free-self-test checkbox (report/actions.ts);
+// each voucher can only be spent once, through whichever path claims it first.
 export async function listOwnRedeemableVouchers(analystId: string): Promise<{ id: string; label: string }[]> {
   const admin = createAdminClient();
   const { data: vouchers } = await admin
     .from("detection_vouchers")
-    .select("id, issued_at")
+    .select("id, voucher_type, issued_at")
     .eq("analyst_id", analystId)
-    .eq("voucher_type", "resale")
+    .in("voucher_type", ["self_use", "resale"])
     .eq("status", "issued")
     .order("issued_at", { ascending: true });
-  const [labelPrefix, labelSuffix] = await Promise.all([t("sales_orders.voucher.label_prefix"), t("sales_orders.voucher.label_suffix")]);
+  const [labelPrefix, labelSuffix, selfUseTag, resaleTag] = await Promise.all([
+    t("sales_orders.voucher.label_prefix"),
+    t("sales_orders.voucher.label_suffix"),
+    t("sales_orders.voucher.type_tag_self_use"),
+    t("sales_orders.voucher.type_tag_resale"),
+  ]);
   return (vouchers ?? []).map((v) => ({
     id: v.id,
-    label: `${labelPrefix}${new Date(v.issued_at).toLocaleDateString("zh-CN")}${labelSuffix}`,
+    label: `${labelPrefix}${new Date(v.issued_at).toLocaleDateString("zh-CN")}${labelSuffix}${v.voucher_type === "self_use" ? selfUseTag : resaleTag}`,
   }));
 }

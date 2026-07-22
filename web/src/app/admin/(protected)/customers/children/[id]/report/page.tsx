@@ -1,7 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import { getPortalUserContext } from "@/lib/auth/context";
 import { isBackOfficeRole } from "@/lib/auth/roles";
-import { getChildContext, getLatestOnePageReport } from "./data";
+import { getChildContext, getLatestOnePageReport, countAvailableSelfUseVouchers } from "./data";
 import { t } from "@/lib/i18n";
 import { ReportPrintButton } from "./print-button";
 import { ReportView } from "./report-view";
@@ -22,7 +22,11 @@ export default async function ChildReportPage({ params }: { params: Promise<{ id
   const canView = isBackOfficeRole(context) || context.analystId === child.owner_analyst_id;
   if (!canView) redirect("/admin");
 
-  const [report, pendingAppointments] = await Promise.all([getLatestOnePageReport(id), listPendingAppointmentsForChild(id)]);
+  const [report, pendingAppointments, availableSelfUseVouchers] = await Promise.all([
+    getLatestOnePageReport(id),
+    listPendingAppointmentsForChild(id),
+    countAvailableSelfUseVouchers(child.owner_analyst_id),
+  ]);
 
   return (
     <div className="mx-auto max-w-3xl bg-white text-black print:max-w-none">
@@ -48,7 +52,12 @@ export default async function ChildReportPage({ params }: { params: Promise<{ id
 
       <div className="print-hidden mt-8">
         <h2 className="mb-3 text-sm font-bold tracking-wide text-neutral-500 uppercase">{t("tqc.form.new_assessment_title")}</h2>
-        <ReportEntrySection childId={id} scheduleHref={`/admin/customers/children/${id}/schedule`} pendingAppointments={pendingAppointments} />
+        <ReportEntrySection
+          childId={id}
+          scheduleHref={`/admin/customers/children/${id}/schedule`}
+          pendingAppointments={pendingAppointments}
+          availableSelfUseVouchers={availableSelfUseVouchers}
+        />
       </div>
     </div>
   );

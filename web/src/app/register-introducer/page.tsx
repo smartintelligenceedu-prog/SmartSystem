@@ -5,7 +5,13 @@ import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
-export default async function RegisterIntroducerPage() {
+export default async function RegisterIntroducerPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ ref?: string }>;
+}) {
+  const { ref } = await searchParams;
+
   return (
     <main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center px-6 py-16">
       <div className="mb-6 flex items-center justify-between">
@@ -19,7 +25,7 @@ export default async function RegisterIntroducerPage() {
           {await t("register_introducer.subtitle")}
         </p>
       </div>
-      <RegisterIntroducerForm />
+      <RegisterIntroducerForm analystReferralCode={ref} />
     </main>
   );
 }

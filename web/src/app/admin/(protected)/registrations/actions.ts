@@ -1,9 +1,17 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { randomBytes } from "crypto";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendEmail } from "@/lib/notifications";
 import { t } from "@/lib/i18n";
+
+// base64url avoids +/= (URL/display-unsafe) — 12 chars from a 9-byte source,
+// well above the 8-char minimum this system otherwise enforces.
+function generatePassword(): string {
+  return randomBytes(9).toString("base64url");
+}
 
 /**
  * Every action here re-checks is_back_office() against the CALLER's own
@@ -201,17 +209,16 @@ type GrantableExtraRole = (typeof GRANTABLE_EXTRA_ROLES)[number];
 /**
  * Creates the Supabase Auth account + users row for an already-approved
  * analyst and grants 'agent' plus any selected extra roles (leader/pic).
- * Password is set directly by back office here — see the Phase 3 decision
- * to use admin-set initial passwords rather than email invites.
+ * The password is auto-generated and emailed to the analyst directly — back
+ * office never sees or sets it, other than as an on-screen fallback if the
+ * email happens to fail to send (see notifyBackOffice's best-effort note).
  */
 export async function adminCreateAnalystLogin(
   analystId: string,
-  password: string,
   extraRoles: GrantableExtraRole[]
 ): Promise<{ ok: boolean; message: string }> {
   const auth = await requireBackOfficeUserId();
   if ("error" in auth) return { ok: false, message: auth.error };
-  if (password.length < 8) return { ok: false, message: await t("registrations.error.password_min") };
 
   const admin = createAdminClient();
 
@@ -222,8 +229,10 @@ export async function adminCreateAnalystLogin(
   const { data: existingUser } = await admin.from("users").select("id").eq("party_id", analyst.party_id).maybeSingle();
   if (existingUser) return { ok: false, message: await t("registrations.error.already_has_login") };
 
-  const { data: identity } = await admin.from("individuals").select("email").eq("party_id", analyst.party_id).single();
+  const { data: identity } = await admin.from("individuals").select("email, full_name").eq("party_id", analyst.party_id).single();
   if (!identity?.email) return { ok: false, message: await t("registrations.error.no_email") };
+
+  const password = generatePassword();
 
   const { data: authUser, error: authError } = await admin.auth.admin.createUser({
     email: identity.email,
@@ -246,8 +255,17 @@ export async function adminCreateAnalystLogin(
   const inserts = (roleRows ?? []).map((r) => ({ user_id: userRow.id, role_id: r.id, granted_by: auth.userId }));
   if (inserts.length > 0) await admin.from("user_roles").insert(inserts);
 
+  await sendEmail({
+    to: [identity.email],
+    subject: `你的后台账号已开通 - ${identity.full_name}`,
+    html: `<p>${identity.full_name} 你好，</p><p>你的 Smart Intelligence Edu 后台账号已经开通：</p><p>登入邮箱：${identity.email}<br/>初始密码：<strong>${password}</strong></p><p>登入网址：/admin/login，登入后可在「我的帐户」页面自行更改密码。</p>`,
+  });
+
   revalidatePath(`/admin/registrations/${analystId}`);
-  return { ok: true, message: await t("registrations.success.login_created") };
+  return {
+    ok: true,
+    message: `${await t("registrations.success.login_created")}${await t("registrations.login.password_fallback_prefix")}${password}${await t("registrations.login.password_fallback_suffix")}`,
+  };
 }
 
 /**

@@ -1,8 +1,9 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { signOut } from "../../login/actions";
+import { NotificationsBell } from "./notifications-bell";
 import type { PortalUserContext } from "@/lib/auth/context";
-import type { PortalRole } from "@/lib/auth/roles";
+import { isBackOfficeRole, type PortalRole } from "@/lib/auth/roles";
 import { t, type TranslationKey } from "@/lib/i18n";
 
 const ROLE_KEY: Record<PortalRole, TranslationKey> = {
@@ -24,6 +25,7 @@ export async function Header({ context }: { context: PortalUserContext }) {
     <header className="flex items-center justify-between border-b px-6 py-3">
       <div />
       <div className="flex items-center gap-3">
+        {isBackOfficeRole(context) && <NotificationsBell />}
         <div className="text-right">
           <p className="text-sm font-medium leading-tight">{context.fullName}</p>
           <p className="text-xs text-muted-foreground leading-tight">{context.email}</p>

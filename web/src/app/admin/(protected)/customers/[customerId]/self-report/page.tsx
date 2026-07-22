@@ -1,7 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import { getPortalUserContext } from "@/lib/auth/context";
 import { isBackOfficeRole } from "@/lib/auth/roles";
-import { getCustomerSelfContext, getLatestOnePageReportForCustomerSelf } from "../../children/[id]/report/data";
+import { getCustomerSelfContext, getLatestOnePageReportForCustomerSelf, countAvailableSelfUseVouchers } from "../../children/[id]/report/data";
 import { t } from "@/lib/i18n";
 import { ReportPrintButton } from "../../children/[id]/report/print-button";
 import { ReportView } from "../../children/[id]/report/report-view";
@@ -24,9 +24,10 @@ export default async function CustomerSelfReportPage({ params }: { params: Promi
   const canView = isBackOfficeRole(context) || context.analystId === subject.owner_analyst_id;
   if (!canView) redirect("/admin");
 
-  const [report, pendingAppointments] = await Promise.all([
+  const [report, pendingAppointments, availableSelfUseVouchers] = await Promise.all([
     getLatestOnePageReportForCustomerSelf(customerId),
     listPendingAppointmentsForCustomerSelf(customerId),
+    countAvailableSelfUseVouchers(subject.owner_analyst_id),
   ]);
 
   return (
@@ -58,6 +59,7 @@ export default async function CustomerSelfReportPage({ params }: { params: Promi
           customerId={customerId}
           scheduleHref={`/admin/customers/${customerId}/self-schedule`}
           pendingAppointments={pendingAppointments}
+          availableSelfUseVouchers={availableSelfUseVouchers}
         />
       </div>
     </div>
