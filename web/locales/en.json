@@ -1584,6 +1584,7 @@
   "registrations.detail.registration_payment_heading": "Registration & Payment",
   "registrations.detail.field.kit": "Kit",
   "registrations.detail.field.payment_screenshot": "Payment Screenshot",
+  "registrations.detail.back": "Back",
   "registrations.detail.edit_info": "Edit Info",
   "registrations.detail.edit_cancel": "Cancel",
   "registrations.detail.field.full_name": "Full Name",

@@ -1584,6 +1584,7 @@
   "registrations.detail.registration_payment_heading": "注册与缴费",
   "registrations.detail.field.kit": "套装",
   "registrations.detail.field.payment_screenshot": "缴费截图",
+  "registrations.detail.back": "返回",
   "registrations.detail.edit_info": "编辑资料",
   "registrations.detail.edit_cancel": "取消",
   "registrations.detail.field.full_name": "姓名",

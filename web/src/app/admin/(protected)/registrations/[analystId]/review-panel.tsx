@@ -89,6 +89,14 @@ export function ReviewPanel({
 
   return (
     <div className="space-y-6">
+      <button
+        type="button"
+        onClick={() => router.back()}
+        className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+      >
+        ← {ct("registrations.detail.back")}
+      </button>
+
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-xl font-semibold">
