@@ -50,7 +50,7 @@ const TAB_KEY: Record<(typeof TAB_VALUES)[number], TranslationKey> = {
 export default async function RegistrationsListPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; search?: string }>;
 }) {
   // This page renders other people's IC documents, payment screenshots, and
   // bank details — back-office only. The (protected) layout only checks
@@ -62,9 +62,9 @@ export default async function RegistrationsListPage({
     redirect("/admin");
   }
 
-  const { status } = await searchParams;
+  const { status, search } = await searchParams;
   const activeStatus = (status as AnalystStatus | undefined) ?? "pending";
-  const rows = await listRegistrations(activeStatus === ("all" as never) ? undefined : activeStatus);
+  const rows = await listRegistrations(activeStatus === ("all" as never) ? undefined : activeStatus, search);
 
   const statusLabelByStatus = Object.fromEntries(
     await Promise.all(Object.entries(STATUS_KEY).map(async ([k, key]) => [k, await t(key)]))
@@ -84,7 +84,7 @@ export default async function RegistrationsListPage({
         {TAB_VALUES.map((value) => (
           <Link
             key={value}
-            href={`/admin/registrations?status=${value}`}
+            href={`/admin/registrations?status=${value}${search ? `&search=${encodeURIComponent(search)}` : ""}`}
             className={`px-3 py-2 text-sm ${
               activeStatus === value
                 ? "border-b-2 border-foreground font-medium"
@@ -95,6 +95,27 @@ export default async function RegistrationsListPage({
           </Link>
         ))}
       </nav>
+
+      <form method="get" action="/admin/registrations" className="mt-4 flex items-end gap-3">
+        <input type="hidden" name="status" value={activeStatus} />
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-muted-foreground">{await t("registrations.page.search_label")}</label>
+          <input
+            name="search"
+            defaultValue={search}
+            placeholder={await t("registrations.page.search_placeholder")}
+            className="h-9 w-72 rounded-md border bg-background px-3 text-sm"
+          />
+        </div>
+        <button type="submit" className="h-9 rounded-md border px-4 text-sm hover:bg-accent">
+          {await t("registrations.page.search_button")}
+        </button>
+        {search && (
+          <Link href={`/admin/registrations?status=${activeStatus}`} className="text-sm text-muted-foreground hover:underline">
+            {await t("registrations.page.search_clear")}
+          </Link>
+        )}
+      </form>
 
       <div className="mt-4 overflow-x-auto rounded-md border">
         <Table>

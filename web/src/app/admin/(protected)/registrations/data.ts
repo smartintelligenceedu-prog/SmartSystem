@@ -53,7 +53,7 @@ async function loadIndividualsByPartyIds(partyIds: string[]) {
   return new Map((data ?? []).map((row) => [row.party_id, row]));
 }
 
-export async function listRegistrations(statusFilter?: AnalystStatus): Promise<RegistrationListRow[]> {
+export async function listRegistrations(statusFilter?: AnalystStatus, search?: string): Promise<RegistrationListRow[]> {
   const admin = createAdminClient();
 
   let query = admin
@@ -95,7 +95,7 @@ export async function listRegistrations(statusFilter?: AnalystStatus): Promise<R
   const { data: kits } = await admin.from("registration_kits").select("id, name, price").in("id", kitIds.length > 0 ? kitIds : ["00000000-0000-0000-0000-000000000000"]);
   const kitById = new Map((kits ?? []).map((k) => [k.id, k]));
 
-  return analysts.map((a) => {
+  const rows = analysts.map((a) => {
     const identity = individualsByParty.get(a.party_id);
     const regOrder = a.registration_order_id ? regOrderById.get(a.registration_order_id) : null;
     const kit = regOrder ? kitById.get(regOrder.kit_id) : null;
@@ -115,6 +115,12 @@ export async function listRegistrations(statusFilter?: AnalystStatus): Promise<R
       price: kit?.price ?? 0,
     };
   });
+
+  const term = search?.trim().toLowerCase();
+  if (!term) return rows;
+  return rows.filter((r) =>
+    [r.full_name, r.nickname, r.email, r.phone, r.sponsor_name].some((field) => field?.toLowerCase().includes(term))
+  );
 }
 
 export async function getRegistrationDetail(analystId: string): Promise<RegistrationDetail | null> {

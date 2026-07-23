@@ -1525,6 +1525,10 @@
   "registrations.page.column.status": "状态",
   "registrations.page.column.submitted_at": "提交时间",
   "registrations.page.empty": "没有符合的申请",
+  "registrations.page.search_label": "搜索",
+  "registrations.page.search_placeholder": "姓名 / 昵称 / 电邮 / 电话 / 推荐人",
+  "registrations.page.search_button": "搜索",
+  "registrations.page.search_clear": "清除搜索",
 
   "registrations.error.not_signed_in": "请先登入",
   "registrations.error.no_permission": "没有权限执行此操作",

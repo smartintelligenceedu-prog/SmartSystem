@@ -1525,6 +1525,10 @@
   "registrations.page.column.status": "Status",
   "registrations.page.column.submitted_at": "Submitted At",
   "registrations.page.empty": "No matching applications",
+  "registrations.page.search_label": "Search",
+  "registrations.page.search_placeholder": "Name / nickname / email / phone / sponsor",
+  "registrations.page.search_button": "Search",
+  "registrations.page.search_clear": "Clear search",
 
   "registrations.error.not_signed_in": "Please sign in first",
   "registrations.error.no_permission": "You don't have permission to perform this action",
