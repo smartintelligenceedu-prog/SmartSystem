@@ -10,7 +10,6 @@ export const dynamic = "force-dynamic";
 
 const REASON_KEY = {
   not_approved: "certification.status.not_approved",
-  no_locked_voucher: "certification.status.no_locked_voucher",
   already_certified: "certification.status.already_certified",
   no_questions: "certification.status.no_questions",
 } as const;

@@ -53,7 +53,7 @@ export async function getExamQuestions(): Promise<{ questionSet: 1 | 2; question
   return { questionSet, questions: data as ExamQuestion[] };
 }
 
-export type CertificationIneligibleReason = "not_approved" | "no_locked_voucher" | "already_certified" | "no_questions";
+export type CertificationIneligibleReason = "not_approved" | "already_certified" | "no_questions";
 
 export interface CertificationEligibility {
   eligible: boolean;
@@ -61,25 +61,18 @@ export interface CertificationEligibility {
   certifiedAt: string | null;
 }
 
-// Mirrors the same eligibility check the admin's manual
-// adminApproveCertification() button already uses (registrations/data.ts's
-// resale_voucher_locked) — a locked resale voucher is exactly the signal
-// that this analyst is registered, approved, and waiting on certification.
+// Any approved, not-yet-certified analyst can take the exam — not gated on
+// already having a locked resale voucher. Analysts backfilled directly by
+// back office (no kit purchase, so no voucher was ever issued) still need a
+// way to get certified; a voucher created for them later checks
+// certification_passed_at at issue time and skips the lock if they're
+// already certified (see adminApproveRegistration in registrations/actions.ts).
 export async function getMyCertificationEligibility(analystId: string): Promise<CertificationEligibility> {
   const admin = createAdminClient();
   const { data: analyst } = await admin.from("analysts").select("status, certification_passed_at").eq("id", analystId).maybeSingle();
   if (!analyst) return { eligible: false, reason: "not_approved", certifiedAt: null };
   if (analyst.certification_passed_at) return { eligible: false, reason: "already_certified", certifiedAt: analyst.certification_passed_at };
   if (analyst.status !== "approved") return { eligible: false, reason: "not_approved", certifiedAt: null };
-
-  const { data: lockedVoucher } = await admin
-    .from("detection_vouchers")
-    .select("id")
-    .eq("analyst_id", analystId)
-    .eq("voucher_type", "resale")
-    .eq("status", "locked")
-    .maybeSingle();
-  if (!lockedVoucher) return { eligible: false, reason: "no_locked_voucher", certifiedAt: null };
 
   return { eligible: true, reason: null, certifiedAt: null };
 }
