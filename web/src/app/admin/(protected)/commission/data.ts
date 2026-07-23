@@ -15,6 +15,8 @@ export interface CommissionRow {
   adjustment_reason: string | null;
   payee_type: "analyst" | "introducer";
   payee_name: string;
+  analyst_id: string | null;
+  introducer_id: string | null;
   // Only populated for trigger_type = 'introducer' rows (commission_records.
   // customer_id, migration 035) — the customer whose visit earned this
   // referral fee, not the payee. prior_settlement_date is set when this
@@ -29,6 +31,19 @@ export interface CommissionRow {
 }
 
 const RECENT_LIMIT = 200;
+
+// For the "reassign to a different analyst" control — every approved
+// analyst, name-resolved the same "no direct FK, merge flat queries" way as
+// everything else in this file.
+export async function listApprovedAnalystOptions(): Promise<{ id: string; name: string }[]> {
+  const admin = createAdminClient();
+  const { data: analysts } = await admin.from("analysts").select("id, party_id").eq("status", "approved");
+  if (!analysts || analysts.length === 0) return [];
+  const partyIds = analysts.map((a) => a.party_id);
+  const { data: identities } = await admin.from("individuals").select("party_id, full_name").in("party_id", partyIds);
+  const nameByParty = new Map((identities ?? []).map((i) => [i.party_id, i.full_name]));
+  return analysts.map((a) => ({ id: a.id, name: nameByParty.get(a.party_id) ?? "—" }));
+}
 
 // e.g. "0123456789" -> "0123-***6789"; too-short/empty input is masked
 // entirely rather than shown raw.
@@ -144,6 +159,8 @@ export async function listAllCommissions(): Promise<CommissionRow[]> {
       adjustment_reason: r.adjustment_reason,
       payee_type: isIntroducer ? "introducer" : "analyst",
       payee_name: (partyId && nameByParty.get(partyId)) ?? "—",
+      analyst_id: r.analyst_id,
+      introducer_id: r.introducer_id,
       customer_name: customerName,
       customer_phone_masked: customerPhoneMasked,
       prior_settlement_date: priorSettlementDate,

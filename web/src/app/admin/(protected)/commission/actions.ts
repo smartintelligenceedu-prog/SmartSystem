@@ -65,6 +65,55 @@ export async function adminAdjustCommission(
   return { ok: true, message: await t("commission.success.adjusted") };
 }
 
+/**
+ * Permanently removes a commission record — for genuinely wrong entries
+ * (test data, duplicates, a record that should never have been created),
+ * not for correcting an amount (use adminAdjustCommission, which keeps an
+ * audit trail instead). No status/paid_at guard: a back-office user who
+ * deletes a paid record is trusted to know what they're doing, same as
+ * every other hard-delete in this codebase.
+ */
+export async function adminDeleteCommission(recordId: string): Promise<{ ok: boolean; message: string }> {
+  const auth = await requireBackOfficeUserId();
+  if ("error" in auth) return { ok: false, message: auth.error };
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("commission_records").delete().eq("id", recordId);
+  if (error) return { ok: false, message: `${await t("commission.error.delete_failed_prefix")}${error.message}` };
+
+  revalidatePath("/admin/commission");
+  return { ok: true, message: await t("commission.success.deleted") };
+}
+
+/**
+ * Re-points an analyst-payee commission record at a different analyst — for
+ * when the wrong person was attributed at calculation time. Introducer-payee
+ * rows (introducer_id set instead of analyst_id) aren't reassignable through
+ * this action; that would need a structurally different record.
+ */
+export async function adminReassignCommission(
+  recordId: string,
+  newAnalystId: string
+): Promise<{ ok: boolean; message: string }> {
+  const auth = await requireBackOfficeUserId();
+  if ("error" in auth) return { ok: false, message: auth.error };
+
+  const admin = createAdminClient();
+
+  const { data: record } = await admin.from("commission_records").select("analyst_id, introducer_id").eq("id", recordId).maybeSingle();
+  if (!record) return { ok: false, message: await t("commission.error.record_not_found") };
+  if (record.introducer_id) return { ok: false, message: await t("commission.error.cannot_reassign_introducer") };
+
+  const { data: analyst } = await admin.from("analysts").select("id").eq("id", newAnalystId).eq("status", "approved").maybeSingle();
+  if (!analyst) return { ok: false, message: await t("commission.error.analyst_not_found") };
+
+  const { error } = await admin.from("commission_records").update({ analyst_id: newAnalystId }).eq("id", recordId);
+  if (error) return { ok: false, message: `${await t("commission.error.reassign_failed_prefix")}${error.message}` };
+
+  revalidatePath("/admin/commission");
+  return { ok: true, message: await t("commission.success.reassigned") };
+}
+
 // The pending -> approved step commission_engine.sql leaves as a manual SQL
 // UPDATE (see the comment above calculate_report_override_commission) now has
 // a real button here. Approval itself doesn't move money — it just marks the

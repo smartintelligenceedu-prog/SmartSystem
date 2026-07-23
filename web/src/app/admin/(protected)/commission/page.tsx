@@ -3,12 +3,14 @@ import Link from "next/link";
 import { getPortalUserContext } from "@/lib/auth/context";
 import { isBackOfficeRole, hasAnyRole } from "@/lib/auth/roles";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { listAllCommissions } from "./data";
+import { listAllCommissions, listApprovedAnalystOptions } from "./data";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AdjustCommissionCell } from "./adjust-commission-cell";
 import { ApproveCommissionButton } from "./approve-commission-button";
+import { DeleteCommissionButton } from "./delete-commission-button";
+import { ReassignCommissionControl } from "./reassign-commission-control";
 import { t, type TranslationKey } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
@@ -60,7 +62,7 @@ export default async function CommissionPage() {
   if (!isBackOffice && !canSelfView) redirect("/admin");
 
   if (isBackOffice) {
-    const rows = await listAllCommissions();
+    const [rows, analystOptions] = await Promise.all([listAllCommissions(), listApprovedAnalystOptions()]);
     const triggerLabelByType = await resolveLabelMap(TRIGGER_KEY);
     const statusLabelByStatus = await resolveLabelMap(STATUS_KEY);
     const introducerLabel = await t("commission.page.payee_type.introducer");
@@ -149,7 +151,7 @@ export default async function CommissionPage() {
                     <Badge variant={r.status === "paid" ? "secondary" : "outline"}>{statusLabelByStatus[r.status] ?? r.status}</Badge>
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-start gap-2">
+                    <div className="flex flex-wrap items-start gap-2">
                       {r.status === "pending" && <ApproveCommissionButton recordId={r.id} />}
                       <AdjustCommissionCell
                         recordId={r.id}
@@ -158,6 +160,10 @@ export default async function CommissionPage() {
                         customerPhoneMasked={r.customer_phone_masked}
                         priorSettlementDate={r.prior_settlement_date}
                       />
+                      {r.payee_type === "analyst" && (
+                        <ReassignCommissionControl recordId={r.id} currentAnalystId={r.analyst_id} analystOptions={analystOptions} />
+                      )}
+                      <DeleteCommissionButton recordId={r.id} />
                     </div>
                   </TableCell>
                 </TableRow>
