@@ -89,7 +89,6 @@
   "customer.detail.no_orders": "尚无订单",
   "customer.detail.no_commission": "尚无佣金纪录",
   "customer.detail.no_timeline": "尚无纪录",
-  "customer.detail.back_to_list": "返回顾客列表",
   "customer.detail.edit_button": "编辑",
 
   "customer.timeline.created": "建立客户",
@@ -1309,6 +1308,8 @@
   "users.action.reset_password": "重设密码",
   "users.action.confirm_reset_password": "确定要重设这个帐号的密码吗？旧密码会立即失效，新密码会发邮件给本人。",
 
+  "common.back": "返回",
+
   "role.admin": "管理员",
   "role.finance": "财务",
   "role.back_office": "后台人员",
@@ -1584,7 +1585,6 @@
   "registrations.detail.registration_payment_heading": "注册与缴费",
   "registrations.detail.field.kit": "套装",
   "registrations.detail.field.payment_screenshot": "缴费截图",
-  "registrations.detail.back": "返回",
   "registrations.detail.edit_info": "编辑资料",
   "registrations.detail.edit_cancel": "取消",
   "registrations.detail.field.full_name": "姓名",

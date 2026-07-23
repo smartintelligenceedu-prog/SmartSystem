@@ -89,7 +89,6 @@
   "customer.detail.no_orders": "No orders yet",
   "customer.detail.no_commission": "No commission records yet",
   "customer.detail.no_timeline": "No activity yet",
-  "customer.detail.back_to_list": "Back to Customer List",
   "customer.detail.edit_button": "Edit",
 
   "customer.timeline.created": "Customer created",
@@ -1309,6 +1308,8 @@
   "users.action.reset_password": "Reset Password",
   "users.action.confirm_reset_password": "Reset this account's password? Their old password stops working immediately and the new one is emailed to them.",
 
+  "common.back": "Back",
+
   "role.admin": "Admin",
   "role.finance": "Finance",
   "role.back_office": "Back Office",
@@ -1584,7 +1585,6 @@
   "registrations.detail.registration_payment_heading": "Registration & Payment",
   "registrations.detail.field.kit": "Kit",
   "registrations.detail.field.payment_screenshot": "Payment Screenshot",
-  "registrations.detail.back": "Back",
   "registrations.detail.edit_info": "Edit Info",
   "registrations.detail.edit_cancel": "Cancel",
   "registrations.detail.field.full_name": "Full Name",

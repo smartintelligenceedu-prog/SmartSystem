@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { t, type TranslationKey } from "@/lib/i18n";
 import { buildTagLabelMap } from "@/lib/tqc-tags";
+import { BackButton } from "../../_components/back-button";
 
 export const dynamic = "force-dynamic";
 
@@ -116,9 +117,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
     <div className="mx-auto max-w-4xl space-y-8">
       <div className="flex items-start justify-between">
         <div>
-          <Link href="/admin/customers" className="text-xs text-muted-foreground hover:underline">
-            ← {await t("customer.detail.back_to_list")}
-          </Link>
+          <BackButton />
           <h1 className="mt-1 text-xl font-semibold">{detail.full_name}</h1>
         </div>
         <div className="flex items-center gap-2">

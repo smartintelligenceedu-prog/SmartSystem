@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { adminApproveSalesOrder, adminRejectSalesOrder } from "../actions";
 import type { SalesOrderDetail } from "../data";
+import { BackButton } from "../../_components/back-button";
 import { ct } from "@/lib/i18n-client";
 import type { TranslationKey } from "@/lib/i18n-shared";
 
@@ -48,6 +49,8 @@ export function ReviewPanel({ detail }: { detail: SalesOrderDetail }) {
 
   return (
     <div className="space-y-6">
+      <BackButton />
+
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-xl font-semibold">{ct("sales_orders.review.title")}</h1>

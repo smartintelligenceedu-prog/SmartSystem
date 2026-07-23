@@ -25,6 +25,7 @@ import type { RegistrationDetail } from "../data";
 import type { AnalystStatus } from "@/lib/types/registration";
 import { LoginAccountCard } from "./login-account-card";
 import { EditInfoForm } from "./edit-info-form";
+import { BackButton } from "../../_components/back-button";
 import { ct } from "@/lib/i18n-client";
 
 const STATUS_KEY: Record<AnalystStatus, "dashboard.agent.status.pending" | "dashboard.agent.status.approved" | "dashboard.agent.status.suspended" | "dashboard.agent.status.rejected" | "dashboard.agent.status.terminated"> = {
@@ -89,13 +90,7 @@ export function ReviewPanel({
 
   return (
     <div className="space-y-6">
-      <button
-        type="button"
-        onClick={() => router.back()}
-        className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        ← {ct("registrations.detail.back")}
-      </button>
+      <BackButton />
 
       <div className="flex items-start justify-between">
         <div>
