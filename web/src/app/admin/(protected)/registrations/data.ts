@@ -19,8 +19,11 @@ export interface RegistrationListRow {
 
 export interface RegistrationDetail extends RegistrationListRow {
   party_id: string;
-  registration_order_id: string;
-  order_id: string;
+  // Null for analysts backfilled directly by back office (no kit purchase
+  // ever happened) rather than through the public /register flow — see the
+  // same conditional handling in getRegistrationDetail below.
+  registration_order_id: string | null;
+  order_id: string | null;
   ic_or_passport_no: string;
   bank_name: string | null;
   bank_account_name: string | null;
@@ -123,7 +126,7 @@ export async function getRegistrationDetail(analystId: string): Promise<Registra
     )
     .eq("id", analystId)
     .maybeSingle();
-  if (!analyst || !analyst.registration_order_id) return null;
+  if (!analyst) return null;
 
   const { data: lockedVoucher } = await admin
     .from("detection_vouchers")
@@ -140,14 +143,22 @@ export async function getRegistrationDetail(analystId: string): Promise<Registra
     .maybeSingle();
   if (!identity) return null;
 
-  const { data: regOrder } = await admin
-    .from("registration_orders")
-    .select("id, order_id, kit_id, ic_document_url, payment_screenshot_url, rejection_reason")
-    .eq("id", analyst.registration_order_id)
-    .maybeSingle();
-  if (!regOrder) return null;
-
-  const { data: kit } = await admin.from("registration_kits").select("name, price").eq("id", regOrder.kit_id).maybeSingle();
+  // Null for a backfilled analyst (created directly by back office, no kit
+  // purchase) — everything below in this block stays null/"—" for them.
+  let regOrder: { id: string; order_id: string; kit_id: string; ic_document_url: string | null; payment_screenshot_url: string | null; rejection_reason: string | null } | null = null;
+  let kit: { name: string; price: number } | null = null;
+  if (analyst.registration_order_id) {
+    const { data } = await admin
+      .from("registration_orders")
+      .select("id, order_id, kit_id, ic_document_url, payment_screenshot_url, rejection_reason")
+      .eq("id", analyst.registration_order_id)
+      .maybeSingle();
+    regOrder = data;
+    if (regOrder) {
+      const { data: kitData } = await admin.from("registration_kits").select("name, price").eq("id", regOrder.kit_id).maybeSingle();
+      kit = kitData;
+    }
+  }
 
   let sponsorName: string | null = null;
   if (analyst.sponsor_id) {
@@ -158,10 +169,12 @@ export async function getRegistrationDetail(analystId: string): Promise<Registra
     }
   }
 
-  const [icUrl, paymentUrl] = await Promise.all([
-    getSignedDocumentUrl("ic-documents", regOrder.ic_document_url),
-    getSignedDocumentUrl("payment-screenshots", regOrder.payment_screenshot_url),
-  ]);
+  const [icUrl, paymentUrl] = regOrder
+    ? await Promise.all([
+        getSignedDocumentUrl("ic-documents", regOrder.ic_document_url),
+        getSignedDocumentUrl("payment-screenshots", regOrder.payment_screenshot_url),
+      ])
+    : [null, null];
 
   const { data: userRow } = await admin.from("users").select("id").eq("party_id", analyst.party_id).maybeSingle();
   let portalRoles: PortalRole[] = [];
@@ -175,8 +188,8 @@ export async function getRegistrationDetail(analystId: string): Promise<Registra
   return {
     analyst_id: analyst.id,
     party_id: analyst.party_id,
-    registration_order_id: regOrder.id,
-    order_id: regOrder.order_id,
+    registration_order_id: regOrder?.id ?? null,
+    order_id: regOrder?.order_id ?? null,
     status: analyst.status as AnalystStatus,
     created_at: analyst.created_at,
     full_name: identity.full_name,
@@ -192,7 +205,7 @@ export async function getRegistrationDetail(analystId: string): Promise<Registra
     assigned_leader_id: analyst.assigned_leader_id,
     kit_name: kit?.name ?? "—",
     price: kit?.price ?? 0,
-    rejection_reason: regOrder.rejection_reason,
+    rejection_reason: regOrder?.rejection_reason ?? null,
     ic_document_signed_url: icUrl,
     payment_screenshot_signed_url: paymentUrl,
     has_login: !!userRow,

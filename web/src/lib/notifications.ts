@@ -46,7 +46,12 @@ export async function sendEmail({ to, subject, html }: { to: string[]; subject: 
     const recipients = to.length > 0 ? to : BCC_ADDRESS ? [BCC_ADDRESS] : [];
     if (recipients.length === 0) return;
     const bcc = to.length > 0 && BCC_ADDRESS ? [BCC_ADDRESS] : undefined;
-    await resend.emails.send({ from: FROM_ADDRESS, to: recipients, subject, html, ...(bcc ? { bcc } : {}) });
+    // resend.emails.send() does NOT throw for API-level errors (e.g. an
+    // unverified sending domain) — it resolves normally with `{ data: null,
+    // error }`. Only checking for a thrown exception silently treats a
+    // rejected send as success, so this must be checked explicitly.
+    const { error } = await resend.emails.send({ from: FROM_ADDRESS, to: recipients, subject, html, ...(bcc ? { bcc } : {}) });
+    if (error) console.error("sendEmail rejected by Resend:", error);
   } catch (err) {
     console.error("sendEmail failed:", err);
   }

@@ -127,13 +127,15 @@ export function ReviewPanel({
         </CardContent>
       </Card>
 
-      <Card>
-        <CardContent className="space-y-4 pt-6">
-          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{ct("registrations.detail.registration_payment_heading")}</p>
-          <Field label={ct("registrations.detail.field.kit")} value={`${detail.kit_name} · ${formatMYR(detail.price)}`} />
-          <DocumentLink label={ct("registrations.detail.field.payment_screenshot")} url={detail.payment_screenshot_signed_url} />
-        </CardContent>
-      </Card>
+      {detail.registration_order_id && (
+        <Card>
+          <CardContent className="space-y-4 pt-6">
+            <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{ct("registrations.detail.registration_payment_heading")}</p>
+            <Field label={ct("registrations.detail.field.kit")} value={`${detail.kit_name} · ${formatMYR(detail.price)}`} />
+            <DocumentLink label={ct("registrations.detail.field.payment_screenshot")} url={detail.payment_screenshot_signed_url} />
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="space-y-3 pt-6">
