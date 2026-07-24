@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -27,7 +28,14 @@ export function ScheduleForm({
   centers: CenterOption[];
   devices: DeviceOption[];
 }) {
+  const router = useRouter();
   const [state, formAction, isPending] = useActionState(scheduleAppointment, initialState);
+
+  useEffect(() => {
+    if (state.status === "success") {
+      router.push(childId ? `/admin/customers/children/${childId}/report` : `/admin/customers/${customerId}/self-report`);
+    }
+  }, [state, router, childId, customerId]);
 
   return (
     <Card>
@@ -87,7 +95,6 @@ export function ScheduleForm({
               {state.message}
             </p>
           )}
-          {state.status === "success" && <p className="text-sm">{ct("schedule.form.success")}</p>}
 
           <Button type="submit" disabled={isPending}>
             {ct("schedule.form.submit")}
