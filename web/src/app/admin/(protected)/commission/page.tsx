@@ -3,7 +3,7 @@ import Link from "next/link";
 import { getPortalUserContext } from "@/lib/auth/context";
 import { isBackOfficeRole, hasAnyRole } from "@/lib/auth/roles";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { listAllCommissions, listApprovedAnalystOptions } from "./data";
+import { listAllCommissions, listApprovedAnalystOptions, resolveCommissionSourceNames } from "./data";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -51,6 +51,8 @@ interface SelfCommissionRow {
   status: string;
   calculated_at: string;
   adjustment_reason: string | null;
+  source_transaction_type: string;
+  source_transaction_id: string;
 }
 
 export default async function CommissionPage() {
@@ -188,13 +190,21 @@ export default async function CommissionPage() {
   const supabase = await createServerSupabaseClient();
   const query = supabase
     .from("commission_records")
-    .select("id, trigger_type, calculation_type, rate_applied, base_amount, commission_amount, original_amount, status, calculated_at, adjustment_reason")
+    .select(
+      "id, trigger_type, calculation_type, rate_applied, base_amount, commission_amount, original_amount, status, calculated_at, adjustment_reason, source_transaction_type, source_transaction_id"
+    )
     .order("calculated_at", { ascending: false })
     .limit(100);
   const { data } = context.analystId
     ? await query.eq("analyst_id", context.analystId)
     : await query.eq("introducer_id", context.introducerId as string);
   const rows = (data ?? []) as SelfCommissionRow[];
+
+  // Same "who actually generated this" resolution as the back-office view —
+  // hidden when the source turns out to be the viewer themselves (e.g.
+  // analyst_report_fee, always sourced from your own order_item).
+  const sourceByRecordId = await resolveCommissionSourceNames(rows);
+  const sourcePrefix = await t("commission.page.source_prefix");
 
   const total = rows.reduce((sum, r) => sum + r.commission_amount, 0);
   const selfTriggerLabelByType = await resolveLabelMap(TRIGGER_KEY);
@@ -227,6 +237,12 @@ export default async function CommissionPage() {
                 <p className="text-xs text-muted-foreground">
                   {adjustedPrefix}
                   {r.adjustment_reason}
+                </p>
+              )}
+              {sourceByRecordId.has(r.id) && sourceByRecordId.get(r.id)!.analystId !== context.analystId && (
+                <p className="text-xs text-muted-foreground">
+                  {sourcePrefix}
+                  {sourceByRecordId.get(r.id)!.name}
                 </p>
               )}
             </div>

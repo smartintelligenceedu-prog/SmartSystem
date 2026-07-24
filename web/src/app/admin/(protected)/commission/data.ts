@@ -41,6 +41,71 @@ export interface CommissionRow {
 
 const RECENT_LIMIT = 200;
 
+export interface CommissionSourceInput {
+  id: string;
+  trigger_type: string;
+  source_transaction_type: string;
+  source_transaction_id: string;
+}
+
+export interface CommissionSource {
+  name: string;
+  analystId: string | null;
+}
+
+// Shared source-resolution used by both the back-office list (listAllCommissions
+// below) and the self-view (an analyst checking their own commission page) —
+// "who actually generated this" as opposed to "who gets paid". Uses the admin
+// client since resolving another analyst's name (e.g. a leader's downline) is
+// outside what a plain analyst session's RLS would allow to read directly,
+// even though seeing it here is fine — it's already implied by the org
+// structure a leader can see on their own Team page.
+export async function resolveCommissionSourceNames(records: CommissionSourceInput[]): Promise<Map<string, CommissionSource>> {
+  const admin = createAdminClient();
+
+  const orderItemSourceIds = [
+    ...new Set(records.filter((r) => r.source_transaction_type === "order_item").map((r) => r.source_transaction_id)),
+  ];
+  const recruitmentOrderIds = [
+    ...new Set(records.filter((r) => r.trigger_type === "recruitment" && r.source_transaction_type === "order").map((r) => r.source_transaction_id)),
+  ];
+  const [{ data: sourceItems }, { data: sourceRegOrders }] = await Promise.all([
+    orderItemSourceIds.length > 0
+      ? admin.from("order_items").select("id, analyst_id").in("id", orderItemSourceIds)
+      : Promise.resolve({ data: [] }),
+    recruitmentOrderIds.length > 0
+      ? admin.from("registration_orders").select("order_id, party_id").in("order_id", recruitmentOrderIds)
+      : Promise.resolve({ data: [] }),
+  ]);
+  const sourceAnalystByItemId = new Map((sourceItems ?? []).filter((i) => i.analyst_id).map((i) => [i.id, i.analyst_id as string]));
+  const sourcePartyByOrderId = new Map((sourceRegOrders ?? []).map((o) => [o.order_id, o.party_id as string]));
+  const sourceAnalystIds = [...new Set(sourceAnalystByItemId.values())];
+
+  const { data: analysts } =
+    sourceAnalystIds.length > 0 ? await admin.from("analysts").select("id, party_id").in("id", sourceAnalystIds) : { data: [] };
+  const partyByAnalyst = new Map((analysts ?? []).map((a) => [a.id, a.party_id]));
+
+  const partyIds = [...new Set([...partyByAnalyst.values(), ...sourcePartyByOrderId.values()])];
+  const { data: identities } =
+    partyIds.length > 0 ? await admin.from("individuals").select("party_id, full_name").in("party_id", partyIds) : { data: [] };
+  const nameByParty = new Map((identities ?? []).map((i) => [i.party_id, i.full_name]));
+
+  const result = new Map<string, CommissionSource>();
+  for (const r of records) {
+    if (r.trigger_type === "recruitment" && r.source_transaction_type === "order") {
+      const sourceParty = sourcePartyByOrderId.get(r.source_transaction_id);
+      const name = sourceParty && nameByParty.get(sourceParty);
+      if (name) result.set(r.id, { name, analystId: null });
+    } else if (r.source_transaction_type === "order_item") {
+      const sourceAnalystId = sourceAnalystByItemId.get(r.source_transaction_id) ?? null;
+      const sourceParty = sourceAnalystId ? partyByAnalyst.get(sourceAnalystId) : null;
+      const name = sourceParty && nameByParty.get(sourceParty);
+      if (name) result.set(r.id, { name, analystId: sourceAnalystId });
+    }
+  }
+  return result;
+}
+
 // For the "reassign to a different analyst" control — every approved
 // analyst, name-resolved the same "no direct FK, merge flat queries" way as
 // everything else in this file.
