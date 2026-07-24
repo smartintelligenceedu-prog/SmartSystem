@@ -83,7 +83,7 @@ export function RegisterForm({
 
             <div className="space-y-2">
               <Label htmlFor="ic_document">{ct("register.form.ic_document_label")}</Label>
-              <Input id="ic_document" name="ic_document" type="file" accept="image/*,.pdf" required />
+              <Input id="ic_document" name="ic_document" type="file" accept="image/jpeg,image/png,image/webp,.pdf" required />
             </div>
           </section>
 
@@ -164,7 +164,7 @@ export function RegisterForm({
                 id="payment_screenshot"
                 name="payment_screenshot"
                 type="file"
-                accept="image/*,.pdf"
+                accept="image/jpeg,image/png,image/webp,.pdf"
                 required
               />
               <p className="text-xs text-muted-foreground">
