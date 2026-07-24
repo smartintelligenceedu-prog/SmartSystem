@@ -68,6 +68,7 @@ export default async function CommissionPage() {
     const introducerLabel = await t("commission.page.payee_type.introducer");
     const analystLabel = await t("commission.page.payee_type.analyst");
     const customerPrefix = await t("commission.page.customer_prefix");
+    const sourcePrefix = await t("commission.page.source_prefix");
     const priorSettlementPrefix = await t("commission.cell.prior_settlement_prefix");
     const priorSettlementSuffix = await t("commission.cell.prior_settlement_suffix");
     const flatAmountLabel = await t("commission.page.flat_amount");
@@ -130,6 +131,12 @@ export default async function CommissionPage() {
                             {priorSettlementSuffix}
                           </span>
                         )}
+                      </div>
+                    )}
+                    {r.source_name && (
+                      <div className="mt-0.5 text-xs text-muted-foreground">
+                        {sourcePrefix}
+                        {r.source_name}
                       </div>
                     )}
                   </TableCell>

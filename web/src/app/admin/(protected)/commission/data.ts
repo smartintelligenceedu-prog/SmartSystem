@@ -28,6 +28,15 @@ export interface CommissionRow {
   customer_name: string | null;
   customer_phone_masked: string | null;
   prior_settlement_date: string | null;
+  // Who actually generated this commission — the newly-recruited analyst for
+  // 'recruitment' rows, or the performing analyst on the underlying
+  // order_item for 'personal_sale' / 'report_override' / 'analyst_report_fee'
+  // / 'voucher_resale' rows. Distinct from payee_name: e.g. a report_override
+  // row is PAID to the leader but SOURCED FROM their downline's delivered
+  // report — this is what answers "which agent did this actually come from".
+  // Null when the source is the same person as the payee (nothing useful to
+  // add) or for trigger_type = 'introducer' (customer_name already covers it).
+  source_name: string | null;
 }
 
 const RECENT_LIMIT = 200;
@@ -63,13 +72,40 @@ export async function listAllCommissions(): Promise<CommissionRow[]> {
   const { data: records } = await admin
     .from("commission_records")
     .select(
-      "id, trigger_type, calculation_type, rate_applied, base_amount, commission_amount, original_amount, status, calculated_at, adjusted_at, adjustment_reason, analyst_id, introducer_id, customer_id"
+      "id, trigger_type, calculation_type, rate_applied, base_amount, commission_amount, original_amount, status, calculated_at, adjusted_at, adjustment_reason, analyst_id, introducer_id, customer_id, source_transaction_type, source_transaction_id"
     )
     .order("calculated_at", { ascending: false })
     .limit(RECENT_LIMIT);
   if (!records || records.length === 0) return [];
 
-  const analystIds = [...new Set(records.filter((r) => r.analyst_id).map((r) => r.analyst_id as string))];
+  // Source resolution — who actually generated the commission, as opposed to
+  // who gets paid. order_item-sourced trigger types (personal_sale,
+  // report_override, analyst_report_fee, voucher_resale) look up that item's
+  // own analyst_id; recruitment (order-sourced) looks up the registration's
+  // party via registration_orders. introducer rows already carry customer_id
+  // for this purpose and are skipped here.
+  const orderItemSourceIds = [
+    ...new Set(records.filter((r) => r.source_transaction_type === "order_item").map((r) => r.source_transaction_id)),
+  ];
+  const recruitmentOrderIds = [
+    ...new Set(records.filter((r) => r.trigger_type === "recruitment" && r.source_transaction_type === "order").map((r) => r.source_transaction_id)),
+  ];
+  const [{ data: sourceItems }, { data: sourceRegOrders }] = await Promise.all([
+    orderItemSourceIds.length > 0
+      ? admin.from("order_items").select("id, analyst_id").in("id", orderItemSourceIds)
+      : Promise.resolve({ data: [] }),
+    recruitmentOrderIds.length > 0
+      ? admin.from("registration_orders").select("order_id, party_id").in("order_id", recruitmentOrderIds)
+      : Promise.resolve({ data: [] }),
+  ]);
+  const sourceAnalystByItemId = new Map((sourceItems ?? []).filter((i) => i.analyst_id).map((i) => [i.id, i.analyst_id as string]));
+  const sourcePartyByOrderId = new Map((sourceRegOrders ?? []).map((o) => [o.order_id, o.party_id as string]));
+
+  const sourceAnalystIds = [...new Set([...sourceAnalystByItemId.values()])];
+
+  const analystIds = [
+    ...new Set([...records.filter((r) => r.analyst_id).map((r) => r.analyst_id as string), ...sourceAnalystIds]),
+  ];
   const introducerIds = [...new Set(records.filter((r) => r.introducer_id).map((r) => r.introducer_id as string))];
 
   // Every approved/paid introducer commission ever calculated (not just the
@@ -96,7 +132,12 @@ export async function listAllCommissions(): Promise<CommissionRow[]> {
   ]);
 
   const partyIds = [
-    ...new Set([...(analysts ?? []).map((a) => a.party_id), ...(introducers ?? []).map((i) => i.party_id), ...(customers ?? []).map((c) => c.party_id)]),
+    ...new Set([
+      ...(analysts ?? []).map((a) => a.party_id),
+      ...(introducers ?? []).map((i) => i.party_id),
+      ...(customers ?? []).map((c) => c.party_id),
+      ...sourcePartyByOrderId.values(),
+    ]),
   ];
   const { data: identities } =
     partyIds.length > 0
@@ -145,6 +186,21 @@ export async function listAllCommissions(): Promise<CommissionRow[]> {
       }
     }
 
+    let sourceName: string | null = null;
+    if (r.trigger_type === "recruitment" && r.source_transaction_type === "order") {
+      const sourceParty = sourcePartyByOrderId.get(r.source_transaction_id);
+      sourceName = (sourceParty && nameByParty.get(sourceParty)) ?? null;
+    } else if (r.source_transaction_type === "order_item") {
+      const sourceAnalystId = sourceAnalystByItemId.get(r.source_transaction_id);
+      const sourceParty = sourceAnalystId ? partyByAnalyst.get(sourceAnalystId) : null;
+      sourceName = (sourceParty && nameByParty.get(sourceParty)) ?? null;
+    }
+    // Nothing useful to add when the source is the same person as the payee
+    // (e.g. analyst_report_fee, which is always paid to whoever performed
+    // the work — "sourced from yourself" isn't a meaningful distinction).
+    const payeeNameForCompare = (partyId && nameByParty.get(partyId)) ?? "—";
+    if (sourceName === payeeNameForCompare) sourceName = null;
+
     return {
       id: r.id,
       trigger_type: r.trigger_type,
@@ -158,7 +214,8 @@ export async function listAllCommissions(): Promise<CommissionRow[]> {
       adjusted_at: r.adjusted_at,
       adjustment_reason: r.adjustment_reason,
       payee_type: isIntroducer ? "introducer" : "analyst",
-      payee_name: (partyId && nameByParty.get(partyId)) ?? "—",
+      payee_name: payeeNameForCompare,
+      source_name: sourceName,
       analyst_id: r.analyst_id,
       introducer_id: r.introducer_id,
       customer_name: customerName,

@@ -388,6 +388,7 @@
   "commission.page.payee_type.introducer": "Introducer",
   "commission.page.payee_type.analyst": "Analyst",
   "commission.page.customer_prefix": "Customer: ",
+  "commission.page.source_prefix": "Source: ",
   "commission.page.flat_amount": "Flat Amount",
   "commission.page.original_amount_prefix": "Was ",
   "commission.page.self_title": "My Commission",

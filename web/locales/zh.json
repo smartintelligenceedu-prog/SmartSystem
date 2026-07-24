@@ -388,6 +388,7 @@
   "commission.page.payee_type.introducer": "引荐人",
   "commission.page.payee_type.analyst": "分析师",
   "commission.page.customer_prefix": "顾客：",
+  "commission.page.source_prefix": "来源：",
   "commission.page.flat_amount": "固定金额",
   "commission.page.original_amount_prefix": "原 ",
   "commission.page.self_title": "我的佣金",
