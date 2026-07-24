@@ -49,8 +49,9 @@ export interface CommissionSourceInput {
 }
 
 export interface CommissionSource {
-  name: string;
+  name: string | null;
   analystId: string | null;
+  customerName: string | null;
 }
 
 // Shared source-resolution used by both the back-office list (listAllCommissions
@@ -71,13 +72,14 @@ export async function resolveCommissionSourceNames(records: CommissionSourceInpu
   ];
   const [{ data: sourceItems }, { data: sourceRegOrders }] = await Promise.all([
     orderItemSourceIds.length > 0
-      ? admin.from("order_items").select("id, analyst_id").in("id", orderItemSourceIds)
+      ? admin.from("order_items").select("id, analyst_id, customer_id").in("id", orderItemSourceIds)
       : Promise.resolve({ data: [] }),
     recruitmentOrderIds.length > 0
       ? admin.from("registration_orders").select("order_id, party_id").in("order_id", recruitmentOrderIds)
       : Promise.resolve({ data: [] }),
   ]);
   const sourceAnalystByItemId = new Map((sourceItems ?? []).filter((i) => i.analyst_id).map((i) => [i.id, i.analyst_id as string]));
+  const itemCustomerByItemId = new Map((sourceItems ?? []).filter((i) => i.customer_id).map((i) => [i.id, i.customer_id as string]));
   const sourcePartyByOrderId = new Map((sourceRegOrders ?? []).map((o) => [o.order_id, o.party_id as string]));
   const sourceAnalystIds = [...new Set(sourceAnalystByItemId.values())];
 
@@ -85,23 +87,37 @@ export async function resolveCommissionSourceNames(records: CommissionSourceInpu
     sourceAnalystIds.length > 0 ? await admin.from("analysts").select("id, party_id").in("id", sourceAnalystIds) : { data: [] };
   const partyByAnalyst = new Map((analysts ?? []).map((a) => [a.id, a.party_id]));
 
-  const partyIds = [...new Set([...partyByAnalyst.values(), ...sourcePartyByOrderId.values()])];
+  const customerIds = [...new Set(itemCustomerByItemId.values())];
+  const { data: customers } =
+    customerIds.length > 0 ? await admin.from("customers").select("id, party_id").in("id", customerIds) : { data: [] };
+  const partyByCustomer = new Map((customers ?? []).map((c) => [c.id, c.party_id]));
+
+  const partyIds = [...new Set([...partyByAnalyst.values(), ...sourcePartyByOrderId.values(), ...partyByCustomer.values()])];
   const { data: identities } =
     partyIds.length > 0 ? await admin.from("individuals").select("party_id, full_name").in("party_id", partyIds) : { data: [] };
   const nameByParty = new Map((identities ?? []).map((i) => [i.party_id, i.full_name]));
 
   const result = new Map<string, CommissionSource>();
   for (const r of records) {
+    let name: string | null = null;
+    let analystId: string | null = null;
     if (r.trigger_type === "recruitment" && r.source_transaction_type === "order") {
       const sourceParty = sourcePartyByOrderId.get(r.source_transaction_id);
-      const name = sourceParty && nameByParty.get(sourceParty);
-      if (name) result.set(r.id, { name, analystId: null });
+      name = (sourceParty && nameByParty.get(sourceParty)) ?? null;
     } else if (r.source_transaction_type === "order_item") {
-      const sourceAnalystId = sourceAnalystByItemId.get(r.source_transaction_id) ?? null;
-      const sourceParty = sourceAnalystId ? partyByAnalyst.get(sourceAnalystId) : null;
-      const name = sourceParty && nameByParty.get(sourceParty);
-      if (name) result.set(r.id, { name, analystId: sourceAnalystId });
+      analystId = sourceAnalystByItemId.get(r.source_transaction_id) ?? null;
+      const sourceParty = analystId ? partyByAnalyst.get(analystId) : null;
+      name = (sourceParty && nameByParty.get(sourceParty)) ?? null;
     }
+
+    let customerName: string | null = null;
+    const customerId = itemCustomerByItemId.get(r.source_transaction_id);
+    if (customerId) {
+      const customerParty = partyByCustomer.get(customerId);
+      customerName = (customerParty && nameByParty.get(customerParty)) ?? null;
+    }
+
+    if (name || customerName) result.set(r.id, { name, analystId, customerName });
   }
   return result;
 }
@@ -157,13 +173,18 @@ export async function listAllCommissions(): Promise<CommissionRow[]> {
   ];
   const [{ data: sourceItems }, { data: sourceRegOrders }] = await Promise.all([
     orderItemSourceIds.length > 0
-      ? admin.from("order_items").select("id, analyst_id").in("id", orderItemSourceIds)
+      ? admin.from("order_items").select("id, analyst_id, customer_id").in("id", orderItemSourceIds)
       : Promise.resolve({ data: [] }),
     recruitmentOrderIds.length > 0
       ? admin.from("registration_orders").select("order_id, party_id").in("order_id", recruitmentOrderIds)
       : Promise.resolve({ data: [] }),
   ]);
   const sourceAnalystByItemId = new Map((sourceItems ?? []).filter((i) => i.analyst_id).map((i) => [i.id, i.analyst_id as string]));
+  // The customer whose order this commission came from — populated for every
+  // order_item-sourced row (not just 'introducer'), so e.g. an
+  // analyst_report_fee row (always self-sourced, no useful "different
+  // agent" to show) can still show which customer's report earned it.
+  const itemCustomerByItemId = new Map((sourceItems ?? []).filter((i) => i.customer_id).map((i) => [i.id, i.customer_id as string]));
   const sourcePartyByOrderId = new Map((sourceRegOrders ?? []).map((o) => [o.order_id, o.party_id as string]));
 
   const sourceAnalystIds = [...new Set([...sourceAnalystByItemId.values()])];
@@ -186,7 +207,9 @@ export async function listAllCommissions(): Promise<CommissionRow[]> {
 
   const visibleCustomerIds = records.filter((r) => r.customer_id).map((r) => r.customer_id as string);
   const priorCustomerIds = (priorIntroRecords ?? []).map((r) => r.customer_id as string);
-  const allCustomerIds = [...new Set([...visibleCustomerIds, ...priorCustomerIds])];
+  const allCustomerIds = [
+    ...new Set([...visibleCustomerIds, ...priorCustomerIds, ...itemCustomerByItemId.values()]),
+  ];
 
   const [{ data: analysts }, { data: introducers }, { data: customers }] = await Promise.all([
     analystIds.length > 0 ? admin.from("analysts").select("id, party_id").in("id", analystIds) : Promise.resolve({ data: [] }),
@@ -237,34 +260,40 @@ export async function listAllCommissions(): Promise<CommissionRow[]> {
     let customerName: string | null = null;
     let customerPhoneMasked: string | null = null;
     let priorSettlementDate: string | null = null;
-    if (r.trigger_type === "introducer" && r.customer_id) {
-      const customerParty = partyByCustomer.get(r.customer_id);
+    const customerIdForRow = r.trigger_type === "introducer" ? r.customer_id : itemCustomerByItemId.get(r.source_transaction_id);
+    if (customerIdForRow) {
+      const customerParty = partyByCustomer.get(customerIdForRow);
       customerName = (customerParty && nameByParty.get(customerParty)) ?? null;
-      const phone = phoneByCustomer.get(r.customer_id) ?? null;
+      const phone = phoneByCustomer.get(customerIdForRow) ?? null;
       customerPhoneMasked = phone ? maskPhone(phone) : null;
-      const earliest = phone ? earliestByPhone.get(phone) : undefined;
-      // Only a hint if the earliest record belongs to a DIFFERENT customer_id
-      // than this row's own — a customer's own first (and only) settlement
-      // isn't "prior history", it's just itself.
-      if (earliest && earliest.customerId !== r.customer_id) {
-        priorSettlementDate = earliest.date;
+      if (r.trigger_type === "introducer") {
+        // Only a hint if the earliest record belongs to a DIFFERENT
+        // customer_id than this row's own — a customer's own first (and
+        // only) settlement isn't "prior history", it's just itself.
+        const earliest = phone ? earliestByPhone.get(phone) : undefined;
+        if (earliest && earliest.customerId !== customerIdForRow) {
+          priorSettlementDate = earliest.date;
+        }
       }
     }
 
     let sourceName: string | null = null;
+    let sourceAnalystId: string | null = null;
     if (r.trigger_type === "recruitment" && r.source_transaction_type === "order") {
       const sourceParty = sourcePartyByOrderId.get(r.source_transaction_id);
       sourceName = (sourceParty && nameByParty.get(sourceParty)) ?? null;
     } else if (r.source_transaction_type === "order_item") {
-      const sourceAnalystId = sourceAnalystByItemId.get(r.source_transaction_id);
+      sourceAnalystId = sourceAnalystByItemId.get(r.source_transaction_id) ?? null;
       const sourceParty = sourceAnalystId ? partyByAnalyst.get(sourceAnalystId) : null;
       sourceName = (sourceParty && nameByParty.get(sourceParty)) ?? null;
     }
-    // Nothing useful to add when the source is the same person as the payee
+    // Nothing useful to add when the source is the same analyst as the payee
     // (e.g. analyst_report_fee, which is always paid to whoever performed
     // the work — "sourced from yourself" isn't a meaningful distinction).
+    // Compared by id, not name, so two different people who happen to share
+    // a name are never conflated.
+    if (!isIntroducer && sourceAnalystId && sourceAnalystId === r.analyst_id) sourceName = null;
     const payeeNameForCompare = (partyId && nameByParty.get(partyId)) ?? "—";
-    if (sourceName === payeeNameForCompare) sourceName = null;
 
     return {
       id: r.id,

@@ -205,6 +205,7 @@ export default async function CommissionPage() {
   // analyst_report_fee, always sourced from your own order_item).
   const sourceByRecordId = await resolveCommissionSourceNames(rows);
   const sourcePrefix = await t("commission.page.source_prefix");
+  const selfCustomerPrefix = await t("commission.page.customer_prefix");
 
   const total = rows.reduce((sum, r) => sum + r.commission_amount, 0);
   const selfTriggerLabelByType = await resolveLabelMap(TRIGGER_KEY);
@@ -239,10 +240,16 @@ export default async function CommissionPage() {
                   {r.adjustment_reason}
                 </p>
               )}
-              {sourceByRecordId.has(r.id) && sourceByRecordId.get(r.id)!.analystId !== context.analystId && (
+              {sourceByRecordId.get(r.id)?.name && sourceByRecordId.get(r.id)!.analystId !== context.analystId && (
                 <p className="text-xs text-muted-foreground">
                   {sourcePrefix}
                   {sourceByRecordId.get(r.id)!.name}
+                </p>
+              )}
+              {sourceByRecordId.get(r.id)?.customerName && (
+                <p className="text-xs text-muted-foreground">
+                  {selfCustomerPrefix}
+                  {sourceByRecordId.get(r.id)!.customerName}
                 </p>
               )}
             </div>
