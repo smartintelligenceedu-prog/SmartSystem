@@ -18,7 +18,10 @@ export default async function EditCustomerPage({ params }: { params: Promise<{ c
   const isBackOffice = isBackOfficeRole(context);
   if (!isBackOffice && detail.owner_analyst_id !== context.analystId) redirect("/admin/customers");
 
-  const [children, introducers] = await Promise.all([listCustomerChildren(customerId), listActiveIntroducersForAttribution()]);
+  const [children, introducers] = await Promise.all([
+    listCustomerChildren(customerId),
+    listActiveIntroducersForAttribution(isBackOffice ? undefined : context.analystId),
+  ]);
 
   return (
     <div className="mx-auto max-w-lg space-y-6">

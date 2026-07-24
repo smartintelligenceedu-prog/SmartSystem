@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getPortalUserContext } from "@/lib/auth/context";
+import { isBackOfficeRole } from "@/lib/auth/roles";
 import { listActiveIntroducersForAttribution } from "../data";
 import { getLeadForConversion } from "../../leads/data";
 import { CustomerForm, type CustomerFormInitialValues } from "../customer-form";
@@ -13,8 +14,9 @@ export default async function NewCustomerPage({ searchParams }: { searchParams: 
   if (!context.analystId) redirect("/admin");
 
   const { lead_id } = await searchParams;
+  const isBackOffice = isBackOfficeRole(context);
   const [introducers, lead] = await Promise.all([
-    listActiveIntroducersForAttribution(),
+    listActiveIntroducersForAttribution(isBackOffice ? undefined : context.analystId),
     lead_id ? getLeadForConversion(lead_id) : Promise.resolve(null),
   ]);
 

@@ -145,9 +145,18 @@ export async function listCustomers(isBackOffice: boolean, filters: CustomerList
   return { rows: paged, totalCount, page, pageSize };
 }
 
-export async function listActiveIntroducersForAttribution(): Promise<{ id: string; name: string }[]> {
+// scopeToAnalystId narrows the list to introducers assigned to that one
+// agent (assigned_analyst_id) — an agent should only be able to attribute a
+// customer to an introducer actually bound to them, never the whole
+// system's introducer roster. Pass undefined/omit for back office, who need
+// to see and correct attribution across any introducer.
+export async function listActiveIntroducersForAttribution(scopeToAnalystId?: string | null): Promise<{ id: string; name: string }[]> {
   const admin = createAdminClient();
-  const { data: introducers } = await admin.from("introducers").select("id, party_id").eq("status", "active");
+  let query = admin.from("introducers").select("id, party_id").eq("status", "active");
+  if (scopeToAnalystId !== undefined) {
+    query = query.eq("assigned_analyst_id", scopeToAnalystId);
+  }
+  const { data: introducers } = await query;
   if (!introducers || introducers.length === 0) return [];
   const { data: identities } = await admin
     .from("individuals")
