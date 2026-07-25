@@ -64,6 +64,7 @@
   "customer.field.marital_status.widowed": "Widowed",
   "customer.field.marital_status.other": "Other",
   "customer.field.introducer": "Referring Introducer (optional)",
+  "customer.field.campaign": "Source PIC Channel Campaign (optional)",
   "customer.field.optional_suffix": " (optional)",
 
   "customer.child.section_title": "Children",

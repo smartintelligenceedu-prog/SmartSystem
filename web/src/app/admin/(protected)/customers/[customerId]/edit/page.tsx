@@ -1,7 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import { getPortalUserContext } from "@/lib/auth/context";
 import { isBackOfficeRole } from "@/lib/auth/roles";
-import { getCustomerDetail, listCustomerChildren, listActiveIntroducersForAttribution } from "../../data";
+import { getCustomerDetail, listCustomerChildren, listActiveIntroducersForAttribution, listActiveCampaignsForAttribution } from "../../data";
 import { CustomerForm } from "../../customer-form";
 import { t } from "@/lib/i18n";
 
@@ -18,9 +18,10 @@ export default async function EditCustomerPage({ params }: { params: Promise<{ c
   const isBackOffice = isBackOfficeRole(context);
   if (!isBackOffice && detail.owner_analyst_id !== context.analystId) redirect("/admin/customers");
 
-  const [children, introducers] = await Promise.all([
+  const [children, introducers, campaigns] = await Promise.all([
     listCustomerChildren(customerId),
     listActiveIntroducersForAttribution(isBackOffice ? undefined : context.analystId),
+    listActiveCampaignsForAttribution(isBackOffice ? undefined : context.analystId),
   ]);
 
   return (
@@ -33,6 +34,7 @@ export default async function EditCustomerPage({ params }: { params: Promise<{ c
         mode="edit"
         customerId={customerId}
         introducers={introducers}
+        campaigns={campaigns}
         initialValues={{
           full_name: detail.full_name === "—" ? "" : detail.full_name,
           phone: detail.phone ?? "",
@@ -42,6 +44,7 @@ export default async function EditCustomerPage({ params }: { params: Promise<{ c
           occupation: detail.occupation ?? "",
           marital_status: detail.marital_status ?? "",
           acquired_via_introducer_id: detail.acquired_via_introducer_id ?? "",
+          acquired_via_campaign_id: detail.acquired_via_campaign_id ?? "",
           children: children.map((c) => ({
             full_name: c.full_name,
             gender: c.gender ?? "",

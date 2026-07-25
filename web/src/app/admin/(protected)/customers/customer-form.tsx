@@ -46,6 +46,7 @@ export interface CustomerFormInitialValues {
   occupation?: string;
   marital_status?: string;
   acquired_via_introducer_id?: string;
+  acquired_via_campaign_id?: string;
   children?: ChildInput[];
 }
 
@@ -53,12 +54,14 @@ export function CustomerForm({
   mode,
   customerId,
   introducers,
+  campaigns,
   initialValues,
   leadId,
 }: {
   mode: "create" | "edit";
   customerId?: string;
   introducers: { id: string; name: string }[];
+  campaigns: { id: string; name: string }[];
   initialValues?: CustomerFormInitialValues;
   leadId?: string;
 }) {
@@ -161,6 +164,27 @@ export function CustomerForm({
                     {introducers.map((i) => (
                       <SelectItem key={i.id} value={i.id}>
                         {i.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {campaigns.length > 0 && (
+              <div className="space-y-2">
+                <Label htmlFor="acquired_via_campaign_id">{ct("customer.field.campaign")}</Label>
+                <Select
+                  name="acquired_via_campaign_id"
+                  items={campaigns.map((c) => ({ value: c.id, label: c.name }))}
+                  defaultValue={initialValues?.acquired_via_campaign_id}
+                >
+                  <SelectTrigger id="acquired_via_campaign_id" className="w-full">
+                    <SelectValue placeholder="—" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {campaigns.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
                       </SelectItem>
                     ))}
                   </SelectContent>

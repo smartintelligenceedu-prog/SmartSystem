@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getPortalUserContext } from "@/lib/auth/context";
 import { isBackOfficeRole } from "@/lib/auth/roles";
-import { listActiveIntroducersForAttribution } from "../data";
+import { listActiveIntroducersForAttribution, listActiveCampaignsForAttribution } from "../data";
 import { getLeadForConversion } from "../../leads/data";
 import { CustomerForm, type CustomerFormInitialValues } from "../customer-form";
 import { t } from "@/lib/i18n";
@@ -15,8 +15,9 @@ export default async function NewCustomerPage({ searchParams }: { searchParams: 
 
   const { lead_id } = await searchParams;
   const isBackOffice = isBackOfficeRole(context);
-  const [introducers, lead] = await Promise.all([
+  const [introducers, campaigns, lead] = await Promise.all([
     listActiveIntroducersForAttribution(isBackOffice ? undefined : context.analystId),
+    listActiveCampaignsForAttribution(isBackOffice ? undefined : context.analystId),
     lead_id ? getLeadForConversion(lead_id) : Promise.resolve(null),
   ]);
 
@@ -39,7 +40,7 @@ export default async function NewCustomerPage({ searchParams }: { searchParams: 
         <h1 className="text-xl font-semibold">{t("customer.form.create_title")}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{t("customer.form.create_subtitle")}</p>
       </div>
-      <CustomerForm mode="create" introducers={introducers} initialValues={initialValues} leadId={initialValues ? lead_id : undefined} />
+      <CustomerForm mode="create" introducers={introducers} campaigns={campaigns} initialValues={initialValues} leadId={initialValues ? lead_id : undefined} />
     </div>
   );
 }

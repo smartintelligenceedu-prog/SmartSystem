@@ -166,6 +166,23 @@ export async function listActiveIntroducersForAttribution(scopeToAnalystId?: str
   return introducers.map((i) => ({ id: i.id, name: nameByParty.get(i.party_id) ?? "—" }));
 }
 
+// So PIC channel campaigns' custom commission overrides (pic_report_override_
+// amount / pic_analyst_report_fee_amount) can ever actually fire — the
+// commission engine only looks those up via customers.acquired_via_
+// campaign_id, which nothing in the app previously set. Scoped to the
+// caller's own campaigns (as PIC) the same way introducer attribution is
+// scoped to the caller's own introducers; back office (scopeToAnalystId
+// undefined) sees every active campaign.
+export async function listActiveCampaignsForAttribution(scopeToAnalystId?: string | null): Promise<{ id: string; name: string }[]> {
+  const admin = createAdminClient();
+  let query = admin.from("channel_campaigns").select("id, name").eq("status", "active");
+  if (scopeToAnalystId !== undefined) {
+    query = query.eq("pic_analyst_id", scopeToAnalystId);
+  }
+  const { data: campaigns } = await query;
+  return (campaigns ?? []).map((c) => ({ id: c.id, name: c.name }));
+}
+
 export async function listApprovedAgentsForFilter(): Promise<{ id: string; name: string }[]> {
   const admin = createAdminClient();
   const { data: analysts } = await admin.from("analysts").select("id, party_id").eq("status", "approved");
@@ -185,6 +202,8 @@ export interface CustomerDetail {
   owner_name: string;
   acquired_via_introducer_id: string | null;
   introducer_name: string | null;
+  acquired_via_campaign_id: string | null;
+  campaign_name: string | null;
   status: string;
   full_name: string;
   phone: string | null;
@@ -201,16 +220,19 @@ export async function getCustomerDetail(customerId: string): Promise<CustomerDet
   const admin = createAdminClient();
   const { data: customer } = await admin
     .from("customers")
-    .select("id, party_id, owner_analyst_id, acquired_via_introducer_id, status, occupation, marital_status, created_at, tags")
+    .select("id, party_id, owner_analyst_id, acquired_via_introducer_id, acquired_via_campaign_id, status, occupation, marital_status, created_at, tags")
     .eq("id", customerId)
     .maybeSingle();
   if (!customer) return null;
 
-  const [{ data: identity }, { data: analyst }, { data: introducer }] = await Promise.all([
+  const [{ data: identity }, { data: analyst }, { data: introducer }, { data: campaign }] = await Promise.all([
     admin.from("individuals").select("full_name, phone, email, gender, date_of_birth").eq("party_id", customer.party_id).maybeSingle(),
     admin.from("analysts").select("party_id").eq("id", customer.owner_analyst_id).maybeSingle(),
     customer.acquired_via_introducer_id
       ? admin.from("introducers").select("party_id").eq("id", customer.acquired_via_introducer_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    customer.acquired_via_campaign_id
+      ? admin.from("channel_campaigns").select("name").eq("id", customer.acquired_via_campaign_id).maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
 
@@ -226,6 +248,8 @@ export async function getCustomerDetail(customerId: string): Promise<CustomerDet
     owner_name: ownerIdentity?.full_name ?? "—",
     acquired_via_introducer_id: customer.acquired_via_introducer_id,
     introducer_name: introducerIdentity?.full_name ?? null,
+    acquired_via_campaign_id: customer.acquired_via_campaign_id,
+    campaign_name: campaign?.name ?? null,
     status: customer.status,
     full_name: identity?.full_name ?? "—",
     phone: identity?.phone ?? null,

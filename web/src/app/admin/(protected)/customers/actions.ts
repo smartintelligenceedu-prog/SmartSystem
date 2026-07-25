@@ -55,6 +55,7 @@ async function buildCustomerFormSchema() {
     occupation: z.string().trim().optional().or(z.literal("")),
     marital_status: z.enum(["single", "married", "divorced", "widowed", "other"]).optional().or(z.literal("")),
     acquired_via_introducer_id: z.string().uuid().optional().or(z.literal("")),
+    acquired_via_campaign_id: z.string().uuid().optional().or(z.literal("")),
     children_json: z.string().optional().or(z.literal("")),
     lead_id: z.string().uuid().optional().or(z.literal("")),
   });
@@ -71,6 +72,7 @@ async function parseCustomerForm(formData: FormData) {
     occupation: formData.get("occupation") || undefined,
     marital_status: formData.get("marital_status") || undefined,
     acquired_via_introducer_id: formData.get("acquired_via_introducer_id") || undefined,
+    acquired_via_campaign_id: formData.get("acquired_via_campaign_id") || undefined,
     children_json: formData.get("children_json") || undefined,
     lead_id: formData.get("lead_id") || undefined,
   });
@@ -157,6 +159,7 @@ export async function createCustomer(_prev: CustomerFormState, formData: FormDat
       party_id: party.id,
       owner_analyst_id: auth.analystId,
       acquired_via_introducer_id: input.acquired_via_introducer_id || null,
+      acquired_via_campaign_id: input.acquired_via_campaign_id || null,
       occupation: input.occupation || null,
       marital_status: input.marital_status || null,
       status: "active",
@@ -221,6 +224,7 @@ export async function updateCustomer(customerId: string, _prev: CustomerFormStat
     .from("customers")
     .update({
       acquired_via_introducer_id: input.acquired_via_introducer_id || null,
+      acquired_via_campaign_id: input.acquired_via_campaign_id || null,
       occupation: input.occupation || null,
       marital_status: input.marital_status || null,
     })
