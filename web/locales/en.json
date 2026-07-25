@@ -1142,6 +1142,7 @@
   "payroll.line_item.recruited_prefix": "Recruited",
   "payroll.line_item.recruited_suffix": "into the analyst network",
   "payroll.line_item.referral_prefix": "Referral: ",
+  "payroll.line_item.override_source_prefix": "Source Analyst: ",
   "payroll.trigger_type.personal_sale": "Personal Sale",
   "payroll.trigger_type.pic_channel": "Channel Development (PIC)",
   "payroll.trigger_type.introducer": "Introducer Referral",

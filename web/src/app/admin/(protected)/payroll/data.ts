@@ -102,9 +102,15 @@ export interface CommissionLineItem {
 // human-readable "which child / which institution / who was recruited" line
 // for the payslip/statement drill-down — this is the "贡献明细穿透" the CTO
 // asked for, so a payee can see exactly why each line item was earned.
+//
+// Keyed by `${trigger_type}:${source_transaction_type}:${source_transaction_id}`,
+// not just the transaction key alone — a report_override commission (paid to
+// the leader) and the downline's own personal_sale commission can point at
+// the SAME order_item, and need different descriptions (the override must
+// name the downline agent; the personal_sale doesn't need to name yourself).
 async function describeSourceTransactions(
   admin: ReturnType<typeof createAdminClient>,
-  records: { source_transaction_type: string; source_transaction_id: string }[]
+  records: { trigger_type: string; source_transaction_type: string; source_transaction_id: string }[]
 ): Promise<Map<string, string>> {
   const orderItemIds = records.filter((r) => r.source_transaction_type === "order_item").map((r) => r.source_transaction_id);
   const orderIds = records.filter((r) => r.source_transaction_type === "order").map((r) => r.source_transaction_id);
@@ -114,19 +120,28 @@ async function describeSourceTransactions(
   if (orderItemIds.length > 0) {
     const { data: items } = await admin
       .from("order_items")
-      .select("id, description, customer_id, order_id")
+      .select("id, description, customer_id, order_id, analyst_id")
       .in("id", orderItemIds);
     const customerIds = [...new Set((items ?? []).map((i) => i.customer_id).filter((id): id is string => !!id))];
     const itemOrderIds = [...new Set((items ?? []).map((i) => i.order_id))];
+    const itemAnalystIds = [...new Set((items ?? []).map((i) => i.analyst_id).filter((id): id is string => !!id))];
 
-    const [{ data: customers }, { data: orders }] = await Promise.all([
+    const [{ data: customers }, { data: orders }, { data: itemAnalysts }] = await Promise.all([
       customerIds.length > 0 ? admin.from("customers").select("id, party_id").in("id", customerIds) : Promise.resolve({ data: [] }),
       itemOrderIds.length > 0 ? admin.from("orders").select("id, institution_party_id").in("id", itemOrderIds) : Promise.resolve({ data: [] }),
+      itemAnalystIds.length > 0 ? admin.from("analysts").select("id, party_id").in("id", itemAnalystIds) : Promise.resolve({ data: [] }),
     ]);
     const customerPartyById = new Map((customers ?? []).map((c) => [c.id, c.party_id]));
     const institutionPartyByOrder = new Map((orders ?? []).map((o) => [o.id, o.institution_party_id]));
+    const partyByItemAnalyst = new Map((itemAnalysts ?? []).map((a) => [a.id, a.party_id]));
 
-    const partyIds = [...new Set([...customerPartyById.values(), ...institutionPartyByOrder.values()].filter((id): id is string => !!id))];
+    const partyIds = [
+      ...new Set(
+        [...customerPartyById.values(), ...institutionPartyByOrder.values(), ...partyByItemAnalyst.values()].filter(
+          (id): id is string => !!id
+        )
+      ),
+    ];
     const [{ data: individuals }, { data: orgs }] =
       partyIds.length > 0
         ? await Promise.all([
@@ -138,12 +153,26 @@ async function describeSourceTransactions(
     for (const i of individuals ?? []) nameByParty.set(i.party_id, i.full_name);
     for (const o of orgs ?? []) nameByParty.set(o.party_id, o.legal_name);
 
-    for (const item of items ?? []) {
+    const overrideSourcePrefix = await t("payroll.line_item.override_source_prefix");
+    const itemById = new Map((items ?? []).map((i) => [i.id, i]));
+    for (const r of records) {
+      if (r.source_transaction_type !== "order_item") continue;
+      const item = itemById.get(r.source_transaction_id);
+      if (!item) continue;
       const customerParty = item.customer_id ? customerPartyById.get(item.customer_id) : null;
       const institutionParty = institutionPartyByOrder.get(item.order_id);
       const who = (customerParty && nameByParty.get(customerParty)) ?? (institutionParty && nameByParty.get(institutionParty)) ?? null;
-      const label = who ? `${who} - ${item.description ?? "—"}` : (item.description ?? "—");
-      descByKey.set(`order_item:${item.id}`, label);
+      let label = who ? `${who} - ${item.description ?? "—"}` : (item.description ?? "—");
+      // Only report_override needs the source agent called out — it's the
+      // one trigger_type on this payslip where the performer is always a
+      // DIFFERENT person than the payee (the leader), so without this the
+      // leader has no way to tell whose report earned each override line.
+      if (r.trigger_type === "report_override" && item.analyst_id) {
+        const agentParty = partyByItemAnalyst.get(item.analyst_id);
+        const agentName = agentParty ? nameByParty.get(agentParty) : null;
+        if (agentName) label = `${overrideSourcePrefix}${agentName} · ${label}`;
+      }
+      descByKey.set(`${r.trigger_type}:order_item:${item.id}`, label);
     }
   }
 
@@ -154,9 +183,11 @@ async function describeSourceTransactions(
       partyIds.length > 0 ? await admin.from("individuals").select("party_id, full_name").in("party_id", partyIds) : { data: [] };
     const nameByParty = new Map((individuals ?? []).map((i) => [i.party_id, i.full_name]));
 
+    const recruitedPrefix = await t("payroll.line_item.recruited_prefix");
+    const recruitedSuffix = await t("payroll.line_item.recruited_suffix");
     for (const regOrder of regOrders ?? []) {
       const name = nameByParty.get(regOrder.party_id) ?? "—";
-      descByKey.set(`order:${regOrder.order_id}`, `${t("payroll.line_item.recruited_prefix")} ${name} ${t("payroll.line_item.recruited_suffix")}`);
+      descByKey.set(`recruitment:order:${regOrder.order_id}`, `${recruitedPrefix} ${name} ${recruitedSuffix}`);
     }
 
     // Non-registration orders reaching here are migration-024 one-time
@@ -186,8 +217,9 @@ async function describeSourceTransactions(
         const name = party ? nameByPartyDetection.get(party) : null;
         if (name) nameByOrder.set(item.order_id, name);
       }
+      const referralPrefix = await t("payroll.line_item.referral_prefix");
       for (const orderId of detectionOrderIds) {
-        descByKey.set(`order:${orderId}`, `${t("payroll.line_item.referral_prefix")}${nameByOrder.get(orderId) ?? "—"}`);
+        descByKey.set(`introducer:order:${orderId}`, `${referralPrefix}${nameByOrder.get(orderId) ?? "—"}`);
       }
     }
   }
@@ -206,7 +238,7 @@ async function buildLineItems(
       trigger_type: r.trigger_type,
       commission_amount: Number(r.commission_amount),
       calculated_at: r.calculated_at,
-      description: descByKey.get(`${r.source_transaction_type}:${r.source_transaction_id}`) ?? "—",
+      description: descByKey.get(`${r.trigger_type}:${r.source_transaction_type}:${r.source_transaction_id}`) ?? "—",
     }))
     .sort((a, b) => a.calculated_at.localeCompare(b.calculated_at));
 }
