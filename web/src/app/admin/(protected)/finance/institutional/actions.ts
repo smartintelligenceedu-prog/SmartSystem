@@ -28,9 +28,8 @@ async function buildCreateOrderSchema() {
   const institutionRequiredMessage = await t("finance.institutional.error.institution_name_required");
   return z
     .object({
-      description: z.string().trim().min(2, await t("finance.institutional.error.description_required")),
-      total_amount: z.coerce.number().positive(await t("finance.institutional.error.amount_positive")),
-      quantity: z.coerce.number().int().positive(await t("finance.institutional.error.quantity_positive")),
+      item_name: z.string().trim().min(2, await t("finance.institutional.error.description_required")),
+      unit_price: z.coerce.number().positive(await t("finance.institutional.error.amount_positive")),
       analyst_id: z.string().uuid().optional().or(z.literal("")),
       // Either institution_party_id (an existing institution picked from
       // listInstitutionOptions()) OR the freeform name+address fields for a
@@ -94,6 +93,40 @@ export async function createInstitutionParty(input: {
   return { partyId: party.id };
 }
 
+// Shared by createInstitutionalOrder() (this file) and
+// createCampaign()/updateCampaignInstitution() (pic-campaigns/actions.ts) —
+// picks an existing institution party, creates a new one, or (only valid
+// for a PIC campaign, not an order) returns null for "no institution
+// attached".
+export async function resolveInstitutionPartyId(input: {
+  institution_party_id?: string;
+  institution_name?: string;
+  ssm_number?: string;
+  billing_address_line1?: string;
+  billing_address_line2?: string;
+  billing_city?: string;
+  billing_state?: string;
+  billing_postcode?: string;
+  institution_phone?: string;
+}): Promise<{ partyId: string | null } | { error: string }> {
+  if (input.institution_party_id) return { partyId: input.institution_party_id };
+  if (input.institution_name && input.billing_address_line1) {
+    const created = await createInstitutionParty({
+      name: input.institution_name,
+      ssmNumber: input.ssm_number,
+      phone: input.institution_phone,
+      addressLine1: input.billing_address_line1,
+      addressLine2: input.billing_address_line2,
+      city: input.billing_city,
+      state: input.billing_state,
+      postcode: input.billing_postcode,
+    });
+    if ("error" in created) return { error: created.error };
+    return { partyId: created.partyId };
+  }
+  return { partyId: null };
+}
+
 export type CreateInstitutionalOrderState = { status: "idle" } | { status: "error"; message: string } | { status: "success" };
 
 // Order creation itself never touches the ledger — matches Task 3's spec
@@ -106,6 +139,17 @@ export type CreateInstitutionalOrderState = { status: "idle" } | { status: "erro
 // fresh via createInstitutionParty(). Either way it reuses the existing
 // parties/organizations/addresses model instead of a dedicated
 // "institutions" table.
+//
+// One order can cover several test-takers under the same item/price (e.g.
+// "Ditoso 150 Package" billed once per child) — the printed invoice needs
+// each one on its own line with the child's name so the institution can
+// cross-check names against what they paid for, matching the external
+// invoice format the business already uses. student_name (formData.getAll,
+// repeated inputs, same convention as the schedule/sales-order multi-row
+// forms) is one entry per row, blank allowed for a row with no individual
+// name — every row shares item_name/unit_price, becoming its own order_item
+// with description "{item_name} ( {student_name} )" (or just item_name when
+// the row has no name).
 export async function createInstitutionalOrder(
   _prev: CreateInstitutionalOrderState,
   formData: FormData
@@ -115,9 +159,8 @@ export async function createInstitutionalOrder(
 
   const createOrderSchema = await buildCreateOrderSchema();
   const parsed = createOrderSchema.safeParse({
-    description: formData.get("description"),
-    total_amount: formData.get("total_amount"),
-    quantity: formData.get("quantity") || "1",
+    item_name: formData.get("item_name"),
+    unit_price: formData.get("unit_price"),
     analyst_id: formData.get("analyst_id") || undefined,
     institution_party_id: formData.get("institution_party_id") || undefined,
     institution_name: formData.get("institution_name") || undefined,
@@ -134,52 +177,42 @@ export async function createInstitutionalOrder(
   }
   const input = parsed.data;
 
-  const admin = createAdminClient();
-
-  let institutionPartyId: string;
-  if (input.institution_party_id) {
-    institutionPartyId = input.institution_party_id;
-  } else {
-    const created = await createInstitutionParty({
-      name: input.institution_name!,
-      ssmNumber: input.ssm_number,
-      phone: input.institution_phone,
-      addressLine1: input.billing_address_line1!,
-      addressLine2: input.billing_address_line2,
-      city: input.billing_city,
-      state: input.billing_state,
-      postcode: input.billing_postcode,
-    });
-    if ("error" in created) return { status: "error", message: created.error };
-    institutionPartyId = created.partyId;
+  const studentNames = formData.getAll("student_name").map((v) => v.toString().trim());
+  if (studentNames.length === 0) {
+    return { status: "error", message: await t("finance.institutional.error.at_least_one_item") };
   }
 
+  const resolved = await resolveInstitutionPartyId(input);
+  if ("error" in resolved) return { status: "error", message: resolved.error };
+  if (!resolved.partyId) return { status: "error", message: await t("finance.institutional.error.institution_name_required") };
+
+  const admin = createAdminClient();
+
+  const totalAmount = Math.round(input.unit_price * studentNames.length * 100) / 100;
   const { data: order, error: orderError } = await admin
     .from("orders")
     .insert({
       order_type: "detection_service",
       status: "pending",
       billing_mode: "invoice",
-      total_amount: input.total_amount,
-      institution_party_id: institutionPartyId,
+      total_amount: totalAmount,
+      institution_party_id: resolved.partyId,
     })
     .select("id")
     .single();
   if (orderError) return { status: "error", message: `${await t("finance.institutional.error.create_order_failed_prefix")}${orderError.message}` };
 
-  // unit_price is derived for display only (invoice line items) — subtotal
-  // stays the authoritative total_amount rather than unit_price * quantity,
-  // so a non-evenly-divisible split (e.g. RM1000 / 3) never drifts the
-  // revenue/AR amounts a cent off from what the invoice/journal entries use.
-  const { error: itemError } = await admin.from("order_items").insert({
-    order_id: order.id,
-    item_type: "detection_session",
-    description: input.description,
-    unit_price: Math.round((input.total_amount / input.quantity) * 100) / 100,
-    quantity: input.quantity,
-    subtotal: input.total_amount,
-    analyst_id: input.analyst_id || null,
-  });
+  const { error: itemError } = await admin.from("order_items").insert(
+    studentNames.map((name) => ({
+      order_id: order.id,
+      item_type: "detection_session",
+      description: name ? `${input.item_name} ( ${name} )` : input.item_name,
+      unit_price: input.unit_price,
+      quantity: 1,
+      subtotal: input.unit_price,
+      analyst_id: input.analyst_id || null,
+    }))
+  );
   if (itemError) return { status: "error", message: `${await t("finance.institutional.error.create_item_failed_prefix")}${itemError.message}` };
 
   revalidatePath("/admin/finance/institutional");

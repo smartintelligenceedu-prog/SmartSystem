@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { t } from "@/lib/i18n";
-import { createInstitutionParty } from "../finance/institutional/actions";
+import { resolveInstitutionPartyId } from "../finance/institutional/actions";
 
 async function requireBackOfficeUserId(): Promise<{ userId: string } | { error: string }> {
   const supabase = await createServerSupabaseClient();
@@ -54,39 +54,6 @@ async function buildCreateCampaignSchema() {
 }
 
 export type CreateCampaignState = { status: "idle" } | { status: "error"; message: string } | { status: "success" };
-
-// Shared by createCampaign() and updateCampaignInstitution() — picks an
-// existing institution party, creates a new one, or returns null (no
-// institution attached, valid for a campaign though not for an
-// Institutional Order).
-async function resolveInstitutionPartyId(input: {
-  institution_party_id?: string;
-  institution_name?: string;
-  ssm_number?: string;
-  billing_address_line1?: string;
-  billing_address_line2?: string;
-  billing_city?: string;
-  billing_state?: string;
-  billing_postcode?: string;
-  institution_phone?: string;
-}): Promise<{ partyId: string | null } | { error: string }> {
-  if (input.institution_party_id) return { partyId: input.institution_party_id };
-  if (input.institution_name && input.billing_address_line1) {
-    const created = await createInstitutionParty({
-      name: input.institution_name,
-      ssmNumber: input.ssm_number,
-      phone: input.institution_phone,
-      addressLine1: input.billing_address_line1,
-      addressLine2: input.billing_address_line2,
-      city: input.billing_city,
-      state: input.billing_state,
-      postcode: input.billing_postcode,
-    });
-    if ("error" in created) return { error: created.error };
-    return { partyId: created.partyId };
-  }
-  return { partyId: null };
-}
 
 export async function createCampaign(_prev: CreateCampaignState, formData: FormData): Promise<CreateCampaignState> {
   const auth = await requireBackOfficeUserId();

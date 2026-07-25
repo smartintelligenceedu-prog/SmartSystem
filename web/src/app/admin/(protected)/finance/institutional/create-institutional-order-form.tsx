@@ -12,6 +12,10 @@ import type { InstitutionOption } from "./data";
 
 const initialState: CreateInstitutionalOrderState = { status: "idle" };
 
+function formatMYR(amount: number) {
+  return new Intl.NumberFormat("ms-MY", { style: "currency", currency: "MYR" }).format(amount);
+}
+
 export function CreateInstitutionalOrderForm({
   agents,
   institutions,
@@ -29,10 +33,21 @@ export function CreateInstitutionalOrderForm({
   const [institutionPartyId, setInstitutionPartyId] = useState<string | null>(null);
   const selectedInstitution = institutions.find((i) => i.party_id === institutionPartyId);
 
+  // One order item per name on this list — a shared item/price billed once
+  // per test-taker, matching the business's existing external invoice
+  // format ("Ditoso 150 Package ( Taner )") so the institution can check
+  // names against the invoice. A blank name is fine (bulk line with no
+  // individual breakdown); at least one row is always required.
+  const [studentNames, setStudentNames] = useState<string[]>([""]);
+  const [unitPrice, setUnitPrice] = useState("");
+  const total = (Number(unitPrice) || 0) * studentNames.length;
+
   useEffect(() => {
     if (state.status === "success") {
       formRef.current?.reset();
       setInstitutionPartyId(null);
+      setStudentNames([""]);
+      setUnitPrice("");
     }
   }, [state]);
 
@@ -40,18 +55,23 @@ export function CreateInstitutionalOrderForm({
     <Card>
       <CardContent className="pt-6">
         <form ref={formRef} action={formAction} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="description">{ct("finance.institutional.new_order.description_label")}</Label>
-            <Input id="description" name="description" required />
-          </div>
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="total_amount">{ct("finance.institutional.new_order.amount_label")}</Label>
-              <Input id="total_amount" name="total_amount" type="number" step="0.01" min="0.01" required />
+              <Label htmlFor="item_name">{ct("finance.institutional.new_order.item_name_label")}</Label>
+              <Input id="item_name" name="item_name" required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="quantity">{ct("finance.institutional.new_order.quantity_label")}</Label>
-              <Input id="quantity" name="quantity" type="number" step="1" min="1" defaultValue="1" required />
+              <Label htmlFor="unit_price">{ct("finance.institutional.new_order.unit_price_label")}</Label>
+              <Input
+                id="unit_price"
+                name="unit_price"
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={unitPrice}
+                onChange={(e) => setUnitPrice(e.target.value)}
+                required
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="analyst_id">{ct("finance.institutional.new_order.analyst_label")}</Label>
@@ -68,6 +88,50 @@ export function CreateInstitutionalOrderForm({
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="border-t pt-4">
+            <div className="mb-3 flex items-center justify-between">
+              <Label>{ct("finance.institutional.new_order.student_names_label")}</Label>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setStudentNames((prev) => [...prev, ""])}
+                disabled={isPending}
+              >
+                {ct("finance.institutional.new_order.add_student_button")}
+              </Button>
+            </div>
+            <div className="space-y-2">
+              {studentNames.map((name, i) => (
+                <div key={i} className="flex gap-2">
+                  <Input
+                    name="student_name"
+                    value={name}
+                    onChange={(e) =>
+                      setStudentNames((prev) => prev.map((n, idx) => (idx === i ? e.target.value : n)))
+                    }
+                    placeholder={ct("finance.institutional.new_order.student_name_placeholder")}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setStudentNames((prev) => prev.filter((_, idx) => idx !== i))}
+                    disabled={isPending || studentNames.length <= 1}
+                  >
+                    {ct("finance.institutional.new_order.remove_student_button")}
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              {ct("finance.institutional.new_order.total_prefix")}
+              {studentNames.length}
+              {ct("finance.institutional.new_order.total_middle")}
+              {formatMYR(total)}
+            </p>
           </div>
 
           <div className="border-t pt-4">

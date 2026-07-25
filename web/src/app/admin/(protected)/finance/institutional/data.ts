@@ -1,5 +1,16 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { t } from "@/lib/i18n";
+
+// A named line item's description ends " ( student name )" — for the list
+// view's single summary line, strip that back off so "Ditoso 150 Package (
+// Taner )" reads as just "Ditoso 150 Package" before the item-count suffix
+// is appended.
+function stripNameSuffix(description: string | null): string {
+  if (!description) return "—";
+  const stripped = description.replace(/\s*\([^)]*\)\s*$/, "").trim();
+  return stripped || description;
+}
 
 export type InstitutionalOrderState =
   | "no_invoice"
@@ -55,7 +66,18 @@ export async function listInstitutionalOrders(scopedToAnalystId?: string): Promi
     admin.from("institutional_vouchers").select("order_id, status").in("order_id", orderIds),
   ]);
 
-  const itemByOrder = new Map((items ?? []).map((it) => [it.order_id, it]));
+  // One order can have multiple order_items now (migration: per-student
+  // named line items, see createInstitutionalOrder) — grouped by order_id
+  // instead of keeping only the last one seen.
+  const itemsByOrder = new Map<string, { order_id: string; description: string | null; analyst_id: string | null }[]>();
+  for (const it of items ?? []) {
+    const arr = itemsByOrder.get(it.order_id) ?? [];
+    arr.push(it);
+    itemsByOrder.set(it.order_id, arr);
+  }
+  // t() is async and can't be called inside the plain .map() below —
+  // resolved once up front since it's the same string on every row.
+  const itemCountSuffixTemplate = await t("finance.institutional.list.item_count_suffix");
   const analystIds = [...new Set((items ?? []).map((it) => it.analyst_id).filter((id): id is string => !!id))];
   const { data: analysts } = analystIds.length > 0 ? await admin.from("analysts").select("id, party_id").in("id", analystIds) : { data: [] };
   const analystPartyById = new Map((analysts ?? []).map((a) => [a.id, a.party_id]));
@@ -64,10 +86,11 @@ export async function listInstitutionalOrders(scopedToAnalystId?: string): Promi
   const nameByParty = new Map((identities ?? []).map((i) => [i.party_id, i.full_name]));
 
   return orders
-    .filter((o) => !scopedToAnalystId || itemByOrder.get(o.id)?.analyst_id === scopedToAnalystId)
+    .filter((o) => !scopedToAnalystId || (itemsByOrder.get(o.id) ?? []).some((it) => it.analyst_id === scopedToAnalystId))
     .map((o) => {
-      const item = itemByOrder.get(o.id);
-      const analystParty = item?.analyst_id ? analystPartyById.get(item.analyst_id) : null;
+      const orderItems = itemsByOrder.get(o.id) ?? [];
+      const firstItem = orderItems[0];
+      const analystParty = firstItem?.analyst_id ? analystPartyById.get(firstItem.analyst_id) : null;
       const orderInvoices = (invoices ?? []).filter((i) => i.order_id === o.id);
       const orderPayments = (payments ?? []).filter((p) => p.order_id === o.id);
       const depositTotal = orderPayments.filter((p) => p.payment_type === "deposit").reduce((s, p) => s + Number(p.amount), 0);
@@ -115,9 +138,14 @@ export async function listInstitutionalOrders(scopedToAnalystId?: string): Promi
       const orderVouchers = (vouchers ?? []).filter((v) => v.order_id === o.id);
       const voucherUsed = orderVouchers.filter((v) => v.status === "used").length;
 
+      const description =
+        orderItems.length <= 1
+          ? (orderItems[0]?.description ?? "—")
+          : `${stripNameSuffix(orderItems[0].description)}${itemCountSuffixTemplate.replace("{count}", String(orderItems.length))}`;
+
       return {
         order_id: o.id,
-        description: item?.description ?? "—",
+        description,
         total_amount: Number(o.total_amount),
         analyst_name: (analystParty && nameByParty.get(analystParty)) ?? null,
         created_at: o.created_at,
