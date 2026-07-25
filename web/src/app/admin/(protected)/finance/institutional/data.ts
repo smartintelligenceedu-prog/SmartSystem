@@ -36,6 +36,10 @@ export interface InstitutionalOrderRow {
   voucher_total: number;
   voucher_used: number;
   invoice_requested_at: string | null;
+  // Migration 044 — which bulk package deal (if any) this batch counts
+  // against, so back office can see at a glance which invoices are drawing
+  // down a school's 100-credit deal vs a standalone one-off order.
+  package_name: string | null;
 }
 
 // Institutional/B2B orders (orders.billing_mode = 'invoice', migration 016)
@@ -52,19 +56,22 @@ export async function listInstitutionalOrders(scopedToAnalystId?: string): Promi
 
   const { data: orders } = await admin
     .from("orders")
-    .select("id, total_amount, status, created_at, invoice_requested_at")
+    .select("id, total_amount, status, created_at, invoice_requested_at, institutional_package_id")
     .eq("billing_mode", "invoice")
     .order("created_at", { ascending: false });
   if (!orders || orders.length === 0) return [];
 
   const orderIds = orders.map((o) => o.id);
+  const packageIds = [...new Set(orders.filter((o) => o.institutional_package_id).map((o) => o.institutional_package_id as string))];
 
-  const [{ data: items }, { data: invoices }, { data: payments }, { data: vouchers }] = await Promise.all([
+  const [{ data: items }, { data: invoices }, { data: payments }, { data: vouchers }, { data: packages }] = await Promise.all([
     admin.from("order_items").select("order_id, description, analyst_id").in("order_id", orderIds),
     admin.from("invoices").select("id, order_id, invoice_no, invoice_type, status, amount").in("order_id", orderIds),
     admin.from("payments").select("id, order_id, amount, payment_type, paid_at").in("order_id", orderIds),
     admin.from("institutional_vouchers").select("order_id, status").in("order_id", orderIds),
+    packageIds.length > 0 ? admin.from("institutional_packages").select("id, name").in("id", packageIds) : Promise.resolve({ data: [] }),
   ]);
+  const packageNameById = new Map((packages ?? []).map((p) => [p.id, p.name]));
 
   // One order can have multiple order_items now (migration: per-student
   // named line items, see createInstitutionalOrder) — grouped by order_id
@@ -159,8 +166,107 @@ export async function listInstitutionalOrders(scopedToAnalystId?: string): Promi
         voucher_total: orderVouchers.length,
         voucher_used: voucherUsed,
         invoice_requested_at: o.invoice_requested_at,
+        package_name: o.institutional_package_id ? (packageNameById.get(o.institutional_package_id) ?? null) : null,
       };
     });
+}
+
+export interface PackageRow {
+  id: string;
+  institution_party_id: string;
+  institution_name: string;
+  name: string;
+  total_credits: number;
+  used_credits: number;
+  unit_price: number;
+  deposit_amount: number | null;
+  deposit_received_at: string | null;
+  status: string;
+  created_at: string;
+}
+
+// A negotiated bulk deal (migration 044) — "used" is derived by summing
+// order_items.quantity across every non-cancelled/non-refunded order linked
+// via institutional_package_id, NOT a pre-issued voucher pool (see the
+// header comment on the migration for why: a deposit-only deal has no full
+// payment to trigger institutional_vouchers' generation, but batches still
+// need to invoice and count down against the agreed total as they happen).
+export async function listPackages(): Promise<PackageRow[]> {
+  const admin = createAdminClient();
+  const { data: packages } = await admin
+    .from("institutional_packages")
+    .select("id, institution_party_id, name, total_credits, unit_price, deposit_amount, deposit_received_at, status, created_at")
+    .order("created_at", { ascending: false });
+  if (!packages || packages.length === 0) return [];
+
+  const packageIds = packages.map((p) => p.id);
+  const institutionPartyIds = [...new Set(packages.map((p) => p.institution_party_id))];
+
+  const [{ data: orders }, { data: orgs }] = await Promise.all([
+    admin.from("orders").select("id, institutional_package_id").in("institutional_package_id", packageIds).not("status", "in", "(cancelled,refunded)"),
+    admin.from("organizations").select("party_id, legal_name").in("party_id", institutionPartyIds),
+  ]);
+  const orgNameByParty = new Map((orgs ?? []).map((o) => [o.party_id, o.legal_name]));
+
+  const orderIdsByPackage = new Map<string, string[]>();
+  for (const o of orders ?? []) {
+    if (!o.institutional_package_id) continue;
+    const arr = orderIdsByPackage.get(o.institutional_package_id) ?? [];
+    arr.push(o.id);
+    orderIdsByPackage.set(o.institutional_package_id, arr);
+  }
+  const allOrderIds = (orders ?? []).map((o) => o.id);
+  const { data: items } =
+    allOrderIds.length > 0 ? await admin.from("order_items").select("order_id, quantity").in("order_id", allOrderIds) : { data: [] };
+  const quantityByOrder = new Map<string, number>();
+  for (const it of items ?? []) {
+    quantityByOrder.set(it.order_id, (quantityByOrder.get(it.order_id) ?? 0) + it.quantity);
+  }
+
+  return packages.map((p) => {
+    const orderIds = orderIdsByPackage.get(p.id) ?? [];
+    const usedCredits = orderIds.reduce((sum, id) => sum + (quantityByOrder.get(id) ?? 0), 0);
+    return {
+      id: p.id,
+      institution_party_id: p.institution_party_id,
+      institution_name: orgNameByParty.get(p.institution_party_id) ?? "—",
+      name: p.name,
+      total_credits: p.total_credits,
+      used_credits: usedCredits,
+      unit_price: Number(p.unit_price),
+      deposit_amount: p.deposit_amount === null ? null : Number(p.deposit_amount),
+      deposit_received_at: p.deposit_received_at,
+      status: p.status,
+      created_at: p.created_at,
+    };
+  });
+}
+
+export interface PackageOption {
+  id: string;
+  name: string;
+  institution_party_id: string;
+  institution_name: string;
+  unit_price: number;
+  total_credits: number;
+  used_credits: number;
+}
+
+// For the Institutional Order creation form's "所属套餐" picker — active
+// packages only, reusing listPackages()'s used-credit derivation.
+export async function listActivePackageOptions(): Promise<PackageOption[]> {
+  const packages = await listPackages();
+  return packages
+    .filter((p) => p.status === "active")
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      institution_party_id: p.institution_party_id,
+      institution_name: p.institution_name,
+      unit_price: p.unit_price,
+      total_credits: p.total_credits,
+      used_credits: p.used_credits,
+    }));
 }
 
 export interface InstitutionOption {
@@ -275,6 +381,41 @@ async function getResponsibleAnalyst(
   return { id: item.analyst_id, name: identity?.full_name ?? null };
 }
 
+export interface PackageRemainingInfo {
+  name: string;
+  total_credits: number;
+  used_credits: number;
+}
+
+// Migration 044 — how many credits remain on the bulk package this order
+// counts against, if any. Same derivation as listPackages()'s used_credits
+// (sum of order_items.quantity across every non-cancelled/non-refunded
+// order linked to the package), so it stays correct as more batches get
+// invoiced over time.
+async function getPackageRemaining(admin: ReturnType<typeof createAdminClient>, orderId: string): Promise<PackageRemainingInfo | null> {
+  const { data: order } = await admin.from("orders").select("institutional_package_id").eq("id", orderId).maybeSingle();
+  if (!order?.institutional_package_id) return null;
+
+  const { data: pkg } = await admin
+    .from("institutional_packages")
+    .select("name, total_credits")
+    .eq("id", order.institutional_package_id)
+    .maybeSingle();
+  if (!pkg) return null;
+
+  const { data: linkedOrders } = await admin
+    .from("orders")
+    .select("id")
+    .eq("institutional_package_id", order.institutional_package_id)
+    .not("status", "in", "(cancelled,refunded)");
+  const orderIds = (linkedOrders ?? []).map((o) => o.id);
+  const { data: items } =
+    orderIds.length > 0 ? await admin.from("order_items").select("quantity").in("order_id", orderIds) : { data: [] };
+  const usedCredits = (items ?? []).reduce((sum, it) => sum + it.quantity, 0);
+
+  return { name: pkg.name, total_credits: pkg.total_credits, used_credits: usedCredits };
+}
+
 export interface InvoiceDetail {
   invoice_id: string;
   invoice_no: string;
@@ -288,6 +429,7 @@ export interface InvoiceDetail {
   responsible_analyst_id: string | null;
   responsible_analyst_name: string | null;
   line_items: OrderLineItem[];
+  package_remaining: PackageRemainingInfo | null;
 }
 
 // Powers the printable invoice page — a fully-settled ('paid') invoice
@@ -340,6 +482,7 @@ export async function getInvoiceDetail(invoiceId: string): Promise<InvoiceDetail
       unit_price: Number(it.unit_price),
       subtotal: Number(it.subtotal),
     })),
+    package_remaining: await getPackageRemaining(admin, invoice.order_id),
   };
 }
 
@@ -356,6 +499,7 @@ export interface PaymentDetail {
   responsible_analyst_id: string | null;
   responsible_analyst_name: string | null;
   line_items: OrderLineItem[];
+  package_remaining: PackageRemainingInfo | null;
 }
 
 export async function getPaymentDetail(paymentId: string): Promise<PaymentDetail | null> {
@@ -394,5 +538,6 @@ export async function getPaymentDetail(paymentId: string): Promise<PaymentDetail
       unit_price: Number(it.unit_price),
       subtotal: Number(it.subtotal),
     })),
+    package_remaining: await getPackageRemaining(admin, payment.order_id),
   };
 }

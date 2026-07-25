@@ -2,13 +2,14 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getPortalUserContext } from "@/lib/auth/context";
 import { hasAnyRole } from "@/lib/auth/roles";
-import { listInstitutionalOrders, listInstitutionOptions, type InstitutionalOrderState } from "./data";
+import { listInstitutionalOrders, listInstitutionOptions, listPackages, listActivePackageOptions, type InstitutionalOrderState } from "./data";
 import { listApprovedAgents } from "../../sales-orders/data";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { OrderActionsCell } from "./order-actions-cell";
 import { CreateInstitutionalOrderForm } from "./create-institutional-order-form";
+import { CreatePackageForm } from "./create-package-form";
 import { VoucherProgressBar } from "./voucher-progress-bar";
 import { t } from "@/lib/i18n";
 
@@ -44,10 +45,12 @@ export default async function InstitutionalOrdersPage() {
   const isAgentViewer = !canManage && !!context.analystId;
   if (!canManage && !isAgentViewer) redirect("/admin");
 
-  const [orders, agents, institutions] = await Promise.all([
+  const [orders, agents, institutions, packages, activePackageOptions] = await Promise.all([
     listInstitutionalOrders(isAgentViewer ? context.analystId! : undefined),
     canManage ? listApprovedAgents() : Promise.resolve([]),
     canManage ? listInstitutionOptions() : Promise.resolve([]),
+    canManage ? listPackages() : Promise.resolve([]),
+    canManage ? listActivePackageOptions() : Promise.resolve([]),
   ]);
 
   return (
@@ -86,7 +89,10 @@ export default async function InstitutionalOrdersPage() {
             )}
             {orders.map((o) => (
               <TableRow key={o.order_id}>
-                <TableCell>{o.description}</TableCell>
+                <TableCell>
+                  {o.description}
+                  {o.package_name && <div className="text-xs text-muted-foreground">{o.package_name}</div>}
+                </TableCell>
                 <TableCell className="tabular-nums">{formatMYR(o.total_amount)}</TableCell>
                 <TableCell className="text-muted-foreground">{o.analyst_name ?? "—"}</TableCell>
                 <TableCell className="font-mono text-xs text-muted-foreground">{o.invoice_no ?? "—"}</TableCell>
@@ -113,8 +119,48 @@ export default async function InstitutionalOrdersPage() {
 
       {canManage && (
         <div>
+          <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{t("finance.institutional.package.section_title")}</h2>
+          <div className="mb-4 overflow-x-auto rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t("finance.institutional.package.column.institution")}</TableHead>
+                  <TableHead>{t("finance.institutional.package.column.name")}</TableHead>
+                  <TableHead>{t("finance.institutional.package.column.progress")}</TableHead>
+                  <TableHead>{t("finance.institutional.package.column.unit_price")}</TableHead>
+                  <TableHead>{t("finance.institutional.package.column.deposit")}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {packages.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
+                      {t("finance.institutional.package.empty")}
+                    </TableCell>
+                  </TableRow>
+                )}
+                {packages.map((p) => (
+                  <TableRow key={p.id}>
+                    <TableCell>{p.institution_name}</TableCell>
+                    <TableCell>{p.name}</TableCell>
+                    <TableCell>
+                      <VoucherProgressBar total={p.total_credits} used={p.used_credits} />
+                    </TableCell>
+                    <TableCell className="tabular-nums">{formatMYR(p.unit_price)}</TableCell>
+                    <TableCell className="tabular-nums text-muted-foreground">{p.deposit_amount !== null ? formatMYR(p.deposit_amount) : "—"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <CreatePackageForm institutions={institutions} />
+        </div>
+      )}
+
+      {canManage && (
+        <div>
           <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{t("finance.institutional.new_order.title")}</h2>
-          <CreateInstitutionalOrderForm agents={agents} institutions={institutions} />
+          <CreateInstitutionalOrderForm agents={agents} institutions={institutions} packages={activePackageOptions} />
         </div>
       )}
     </div>

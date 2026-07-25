@@ -139,6 +139,14 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
           </tbody>
         </table>
 
+        {invoice.package_remaining && (
+          <p className="mt-3 text-sm text-neutral-600">
+            {t("finance.institutional.print.package_prefix")}
+            {invoice.package_remaining.name} — {t("finance.institutional.print.package_remaining_prefix")}
+            {invoice.package_remaining.total_credits - invoice.package_remaining.used_credits}/{invoice.package_remaining.total_credits}
+          </p>
+        )}
+
         <div className="mt-6 flex justify-end">
           <div className="w-64 space-y-2 text-sm">
             <div className="flex justify-between">

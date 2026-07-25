@@ -616,6 +616,27 @@ create index idx_sessions_device on detection_sessions(device_id);
 -- 8. SALES & ORDER
 -- ============================================================================
 
+-- Migration 044 — a negotiated bulk package deal with an institution (e.g.
+-- 100 credits at a set unit price, small deposit collected upfront, then
+-- invoiced per batch as students actually get tested). Deliberately
+-- separate from institutional_vouchers below, which requires full payment
+-- before any voucher exists — that model doesn't fit deposit-only /
+-- pay-per-batch arrangements. "Remaining credits" is derived by summing
+-- order_items across every non-cancelled order linked via
+-- orders.institutional_package_id, not pre-issued vouchers.
+create table institutional_packages (
+  id uuid primary key default gen_random_uuid(),
+  institution_party_id uuid not null references parties(id),
+  name text not null,
+  total_credits int not null check (total_credits > 0),
+  unit_price numeric(12,2) not null check (unit_price > 0),
+  deposit_amount numeric(12,2),
+  deposit_received_at timestamptz,
+  status text not null default 'active' check (status in ('active', 'completed', 'cancelled')),
+  created_at timestamptz not null default now()
+);
+create index idx_institutional_packages_institution on institutional_packages(institution_party_id);
+
 create table orders (
   id uuid primary key default gen_random_uuid(),
   order_type text not null check (order_type in ('registration', 'detection_service')),
@@ -635,6 +656,10 @@ create table orders (
   -- invoices/receipts. Reuses the existing organizations/addresses tables
   -- rather than a redundant new "institutions" table.
   institution_party_id uuid references parties(id),
+  -- Migration 044 — this order/invoice batch counts against a negotiated
+  -- bulk package deal's total_credits, when one applies. Null for orders
+  -- not tied to any package (the common case).
+  institutional_package_id uuid references institutional_packages(id),
   -- Deprecated as of migration 015 — delivery is now tracked per-report on
   -- order_items.report_delivered_at instead (a multi-person order can have
   -- reports delivered at different times). Column kept for historical data
@@ -651,6 +676,7 @@ create table orders (
 create index idx_orders_analyst on orders(analyst_id);
 create index idx_orders_customer on orders(customer_id);
 create index idx_orders_institution_party on orders(institution_party_id);
+create index idx_orders_institutional_package on orders(institutional_package_id);
 
 create table order_items (
   id uuid primary key default gen_random_uuid(),

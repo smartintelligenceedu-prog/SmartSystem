@@ -141,6 +141,14 @@ export default async function ReceiptPrintPage({ params }: { params: Promise<{ i
           </tbody>
         </table>
 
+        {payment.package_remaining && (
+          <p className="mt-3 text-sm text-neutral-600">
+            {t("finance.institutional.print.package_prefix")}
+            {payment.package_remaining.name} — {t("finance.institutional.print.package_remaining_prefix")}
+            {payment.package_remaining.total_credits - payment.package_remaining.used_credits}/{payment.package_remaining.total_credits}
+          </p>
+        )}
+
         <div className="mt-6 flex justify-end">
           <div className="w-64 space-y-2 text-sm">
             <div className="flex justify-between border-t-2 border-black pt-2 text-base font-bold">

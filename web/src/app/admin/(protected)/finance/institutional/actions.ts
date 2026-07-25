@@ -31,6 +31,11 @@ async function buildCreateOrderSchema() {
       item_name: z.string().trim().min(2, await t("finance.institutional.error.description_required")),
       unit_price: z.coerce.number().positive(await t("finance.institutional.error.amount_positive")),
       analyst_id: z.string().uuid().optional().or(z.literal("")),
+      // When set (migration 044), this batch counts against a negotiated
+      // bulk package deal — its own institution_party_id is looked up
+      // server-side rather than trusted from the client, and none of the
+      // institution fields below are required in that case.
+      institutional_package_id: z.string().uuid().optional().or(z.literal("")),
       // Either institution_party_id (an existing institution picked from
       // listInstitutionOptions()) OR the freeform name+address fields for a
       // brand-new one — never both, enforced below since Zod can't express
@@ -45,10 +50,16 @@ async function buildCreateOrderSchema() {
       billing_postcode: z.string().trim().optional(),
       institution_phone: z.string().trim().optional(),
     })
-    .refine((v) => !!v.institution_party_id || (v.institution_name && v.institution_name.length >= 2 && v.billing_address_line1), {
-      message: institutionRequiredMessage,
-      path: ["institution_name"],
-    });
+    .refine(
+      (v) =>
+        !!v.institutional_package_id ||
+        !!v.institution_party_id ||
+        (v.institution_name && v.institution_name.length >= 2 && v.billing_address_line1),
+      {
+        message: institutionRequiredMessage,
+        path: ["institution_name"],
+      }
+    );
 }
 
 // Shared party/organization/address creation for a formal institution
@@ -127,6 +138,81 @@ export async function resolveInstitutionPartyId(input: {
   return { partyId: null };
 }
 
+async function buildCreatePackageSchema() {
+  const institutionRequiredMessage = await t("finance.institutional.error.institution_name_required");
+  return z
+    .object({
+      name: z.string().trim().min(2, await t("finance.institutional.error.description_required")),
+      total_credits: z.coerce.number().int().positive(await t("finance.institutional.error.quantity_positive")),
+      unit_price: z.coerce.number().positive(await t("finance.institutional.error.amount_positive")),
+      deposit_amount: z.coerce.number().min(0).optional(),
+      institution_party_id: z.string().uuid().optional().or(z.literal("")),
+      institution_name: z.string().trim().optional(),
+      ssm_number: z.string().trim().optional(),
+      billing_address_line1: z.string().trim().optional(),
+      billing_address_line2: z.string().trim().optional(),
+      billing_city: z.string().trim().optional(),
+      billing_state: z.string().trim().optional(),
+      billing_postcode: z.string().trim().optional(),
+      institution_phone: z.string().trim().optional(),
+    })
+    .refine((v) => !!v.institution_party_id || (v.institution_name && v.institution_name.length >= 2 && v.billing_address_line1), {
+      message: institutionRequiredMessage,
+      path: ["institution_name"],
+    });
+}
+
+export type CreatePackageState = { status: "idle" } | { status: "error"; message: string } | { status: "success" };
+
+// A negotiated bulk deal (migration 044) — see the header comment on that
+// migration for why this is a separate model from institutional_vouchers.
+// The deposit here is informational only (no ledger effect of its own);
+// the actual accounting still comes from each batch order's own
+// invoice/payment as usual.
+export async function createInstitutionalPackage(_prev: CreatePackageState, formData: FormData): Promise<CreatePackageState> {
+  const auth = await requireBackOfficeUserId();
+  if ("error" in auth) return { status: "error", message: auth.error };
+
+  const schema = await buildCreatePackageSchema();
+  const parsed = schema.safeParse({
+    name: formData.get("name"),
+    total_credits: formData.get("total_credits"),
+    unit_price: formData.get("unit_price"),
+    deposit_amount: formData.get("deposit_amount") || undefined,
+    institution_party_id: formData.get("institution_party_id") || undefined,
+    institution_name: formData.get("institution_name") || undefined,
+    ssm_number: formData.get("ssm_number") || undefined,
+    billing_address_line1: formData.get("billing_address_line1") || undefined,
+    billing_address_line2: formData.get("billing_address_line2") || undefined,
+    billing_city: formData.get("billing_city") || undefined,
+    billing_state: formData.get("billing_state") || undefined,
+    billing_postcode: formData.get("billing_postcode") || undefined,
+    institution_phone: formData.get("institution_phone") || undefined,
+  });
+  if (!parsed.success) {
+    return { status: "error", message: parsed.error.issues[0]?.message ?? (await t("finance.institutional.error.invalid_form")) };
+  }
+  const input = parsed.data;
+
+  const resolved = await resolveInstitutionPartyId(input);
+  if ("error" in resolved) return { status: "error", message: resolved.error };
+  if (!resolved.partyId) return { status: "error", message: await t("finance.institutional.error.institution_name_required") };
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("institutional_packages").insert({
+    institution_party_id: resolved.partyId,
+    name: input.name,
+    total_credits: input.total_credits,
+    unit_price: input.unit_price,
+    deposit_amount: input.deposit_amount ?? null,
+    deposit_received_at: input.deposit_amount ? new Date().toISOString() : null,
+  });
+  if (error) return { status: "error", message: `${await t("finance.institutional.error.create_order_failed_prefix")}${error.message}` };
+
+  revalidatePath("/admin/finance/institutional");
+  return { status: "success" };
+}
+
 export type CreateInstitutionalOrderState = { status: "idle" } | { status: "error"; message: string } | { status: "success" };
 
 // Order creation itself never touches the ledger — matches Task 3's spec
@@ -162,6 +248,7 @@ export async function createInstitutionalOrder(
     item_name: formData.get("item_name"),
     unit_price: formData.get("unit_price"),
     analyst_id: formData.get("analyst_id") || undefined,
+    institutional_package_id: formData.get("institutional_package_id") || undefined,
     institution_party_id: formData.get("institution_party_id") || undefined,
     institution_name: formData.get("institution_name") || undefined,
     ssm_number: formData.get("ssm_number") || undefined,
@@ -182,11 +269,26 @@ export async function createInstitutionalOrder(
     return { status: "error", message: await t("finance.institutional.error.at_least_one_item") };
   }
 
-  const resolved = await resolveInstitutionPartyId(input);
-  if ("error" in resolved) return { status: "error", message: resolved.error };
-  if (!resolved.partyId) return { status: "error", message: await t("finance.institutional.error.institution_name_required") };
-
   const admin = createAdminClient();
+
+  // When a package is chosen, its own institution is authoritative — never
+  // trust a client-submitted institution_party_id/institution_name for this
+  // batch, since the package itself already fixes which institution it is.
+  let institutionPartyId: string;
+  if (input.institutional_package_id) {
+    const { data: pkg } = await admin
+      .from("institutional_packages")
+      .select("institution_party_id")
+      .eq("id", input.institutional_package_id)
+      .maybeSingle();
+    if (!pkg) return { status: "error", message: await t("finance.institutional.error.institution_name_required") };
+    institutionPartyId = pkg.institution_party_id;
+  } else {
+    const resolved = await resolveInstitutionPartyId(input);
+    if ("error" in resolved) return { status: "error", message: resolved.error };
+    if (!resolved.partyId) return { status: "error", message: await t("finance.institutional.error.institution_name_required") };
+    institutionPartyId = resolved.partyId;
+  }
 
   const totalAmount = Math.round(input.unit_price * studentNames.length * 100) / 100;
   const { data: order, error: orderError } = await admin
@@ -196,7 +298,8 @@ export async function createInstitutionalOrder(
       status: "pending",
       billing_mode: "invoice",
       total_amount: totalAmount,
-      institution_party_id: resolved.partyId,
+      institution_party_id: institutionPartyId,
+      institutional_package_id: input.institutional_package_id || null,
     })
     .select("id")
     .single();
