@@ -129,12 +129,14 @@ export default async function InstitutionalOrdersPage() {
                   <TableHead>{t("finance.institutional.package.column.progress")}</TableHead>
                   <TableHead>{t("finance.institutional.package.column.unit_price")}</TableHead>
                   <TableHead>{t("finance.institutional.package.column.deposit")}</TableHead>
+                  <TableHead>{t("finance.institutional.package.column.responsible")}</TableHead>
+                  <TableHead>{t("finance.institutional.package.column.commission")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {packages.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center text-sm text-muted-foreground">
                       {t("finance.institutional.package.empty")}
                     </TableCell>
                   </TableRow>
@@ -148,12 +150,18 @@ export default async function InstitutionalOrdersPage() {
                     </TableCell>
                     <TableCell className="tabular-nums">{formatMYR(p.unit_price)}</TableCell>
                     <TableCell className="tabular-nums text-muted-foreground">{p.deposit_amount !== null ? formatMYR(p.deposit_amount) : "—"}</TableCell>
+                    <TableCell className="text-muted-foreground">{p.responsible_analyst_name ?? "—"}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {p.report_override_amount !== null && <div>{formatMYR(p.report_override_amount)} → {t("finance.institutional.package.responsible_analyst_label")}</div>}
+                      {p.analyst_report_fee_amount !== null && <div>{formatMYR(p.analyst_report_fee_amount)} → {t("finance.institutional.package.analyst_fee_label")}</div>}
+                      {p.report_override_amount === null && p.analyst_report_fee_amount === null && "—"}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </div>
-          <CreatePackageForm institutions={institutions} />
+          <CreatePackageForm institutions={institutions} agents={agents} />
         </div>
       )}
 

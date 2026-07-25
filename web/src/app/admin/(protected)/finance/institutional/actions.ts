@@ -146,6 +146,13 @@ async function buildCreatePackageSchema() {
       total_credits: z.coerce.number().int().positive(await t("finance.institutional.error.quantity_positive")),
       unit_price: z.coerce.number().positive(await t("finance.institutional.error.amount_positive")),
       deposit_amount: z.coerce.number().min(0).optional(),
+      // Migration 045 — optional fixed commission for this deal, mirroring
+      // channel_campaigns' pic_report_override_amount /
+      // pic_analyst_report_fee_amount. Both independently optional — a
+      // package can pay just one, both, or neither.
+      responsible_analyst_id: z.string().uuid().optional().or(z.literal("")),
+      report_override_amount: z.coerce.number().min(0).optional(),
+      analyst_report_fee_amount: z.coerce.number().min(0).optional(),
       institution_party_id: z.string().uuid().optional().or(z.literal("")),
       institution_name: z.string().trim().optional(),
       ssm_number: z.string().trim().optional(),
@@ -179,6 +186,9 @@ export async function createInstitutionalPackage(_prev: CreatePackageState, form
     total_credits: formData.get("total_credits"),
     unit_price: formData.get("unit_price"),
     deposit_amount: formData.get("deposit_amount") || undefined,
+    responsible_analyst_id: formData.get("responsible_analyst_id") || undefined,
+    report_override_amount: formData.get("report_override_amount") || undefined,
+    analyst_report_fee_amount: formData.get("analyst_report_fee_amount") || undefined,
     institution_party_id: formData.get("institution_party_id") || undefined,
     institution_name: formData.get("institution_name") || undefined,
     ssm_number: formData.get("ssm_number") || undefined,
@@ -206,6 +216,9 @@ export async function createInstitutionalPackage(_prev: CreatePackageState, form
     unit_price: input.unit_price,
     deposit_amount: input.deposit_amount ?? null,
     deposit_received_at: input.deposit_amount ? new Date().toISOString() : null,
+    responsible_analyst_id: input.responsible_analyst_id || null,
+    report_override_amount: input.report_override_amount ?? null,
+    analyst_report_fee_amount: input.analyst_report_fee_amount ?? null,
   });
   if (error) return { status: "error", message: `${await t("finance.institutional.error.create_order_failed_prefix")}${error.message}` };
 

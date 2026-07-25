@@ -12,7 +12,13 @@ import type { InstitutionOption } from "./data";
 
 const initialState: CreatePackageState = { status: "idle" };
 
-export function CreatePackageForm({ institutions }: { institutions: InstitutionOption[] }) {
+export function CreatePackageForm({
+  institutions,
+  agents,
+}: {
+  institutions: InstitutionOption[];
+  agents: { id: string; name: string }[];
+}) {
   const [state, formAction, isPending] = useActionState(createInstitutionalPackage, initialState);
   const formRef = useRef<HTMLFormElement>(null);
   const [mode, setMode] = useState<"existing" | "new">(institutions.length > 0 ? "existing" : "new");
@@ -47,6 +53,52 @@ export function CreatePackageForm({ institutions }: { institutions: InstitutionO
           <div className="space-y-2">
             <Label htmlFor="pkg_deposit_amount">{ct("finance.institutional.package.deposit_label")}</Label>
             <Input id="pkg_deposit_amount" name="deposit_amount" type="number" step="0.01" min="0" placeholder={ct("finance.institutional.package.deposit_placeholder")} />
+          </div>
+
+          <div className="border-t pt-4">
+            <p className="mb-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+              {ct("finance.institutional.package.commission_section")}
+            </p>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="pkg_responsible_analyst_id">{ct("finance.institutional.package.responsible_analyst_label")}</Label>
+                <Select name="responsible_analyst_id" items={agents.map((a) => ({ value: a.id, label: a.name }))}>
+                  <SelectTrigger id="pkg_responsible_analyst_id" className="w-full">
+                    <SelectValue placeholder="—" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {agents.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="pkg_report_override_amount">{ct("finance.institutional.package.report_override_label")}</Label>
+                <Input
+                  id="pkg_report_override_amount"
+                  name="report_override_amount"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder={ct("finance.institutional.package.commission_placeholder")}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="pkg_analyst_report_fee_amount">{ct("finance.institutional.package.analyst_fee_label")}</Label>
+                <Input
+                  id="pkg_analyst_report_fee_amount"
+                  name="analyst_report_fee_amount"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder={ct("finance.institutional.package.commission_placeholder")}
+                />
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">{ct("finance.institutional.package.commission_hint")}</p>
           </div>
 
           <div className="border-t pt-4">

@@ -633,6 +633,13 @@ create table institutional_packages (
   deposit_amount numeric(12,2),
   deposit_received_at timestamptz,
   status text not null default 'active' check (status in ('active', 'completed', 'cancelled')),
+  -- Migration 045 — optional fixed commission for this deal, mirroring
+  -- channel_campaigns' pic_report_override_amount / pic_analyst_report_fee_amount.
+  -- responsible_analyst_id is the deal's "owner" (gets report_override),
+  -- independent of whichever analyst is credited on any given batch order.
+  responsible_analyst_id uuid references analysts(id),
+  report_override_amount numeric(12,2),
+  analyst_report_fee_amount numeric(12,2),
   created_at timestamptz not null default now()
 );
 create index idx_institutional_packages_institution on institutional_packages(institution_party_id);

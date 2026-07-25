@@ -183,6 +183,11 @@ export interface PackageRow {
   deposit_received_at: string | null;
   status: string;
   created_at: string;
+  // Migration 045 — optional fixed commission for this deal, mirroring
+  // channel_campaigns' pic_report_override_amount / pic_analyst_report_fee_amount.
+  responsible_analyst_name: string | null;
+  report_override_amount: number | null;
+  analyst_report_fee_amount: number | null;
 }
 
 // A negotiated bulk deal (migration 044) — "used" is derived by summing
@@ -195,18 +200,27 @@ export async function listPackages(): Promise<PackageRow[]> {
   const admin = createAdminClient();
   const { data: packages } = await admin
     .from("institutional_packages")
-    .select("id, institution_party_id, name, total_credits, unit_price, deposit_amount, deposit_received_at, status, created_at")
+    .select(
+      "id, institution_party_id, name, total_credits, unit_price, deposit_amount, deposit_received_at, status, created_at, responsible_analyst_id, report_override_amount, analyst_report_fee_amount"
+    )
     .order("created_at", { ascending: false });
   if (!packages || packages.length === 0) return [];
 
   const packageIds = packages.map((p) => p.id);
   const institutionPartyIds = [...new Set(packages.map((p) => p.institution_party_id))];
+  const responsibleAnalystIds = [...new Set(packages.filter((p) => p.responsible_analyst_id).map((p) => p.responsible_analyst_id as string))];
 
-  const [{ data: orders }, { data: orgs }] = await Promise.all([
+  const [{ data: orders }, { data: orgs }, { data: responsibleAnalysts }] = await Promise.all([
     admin.from("orders").select("id, institutional_package_id").in("institutional_package_id", packageIds).not("status", "in", "(cancelled,refunded)"),
     admin.from("organizations").select("party_id, legal_name").in("party_id", institutionPartyIds),
+    responsibleAnalystIds.length > 0 ? admin.from("analysts").select("id, party_id").in("id", responsibleAnalystIds) : Promise.resolve({ data: [] }),
   ]);
   const orgNameByParty = new Map((orgs ?? []).map((o) => [o.party_id, o.legal_name]));
+  const analystPartyById = new Map((responsibleAnalysts ?? []).map((a) => [a.id, a.party_id]));
+  const responsiblePartyIds = [...new Set([...analystPartyById.values()])];
+  const { data: responsibleIdentities } =
+    responsiblePartyIds.length > 0 ? await admin.from("individuals").select("party_id, full_name").in("party_id", responsiblePartyIds) : { data: [] };
+  const responsibleNameByParty = new Map((responsibleIdentities ?? []).map((i) => [i.party_id, i.full_name]));
 
   const orderIdsByPackage = new Map<string, string[]>();
   for (const o of orders ?? []) {
@@ -238,6 +252,11 @@ export async function listPackages(): Promise<PackageRow[]> {
       deposit_received_at: p.deposit_received_at,
       status: p.status,
       created_at: p.created_at,
+      responsible_analyst_name: p.responsible_analyst_id
+        ? (responsibleNameByParty.get(analystPartyById.get(p.responsible_analyst_id) ?? "") ?? null)
+        : null,
+      report_override_amount: p.report_override_amount === null ? null : Number(p.report_override_amount),
+      analyst_report_fee_amount: p.analyst_report_fee_amount === null ? null : Number(p.analyst_report_fee_amount),
     };
   });
 }
