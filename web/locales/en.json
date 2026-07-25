@@ -1059,6 +1059,11 @@
   "schedule.booking.select_customer_first": "Please select a customer first",
   "schedule.booking.no_customers": "You have no customer/child records available for booking",
   "schedule.booking.cancel": "Cancel",
+  "schedule.booking.mode_existing": "Existing Customer",
+  "schedule.booking.mode_new": "New Customer (Walk-in)",
+  "schedule.booking.new_customer_name_label": "Customer Name",
+  "schedule.booking.new_customer_phone_label": "Customer Phone",
+  "schedule.booking.new_child_name_label": "Subject's Name (optional — leave blank for the customer's own assessment)",
 
   "registrations.certification.section_title": "Training Certification",
   "registrations.certification.passed_label": "Certified: ",

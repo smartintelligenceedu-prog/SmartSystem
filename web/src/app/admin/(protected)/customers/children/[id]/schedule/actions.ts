@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getChildContext, getCustomerSelfContext } from "../report/data";
+import { createCustomer } from "../../../actions";
 import { t } from "@/lib/i18n";
 
 async function requireCallerContext(): Promise<{ analystId: string | null; isBackOffice: boolean } | { error: string }> {
@@ -45,6 +46,49 @@ function toMYTimestamp(dateStr: string, timeStr: string): Date {
 }
 
 export type ScheduleAppointmentState = { status: "idle" } | { status: "error"; message: string } | { status: "success" };
+
+// Shared by scheduleAppointment() and scheduleAppointmentForNewCustomer()
+// below — the actual device-slot reservation, once a customer_id (and
+// optional child_id) already exist. Device double-booking lock:
+// detection_appointments has a GiST exclusion constraint on
+// (device_id, time_range) — Postgres itself rejects any overlapping active
+// booking for the same device (SQLSTATE 23P01).
+async function insertAppointment(params: {
+  customerId: string;
+  childId: string | null;
+  analystId: string;
+  centerId: string;
+  deviceId: string;
+  detectionDate: string;
+  startTime: string;
+  endTime: string;
+}): Promise<ScheduleAppointmentState> {
+  const scheduledAt = toMYTimestamp(params.detectionDate, params.startTime);
+  const scheduledEnd = toMYTimestamp(params.detectionDate, params.endTime);
+  const durationMinutes = Math.round((scheduledEnd.getTime() - scheduledAt.getTime()) / 60000);
+  if (durationMinutes <= 0) {
+    return { status: "error", message: await t("schedule.form.error.invalid_time_range") };
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("detection_appointments").insert({
+    customer_id: params.customerId,
+    child_id: params.childId,
+    analyst_id: params.analystId,
+    device_id: params.deviceId,
+    center_id: params.centerId,
+    scheduled_at: scheduledAt.toISOString(),
+    duration_minutes: durationMinutes,
+    status: "pending_assessment",
+  });
+  if (error) {
+    if (error.code === "23P01") {
+      return { status: "error", message: await t("schedule.form.error.device_conflict") };
+    }
+    return { status: "error", message: `${await t("schedule.form.error.save_failed")}${error.message}` };
+  }
+  return { status: "success" };
+}
 
 // Stage 1 ONLY — reserves a device time slot before any assessment happens.
 // Zero report-data fields exist on this form on purpose (see the 2026-07-14
@@ -87,36 +131,19 @@ export async function scheduleAppointment(_prev: ScheduleAppointmentState, formD
   }
 
   const { center_id, device_id, detection_date, start_time, end_time } = parsed.data;
-
-  const scheduledAt = toMYTimestamp(detection_date, start_time);
-  const scheduledEnd = toMYTimestamp(detection_date, end_time);
-  const durationMinutes = Math.round((scheduledEnd.getTime() - scheduledAt.getTime()) / 60000);
-  if (durationMinutes <= 0) {
-    return { status: "error", message: await t("schedule.form.error.invalid_time_range") };
-  }
-
-  const admin = createAdminClient();
   const performingAnalystId = auth.analystId ?? subject.owner_analyst_id;
 
-  // Device double-booking lock: detection_appointments has a GiST exclusion
-  // constraint on (device_id, time_range) — Postgres itself rejects any
-  // overlapping active booking for the same device (SQLSTATE 23P01).
-  const { error: appointmentError } = await admin.from("detection_appointments").insert({
-    customer_id: subject.customer_id,
-    child_id: childId,
-    analyst_id: performingAnalystId,
-    device_id,
-    center_id,
-    scheduled_at: scheduledAt.toISOString(),
-    duration_minutes: durationMinutes,
-    status: "pending_assessment",
+  const result = await insertAppointment({
+    customerId: subject.customer_id,
+    childId,
+    analystId: performingAnalystId,
+    centerId: center_id,
+    deviceId: device_id,
+    detectionDate: detection_date,
+    startTime: start_time,
+    endTime: end_time,
   });
-  if (appointmentError) {
-    if (appointmentError.code === "23P01") {
-      return { status: "error", message: await t("schedule.form.error.device_conflict") };
-    }
-    return { status: "error", message: `${await t("schedule.form.error.save_failed")}${appointmentError.message}` };
-  }
+  if (result.status !== "success") return result;
 
   if (childId) {
     revalidatePath(`/admin/customers/children/${childId}/report`);
@@ -126,5 +153,97 @@ export async function scheduleAppointment(_prev: ScheduleAppointmentState, formD
     revalidatePath(`/admin/customers/${subject.customer_id}/self-schedule`);
   }
   revalidatePath("/admin/schedule");
-  return { status: "success" };
+  return result;
+}
+
+// Built inside the action (not at module scope) — see the note in
+// buildScheduleSchema() above / customers/actions.ts's buildCustomerFormSchema.
+async function buildNewCustomerScheduleSchema() {
+  return z.object({
+    new_customer_name: z.string().trim().min(2, await t("customer.error.required_name")),
+    new_customer_phone: z.string().trim().min(8, await t("customer.error.required_phone")),
+    new_child_name: z.string().trim().optional(),
+    center_id: z.string().uuid(await t("schedule.form.error.center_required")),
+    device_id: z.string().uuid(await t("schedule.form.error.device_required")),
+    detection_date: z.string().min(1, await t("schedule.form.error.date_required")),
+    start_time: z.string().regex(/^\d{2}:\d{2}$/, await t("schedule.form.error.start_time_required")),
+    end_time: z.string().regex(/^\d{2}:\d{2}$/, await t("schedule.form.error.end_time_required")),
+  });
+}
+
+// Booth/roadshow/school-visit booking: the walk-in isn't in the system yet,
+// so this creates a real customer (reusing createCustomer() — same
+// duplicate-phone check and activity log a normal registration gets, not a
+// second-class shortcut) and optional child, then reserves the device slot
+// the same way scheduleAppointment() does. Only a real analyst can own the
+// new customer (customers.owner_analyst_id is not null), so unlike
+// scheduleAppointment() this has no back-office-without-analystId path.
+export async function scheduleAppointmentForNewCustomer(
+  _prev: ScheduleAppointmentState,
+  formData: FormData
+): Promise<ScheduleAppointmentState> {
+  const auth = await requireCallerContext();
+  if ("error" in auth) return { status: "error", message: auth.error };
+  if (!auth.analystId) return { status: "error", message: await t("schedule.form.error.no_permission") };
+
+  const schema = await buildNewCustomerScheduleSchema();
+  const parsed = schema.safeParse({
+    new_customer_name: formData.get("new_customer_name"),
+    new_customer_phone: formData.get("new_customer_phone"),
+    new_child_name: formData.get("new_child_name") || undefined,
+    center_id: formData.get("center_id"),
+    device_id: formData.get("device_id"),
+    detection_date: formData.get("detection_date"),
+    start_time: formData.get("start_time"),
+    end_time: formData.get("end_time"),
+  });
+  if (!parsed.success) {
+    return { status: "error", message: parsed.error.issues[0]?.message ?? (await t("schedule.form.error.invalid_form")) };
+  }
+  const input = parsed.data;
+
+  const customerFormData = new FormData();
+  customerFormData.set("full_name", input.new_customer_name);
+  customerFormData.set("phone", input.new_customer_phone);
+  const customerResult = await createCustomer({ status: "idle" }, customerFormData);
+  if (customerResult.status !== "success") {
+    return {
+      status: "error",
+      message: customerResult.status === "error" ? customerResult.message : await t("schedule.form.error.save_failed"),
+    };
+  }
+  const customerId = customerResult.customerId;
+
+  const admin = createAdminClient();
+  let childId: string | null = null;
+  if (input.new_child_name) {
+    const { data: child, error: childError } = await admin
+      .from("customer_children")
+      .insert({ customer_id: customerId, full_name: input.new_child_name })
+      .select("id")
+      .single();
+    if (childError) return { status: "error", message: `${await t("schedule.form.error.save_failed")}${childError.message}` };
+    childId = child.id;
+  }
+
+  const result = await insertAppointment({
+    customerId,
+    childId,
+    analystId: auth.analystId,
+    centerId: input.center_id,
+    deviceId: input.device_id,
+    detectionDate: input.detection_date,
+    startTime: input.start_time,
+    endTime: input.end_time,
+  });
+  if (result.status !== "success") return result;
+
+  revalidatePath("/admin/customers");
+  revalidatePath("/admin/schedule");
+  if (childId) {
+    revalidatePath(`/admin/customers/children/${childId}/report`);
+  } else {
+    revalidatePath(`/admin/customers/${customerId}/self-report`);
+  }
+  return result;
 }

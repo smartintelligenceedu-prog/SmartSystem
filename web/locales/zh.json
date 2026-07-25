@@ -1059,6 +1059,11 @@
   "schedule.booking.select_customer_first": "请先选择顾客",
   "schedule.booking.no_customers": "你名下暂无可预约的顾客／孩子资料",
   "schedule.booking.cancel": "取消",
+  "schedule.booking.mode_existing": "现有顾客",
+  "schedule.booking.mode_new": "新顾客（现场登记）",
+  "schedule.booking.new_customer_name_label": "顾客姓名",
+  "schedule.booking.new_customer_phone_label": "顾客电话",
+  "schedule.booking.new_child_name_label": "受测者姓名（选填，留空则视为顾客本人检测）",
 
   "registrations.certification.section_title": "培训认证",
   "registrations.certification.passed_label": "已通过认证：",
