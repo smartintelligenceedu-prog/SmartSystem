@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { t } from "@/lib/i18n";
+import { createInstitutionParty } from "../finance/institutional/actions";
 
 async function requireBackOfficeUserId(): Promise<{ userId: string } | { error: string }> {
   const supabase = await createServerSupabaseClient();
@@ -34,6 +35,21 @@ async function buildCreateCampaignSchema() {
     location: z.string().trim().optional(),
     pic_report_override_amount: z.coerce.number().min(0).optional(),
     pic_analyst_report_fee_amount: z.coerce.number().min(0).optional(),
+    // Optional formal billing identity (migration 043) — a campaign isn't
+    // always tied to an invoiceable institution (e.g. a public mall
+    // roadshow), so unlike Institutional Orders none of this is required.
+    // Either institution_party_id (an existing one) or the freeform
+    // name+address for a new one; both left empty just means "no formal
+    // institution attached", not a validation error.
+    institution_party_id: z.string().uuid().optional().or(z.literal("")),
+    institution_name: z.string().trim().optional(),
+    ssm_number: z.string().trim().optional(),
+    billing_address_line1: z.string().trim().optional(),
+    billing_address_line2: z.string().trim().optional(),
+    billing_city: z.string().trim().optional(),
+    billing_state: z.string().trim().optional(),
+    billing_postcode: z.string().trim().optional(),
+    institution_phone: z.string().trim().optional(),
   });
 }
 
@@ -51,9 +67,37 @@ export async function createCampaign(_prev: CreateCampaignState, formData: FormD
     location: formData.get("location") || undefined,
     pic_report_override_amount: formData.get("pic_report_override_amount") || undefined,
     pic_analyst_report_fee_amount: formData.get("pic_analyst_report_fee_amount") || undefined,
+    institution_party_id: formData.get("institution_party_id") || undefined,
+    institution_name: formData.get("institution_name") || undefined,
+    ssm_number: formData.get("ssm_number") || undefined,
+    billing_address_line1: formData.get("billing_address_line1") || undefined,
+    billing_address_line2: formData.get("billing_address_line2") || undefined,
+    billing_city: formData.get("billing_city") || undefined,
+    billing_state: formData.get("billing_state") || undefined,
+    billing_postcode: formData.get("billing_postcode") || undefined,
+    institution_phone: formData.get("institution_phone") || undefined,
   });
   if (!parsed.success) {
     return { status: "error", message: parsed.error.issues[0]?.message ?? await t("pic_campaigns.error.invalid_form") };
+  }
+  const input = parsed.data;
+
+  let institutionPartyId: string | null = null;
+  if (input.institution_party_id) {
+    institutionPartyId = input.institution_party_id;
+  } else if (input.institution_name && input.billing_address_line1) {
+    const created = await createInstitutionParty({
+      name: input.institution_name,
+      ssmNumber: input.ssm_number,
+      phone: input.institution_phone,
+      addressLine1: input.billing_address_line1,
+      addressLine2: input.billing_address_line2,
+      city: input.billing_city,
+      state: input.billing_state,
+      postcode: input.billing_postcode,
+    });
+    if ("error" in created) return { status: "error", message: created.error };
+    institutionPartyId = created.partyId;
   }
 
   const admin = createAdminClient();
@@ -64,6 +108,7 @@ export async function createCampaign(_prev: CreateCampaignState, formData: FormD
     location: parsed.data.location || null,
     pic_report_override_amount: parsed.data.pic_report_override_amount ?? null,
     pic_analyst_report_fee_amount: parsed.data.pic_analyst_report_fee_amount ?? null,
+    institution_party_id: institutionPartyId,
   });
   if (error) return { status: "error", message: `${await t("pic_campaigns.error.create_failed")}${error.message}` };
 

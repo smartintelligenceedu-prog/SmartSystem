@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getPortalUserContext } from "@/lib/auth/context";
 import { hasAnyRole } from "@/lib/auth/roles";
 import { listCampaigns, listApprovedAnalystOptions } from "./data";
+import { listInstitutionOptions } from "../finance/institutional/data";
 import { CreateCampaignForm } from "./create-campaign-form";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -26,7 +27,7 @@ export default async function PicCampaignsPage() {
   if (!context) redirect("/admin/login");
   if (!hasAnyRole(context, ["admin", "finance"])) redirect("/admin");
 
-  const [campaigns, analysts] = await Promise.all([listCampaigns(), listApprovedAnalystOptions()]);
+  const [campaigns, analysts, institutions] = await Promise.all([listCampaigns(), listApprovedAnalystOptions(), listInstitutionOptions()]);
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -35,7 +36,7 @@ export default async function PicCampaignsPage() {
         <p className="mt-1 text-sm text-muted-foreground">{t("pic_campaigns.subtitle")}</p>
       </div>
 
-      <CreateCampaignForm analysts={analysts} />
+      <CreateCampaignForm analysts={analysts} institutions={institutions} />
 
       <Table>
         <TableHeader>

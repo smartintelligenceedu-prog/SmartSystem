@@ -221,9 +221,15 @@ create table channel_campaigns (
   -- commission_rules defaults. Null = fall back to the global rule.
   pic_report_override_amount numeric(12,2),
   pic_analyst_report_fee_amount numeric(12,2),
+  -- Migration 043 — optional formal billing identity (same parties/
+  -- organizations/addresses model as orders.institution_party_id), so an
+  -- institution set up here can be reused when creating an Institutional
+  -- Order for the same school/company instead of retyping it.
+  institution_party_id uuid references parties(id),
   created_at timestamptz not null default now()
 );
 create index idx_channel_campaigns_pic on channel_campaigns(pic_analyst_id);
+create index idx_channel_campaigns_institution on channel_campaigns(institution_party_id);
 
 -- ============================================================================
 -- 4. CRM

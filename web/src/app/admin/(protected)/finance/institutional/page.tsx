@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getPortalUserContext } from "@/lib/auth/context";
 import { hasAnyRole } from "@/lib/auth/roles";
-import { listInstitutionalOrders, type InstitutionalOrderState } from "./data";
+import { listInstitutionalOrders, listInstitutionOptions, type InstitutionalOrderState } from "./data";
 import { listApprovedAgents } from "../../sales-orders/data";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -44,9 +44,10 @@ export default async function InstitutionalOrdersPage() {
   const isAgentViewer = !canManage && !!context.analystId;
   if (!canManage && !isAgentViewer) redirect("/admin");
 
-  const [orders, agents] = await Promise.all([
+  const [orders, agents, institutions] = await Promise.all([
     listInstitutionalOrders(isAgentViewer ? context.analystId! : undefined),
     canManage ? listApprovedAgents() : Promise.resolve([]),
+    canManage ? listInstitutionOptions() : Promise.resolve([]),
   ]);
 
   return (
@@ -113,7 +114,7 @@ export default async function InstitutionalOrdersPage() {
       {canManage && (
         <div>
           <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{t("finance.institutional.new_order.title")}</h2>
-          <CreateInstitutionalOrderForm agents={agents} />
+          <CreateInstitutionalOrderForm agents={agents} institutions={institutions} />
         </div>
       )}
     </div>

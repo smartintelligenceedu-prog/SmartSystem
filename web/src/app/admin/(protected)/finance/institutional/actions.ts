@@ -25,20 +25,73 @@ async function requireBackOfficeUserId(): Promise<{ userId: string } | { error: 
 // Built per-call, not a module-scope constant — see the identical note in
 // customers/actions.ts's buildCustomerFormSchema.
 async function buildCreateOrderSchema() {
-  return z.object({
-    description: z.string().trim().min(2, await t("finance.institutional.error.description_required")),
-    total_amount: z.coerce.number().positive(await t("finance.institutional.error.amount_positive")),
-    quantity: z.coerce.number().int().positive(await t("finance.institutional.error.quantity_positive")),
-    analyst_id: z.string().uuid().optional().or(z.literal("")),
-    institution_name: z.string().trim().min(2, await t("finance.institutional.error.institution_name_required")),
-    ssm_number: z.string().trim().optional(),
-    billing_address_line1: z.string().trim().min(2, await t("finance.institutional.error.billing_address_required")),
-    billing_address_line2: z.string().trim().optional(),
-    billing_city: z.string().trim().optional(),
-    billing_state: z.string().trim().optional(),
-    billing_postcode: z.string().trim().optional(),
-    institution_phone: z.string().trim().optional(),
+  const institutionRequiredMessage = await t("finance.institutional.error.institution_name_required");
+  return z
+    .object({
+      description: z.string().trim().min(2, await t("finance.institutional.error.description_required")),
+      total_amount: z.coerce.number().positive(await t("finance.institutional.error.amount_positive")),
+      quantity: z.coerce.number().int().positive(await t("finance.institutional.error.quantity_positive")),
+      analyst_id: z.string().uuid().optional().or(z.literal("")),
+      // Either institution_party_id (an existing institution picked from
+      // listInstitutionOptions()) OR the freeform name+address fields for a
+      // brand-new one — never both, enforced below since Zod can't express
+      // "exactly one of" declaratively.
+      institution_party_id: z.string().uuid().optional().or(z.literal("")),
+      institution_name: z.string().trim().optional(),
+      ssm_number: z.string().trim().optional(),
+      billing_address_line1: z.string().trim().optional(),
+      billing_address_line2: z.string().trim().optional(),
+      billing_city: z.string().trim().optional(),
+      billing_state: z.string().trim().optional(),
+      billing_postcode: z.string().trim().optional(),
+      institution_phone: z.string().trim().optional(),
+    })
+    .refine((v) => !!v.institution_party_id || (v.institution_name && v.institution_name.length >= 2 && v.billing_address_line1), {
+      message: institutionRequiredMessage,
+      path: ["institution_name"],
+    });
+}
+
+// Shared party/organization/address creation for a formal institution
+// billing identity — used both by a brand-new Institutional Order (this
+// file) and a PIC channel campaign that wants to attach one (pic-campaigns/
+// actions.ts, migration 043), so the same reusable institution record can
+// come from either module. Self-contained (own admin client) since it's
+// called from another module's Server Action, not just from this file.
+export async function createInstitutionParty(input: {
+  name: string;
+  ssmNumber?: string | null;
+  phone?: string | null;
+  addressLine1: string;
+  addressLine2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postcode?: string | null;
+}): Promise<{ partyId: string } | { error: string }> {
+  const admin = createAdminClient();
+
+  const { data: party, error: partyError } = await admin.from("parties").insert({ party_type: "organization" }).select("id").single();
+  if (partyError) return { error: `${await t("finance.institutional.error.create_institution_failed_prefix")}${partyError.message}` };
+
+  const { error: orgError } = await admin.from("organizations").insert({
+    party_id: party.id,
+    legal_name: input.name,
+    registration_no: input.ssmNumber || null,
+    phone: input.phone || null,
   });
+  if (orgError) return { error: `${await t("finance.institutional.error.create_institution_failed_prefix")}${orgError.message}` };
+
+  const { error: addressError } = await admin.from("addresses").insert({
+    party_id: party.id,
+    line1: input.addressLine1,
+    line2: input.addressLine2 || null,
+    city: input.city || null,
+    state: input.state || null,
+    postcode: input.postcode || null,
+  });
+  if (addressError) return { error: `${await t("finance.institutional.error.create_billing_address_failed_prefix")}${addressError.message}` };
+
+  return { partyId: party.id };
 }
 
 export type CreateInstitutionalOrderState = { status: "idle" } | { status: "error"; message: string } | { status: "success" };
@@ -48,10 +101,10 @@ export type CreateInstitutionalOrderState = { status: "idle" } | { status: "erro
 // effect until an invoice is issued or a deposit is recorded).
 //
 // The institution's billing identity (legal name / SSM number / billing
-// address) is captured fresh each time here rather than picked from an
-// existing record — there's no institution management screen yet, this is
-// deliberately the minimal version (migration 017's comment). It reuses the
-// existing parties/organizations/addresses model instead of a dedicated
+// address) is either picked from an existing party (institution_party_id,
+// migration 043 — reused from a prior order or PIC campaign) or captured
+// fresh via createInstitutionParty(). Either way it reuses the existing
+// parties/organizations/addresses model instead of a dedicated
 // "institutions" table.
 export async function createInstitutionalOrder(
   _prev: CreateInstitutionalOrderState,
@@ -66,9 +119,10 @@ export async function createInstitutionalOrder(
     total_amount: formData.get("total_amount"),
     quantity: formData.get("quantity") || "1",
     analyst_id: formData.get("analyst_id") || undefined,
-    institution_name: formData.get("institution_name"),
+    institution_party_id: formData.get("institution_party_id") || undefined,
+    institution_name: formData.get("institution_name") || undefined,
     ssm_number: formData.get("ssm_number") || undefined,
-    billing_address_line1: formData.get("billing_address_line1"),
+    billing_address_line1: formData.get("billing_address_line1") || undefined,
     billing_address_line2: formData.get("billing_address_line2") || undefined,
     billing_city: formData.get("billing_city") || undefined,
     billing_state: formData.get("billing_state") || undefined,
@@ -82,31 +136,22 @@ export async function createInstitutionalOrder(
 
   const admin = createAdminClient();
 
-  const { data: party, error: partyError } = await admin.from("parties").insert({ party_type: "organization" }).select("id").single();
-  if (partyError) {
-    return { status: "error", message: `${await t("finance.institutional.error.create_institution_failed_prefix")}${partyError.message}` };
-  }
-
-  const { error: orgError } = await admin.from("organizations").insert({
-    party_id: party.id,
-    legal_name: input.institution_name,
-    registration_no: input.ssm_number || null,
-    phone: input.institution_phone || null,
-  });
-  if (orgError) {
-    return { status: "error", message: `${await t("finance.institutional.error.create_institution_failed_prefix")}${orgError.message}` };
-  }
-
-  const { error: addressError } = await admin.from("addresses").insert({
-    party_id: party.id,
-    line1: input.billing_address_line1,
-    line2: input.billing_address_line2 || null,
-    city: input.billing_city || null,
-    state: input.billing_state || null,
-    postcode: input.billing_postcode || null,
-  });
-  if (addressError) {
-    return { status: "error", message: `${await t("finance.institutional.error.create_billing_address_failed_prefix")}${addressError.message}` };
+  let institutionPartyId: string;
+  if (input.institution_party_id) {
+    institutionPartyId = input.institution_party_id;
+  } else {
+    const created = await createInstitutionParty({
+      name: input.institution_name!,
+      ssmNumber: input.ssm_number,
+      phone: input.institution_phone,
+      addressLine1: input.billing_address_line1!,
+      addressLine2: input.billing_address_line2,
+      city: input.billing_city,
+      state: input.billing_state,
+      postcode: input.billing_postcode,
+    });
+    if ("error" in created) return { status: "error", message: created.error };
+    institutionPartyId = created.partyId;
   }
 
   const { data: order, error: orderError } = await admin
@@ -116,7 +161,7 @@ export async function createInstitutionalOrder(
       status: "pending",
       billing_mode: "invoice",
       total_amount: input.total_amount,
-      institution_party_id: party.id,
+      institution_party_id: institutionPartyId,
     })
     .select("id")
     .single();

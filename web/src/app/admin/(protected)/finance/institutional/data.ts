@@ -135,6 +135,62 @@ export async function listInstitutionalOrders(scopedToAnalystId?: string): Promi
     });
 }
 
+export interface InstitutionOption {
+  party_id: string;
+  legal_name: string;
+  ssm_number: string | null;
+  phone: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
+  city: string | null;
+  state: string | null;
+  postcode: string | null;
+}
+
+// Every institution that already has a formal billing identity (parties/
+// organizations/addresses) somewhere in the system — sourced from BOTH
+// Institutional Orders (orders.institution_party_id) and PIC channel
+// campaigns (channel_campaigns.institution_party_id, migration 043) — so
+// creating an order for a school that already ran a campaign (or vice
+// versa) reuses the same record instead of retyping SSM/address again.
+export async function listInstitutionOptions(): Promise<InstitutionOption[]> {
+  const admin = createAdminClient();
+  const [{ data: orderParties }, { data: campaignParties }] = await Promise.all([
+    admin.from("orders").select("institution_party_id").not("institution_party_id", "is", null),
+    admin.from("channel_campaigns").select("institution_party_id").not("institution_party_id", "is", null),
+  ]);
+  const partyIds = [
+    ...new Set([
+      ...(orderParties ?? []).map((o) => o.institution_party_id as string),
+      ...(campaignParties ?? []).map((c) => c.institution_party_id as string),
+    ]),
+  ];
+  if (partyIds.length === 0) return [];
+
+  const [{ data: orgs }, { data: addresses }] = await Promise.all([
+    admin.from("organizations").select("party_id, legal_name, registration_no, phone").in("party_id", partyIds),
+    admin.from("addresses").select("party_id, line1, line2, city, state, postcode").in("party_id", partyIds).eq("is_primary", true),
+  ]);
+  const addressByParty = new Map((addresses ?? []).map((a) => [a.party_id, a]));
+
+  return (orgs ?? [])
+    .map((o) => {
+      const addr = addressByParty.get(o.party_id);
+      return {
+        party_id: o.party_id,
+        legal_name: o.legal_name,
+        ssm_number: o.registration_no,
+        phone: o.phone,
+        address_line1: addr?.line1 ?? null,
+        address_line2: addr?.line2 ?? null,
+        city: addr?.city ?? null,
+        state: addr?.state ?? null,
+        postcode: addr?.postcode ?? null,
+      };
+    })
+    .sort((a, b) => a.legal_name.localeCompare(b.legal_name));
+}
+
 export interface BillingEntity {
   legal_name: string;
   ssm_number: string | null;
