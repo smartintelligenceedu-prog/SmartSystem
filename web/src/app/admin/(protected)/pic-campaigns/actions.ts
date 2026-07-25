@@ -55,6 +55,39 @@ async function buildCreateCampaignSchema() {
 
 export type CreateCampaignState = { status: "idle" } | { status: "error"; message: string } | { status: "success" };
 
+// Shared by createCampaign() and updateCampaignInstitution() — picks an
+// existing institution party, creates a new one, or returns null (no
+// institution attached, valid for a campaign though not for an
+// Institutional Order).
+async function resolveInstitutionPartyId(input: {
+  institution_party_id?: string;
+  institution_name?: string;
+  ssm_number?: string;
+  billing_address_line1?: string;
+  billing_address_line2?: string;
+  billing_city?: string;
+  billing_state?: string;
+  billing_postcode?: string;
+  institution_phone?: string;
+}): Promise<{ partyId: string | null } | { error: string }> {
+  if (input.institution_party_id) return { partyId: input.institution_party_id };
+  if (input.institution_name && input.billing_address_line1) {
+    const created = await createInstitutionParty({
+      name: input.institution_name,
+      ssmNumber: input.ssm_number,
+      phone: input.institution_phone,
+      addressLine1: input.billing_address_line1,
+      addressLine2: input.billing_address_line2,
+      city: input.billing_city,
+      state: input.billing_state,
+      postcode: input.billing_postcode,
+    });
+    if ("error" in created) return { error: created.error };
+    return { partyId: created.partyId };
+  }
+  return { partyId: null };
+}
+
 export async function createCampaign(_prev: CreateCampaignState, formData: FormData): Promise<CreateCampaignState> {
   const auth = await requireBackOfficeUserId();
   if ("error" in auth) return { status: "error", message: auth.error };
@@ -82,23 +115,8 @@ export async function createCampaign(_prev: CreateCampaignState, formData: FormD
   }
   const input = parsed.data;
 
-  let institutionPartyId: string | null = null;
-  if (input.institution_party_id) {
-    institutionPartyId = input.institution_party_id;
-  } else if (input.institution_name && input.billing_address_line1) {
-    const created = await createInstitutionParty({
-      name: input.institution_name,
-      ssmNumber: input.ssm_number,
-      phone: input.institution_phone,
-      addressLine1: input.billing_address_line1,
-      addressLine2: input.billing_address_line2,
-      city: input.billing_city,
-      state: input.billing_state,
-      postcode: input.billing_postcode,
-    });
-    if ("error" in created) return { status: "error", message: created.error };
-    institutionPartyId = created.partyId;
-  }
+  const resolved = await resolveInstitutionPartyId(input);
+  if ("error" in resolved) return { status: "error", message: resolved.error };
 
   const admin = createAdminClient();
   const { error } = await admin.from("channel_campaigns").insert({
@@ -108,8 +126,71 @@ export async function createCampaign(_prev: CreateCampaignState, formData: FormD
     location: parsed.data.location || null,
     pic_report_override_amount: parsed.data.pic_report_override_amount ?? null,
     pic_analyst_report_fee_amount: parsed.data.pic_analyst_report_fee_amount ?? null,
-    institution_party_id: institutionPartyId,
+    institution_party_id: resolved.partyId,
   });
+  if (error) return { status: "error", message: `${await t("pic_campaigns.error.create_failed")}${error.message}` };
+
+  revalidatePath("/admin/pic-campaigns");
+  return { status: "success" };
+}
+
+async function buildUpdateInstitutionSchema() {
+  const institutionRequiredMessage = await t("finance.institutional.error.institution_name_required");
+  return z
+    .object({
+      campaign_id: z.string().uuid(),
+      institution_party_id: z.string().uuid().optional().or(z.literal("")),
+      institution_name: z.string().trim().optional(),
+      ssm_number: z.string().trim().optional(),
+      billing_address_line1: z.string().trim().optional(),
+      billing_address_line2: z.string().trim().optional(),
+      billing_city: z.string().trim().optional(),
+      billing_state: z.string().trim().optional(),
+      billing_postcode: z.string().trim().optional(),
+      institution_phone: z.string().trim().optional(),
+    })
+    .refine((v) => !!v.institution_party_id || (v.institution_name && v.institution_name.length >= 2 && v.billing_address_line1), {
+      message: institutionRequiredMessage,
+      path: ["institution_name"],
+    });
+}
+
+export type UpdateCampaignInstitutionState = { status: "idle" } | { status: "error"; message: string } | { status: "success" };
+
+// Lets back office attach a formal billing identity to a campaign AFTER
+// creation — a campaign created with the institution section left on "none"
+// (the default) otherwise has no way to be linked later short of
+// recreating it from scratch.
+export async function updateCampaignInstitution(
+  _prev: UpdateCampaignInstitutionState,
+  formData: FormData
+): Promise<UpdateCampaignInstitutionState> {
+  const auth = await requireBackOfficeUserId();
+  if ("error" in auth) return { status: "error", message: auth.error };
+
+  const schema = await buildUpdateInstitutionSchema();
+  const parsed = schema.safeParse({
+    campaign_id: formData.get("campaign_id"),
+    institution_party_id: formData.get("institution_party_id") || undefined,
+    institution_name: formData.get("institution_name") || undefined,
+    ssm_number: formData.get("ssm_number") || undefined,
+    billing_address_line1: formData.get("billing_address_line1") || undefined,
+    billing_address_line2: formData.get("billing_address_line2") || undefined,
+    billing_city: formData.get("billing_city") || undefined,
+    billing_state: formData.get("billing_state") || undefined,
+    billing_postcode: formData.get("billing_postcode") || undefined,
+    institution_phone: formData.get("institution_phone") || undefined,
+  });
+  if (!parsed.success) {
+    return { status: "error", message: parsed.error.issues[0]?.message ?? (await t("pic_campaigns.error.invalid_form")) };
+  }
+  const input = parsed.data;
+
+  const resolved = await resolveInstitutionPartyId(input);
+  if ("error" in resolved) return { status: "error", message: resolved.error };
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("channel_campaigns").update({ institution_party_id: resolved.partyId }).eq("id", input.campaign_id);
   if (error) return { status: "error", message: `${await t("pic_campaigns.error.create_failed")}${error.message}` };
 
   revalidatePath("/admin/pic-campaigns");

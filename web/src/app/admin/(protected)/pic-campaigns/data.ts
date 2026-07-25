@@ -32,6 +32,8 @@ export interface CampaignRow {
   pic_name: string;
   pic_report_override_amount: number | null;
   pic_analyst_report_fee_amount: number | null;
+  institution_party_id: string | null;
+  institution_name: string | null;
   created_at: string;
 }
 
@@ -39,7 +41,9 @@ export async function listCampaigns(): Promise<CampaignRow[]> {
   const admin = createAdminClient();
   const { data: campaigns } = await admin
     .from("channel_campaigns")
-    .select("id, name, campaign_type, location, status, pic_analyst_id, pic_report_override_amount, pic_analyst_report_fee_amount, created_at")
+    .select(
+      "id, name, campaign_type, location, status, pic_analyst_id, pic_report_override_amount, pic_analyst_report_fee_amount, institution_party_id, created_at"
+    )
     .order("created_at", { ascending: false });
   if (!campaigns || campaigns.length === 0) return [];
 
@@ -52,6 +56,11 @@ export async function listCampaigns(): Promise<CampaignRow[]> {
     .in("party_id", [...partyByAnalyst.values()]);
   const nameByParty = new Map((individuals ?? []).map((i) => [i.party_id, i.full_name]));
 
+  const institutionPartyIds = [...new Set(campaigns.filter((c) => c.institution_party_id).map((c) => c.institution_party_id as string))];
+  const { data: orgs } =
+    institutionPartyIds.length > 0 ? await admin.from("organizations").select("party_id, legal_name").in("party_id", institutionPartyIds) : { data: [] };
+  const institutionNameByParty = new Map((orgs ?? []).map((o) => [o.party_id, o.legal_name]));
+
   return campaigns.map((c) => ({
     id: c.id,
     name: c.name,
@@ -62,6 +71,8 @@ export async function listCampaigns(): Promise<CampaignRow[]> {
     pic_name: nameByParty.get(partyByAnalyst.get(c.pic_analyst_id) ?? "") ?? "—",
     pic_report_override_amount: c.pic_report_override_amount === null ? null : Number(c.pic_report_override_amount),
     pic_analyst_report_fee_amount: c.pic_analyst_report_fee_amount === null ? null : Number(c.pic_analyst_report_fee_amount),
+    institution_party_id: c.institution_party_id,
+    institution_name: c.institution_party_id ? (institutionNameByParty.get(c.institution_party_id) ?? null) : null,
     created_at: c.created_at,
   }));
 }

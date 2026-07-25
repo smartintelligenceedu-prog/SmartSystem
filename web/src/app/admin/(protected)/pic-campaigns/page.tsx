@@ -4,6 +4,7 @@ import { hasAnyRole } from "@/lib/auth/roles";
 import { listCampaigns, listApprovedAnalystOptions } from "./data";
 import { listInstitutionOptions } from "../finance/institutional/data";
 import { CreateCampaignForm } from "./create-campaign-form";
+import { CampaignInstitutionCell } from "./campaign-institution-cell";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { t } from "@/lib/i18n";
@@ -44,6 +45,7 @@ export default async function PicCampaignsPage() {
             <TableHead>{t("pic_campaigns.column.name")}</TableHead>
             <TableHead>{t("pic_campaigns.column.type")}</TableHead>
             <TableHead>{t("pic_campaigns.column.pic")}</TableHead>
+            <TableHead>{t("pic_campaigns.column.institution")}</TableHead>
             <TableHead>{t("pic_campaigns.column.report_override")}</TableHead>
             <TableHead>{t("pic_campaigns.column.analyst_fee")}</TableHead>
           </TableRow>
@@ -51,7 +53,7 @@ export default async function PicCampaignsPage() {
         <TableBody>
           {campaigns.length === 0 && (
             <TableRow>
-              <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
+              <TableCell colSpan={6} className="text-center text-sm text-muted-foreground">
                 {t("pic_campaigns.empty")}
               </TableCell>
             </TableRow>
@@ -66,6 +68,14 @@ export default async function PicCampaignsPage() {
                 <Badge variant="secondary">{t(TYPE_LABEL_KEY[c.campaign_type] ?? "pic_campaigns.type.other")}</Badge>
               </TableCell>
               <TableCell>{c.pic_name}</TableCell>
+              <TableCell>
+                <CampaignInstitutionCell
+                  campaignId={c.id}
+                  institutionName={c.institution_name}
+                  institutionPartyId={c.institution_party_id}
+                  institutions={institutions}
+                />
+              </TableCell>
               <TableCell>{formatMYR(c.pic_report_override_amount) ?? <span className="text-xs text-muted-foreground">{t("pic_campaigns.uses_default")}</span>}</TableCell>
               <TableCell>{formatMYR(c.pic_analyst_report_fee_amount) ?? <span className="text-xs text-muted-foreground">{t("pic_campaigns.uses_default")}</span>}</TableCell>
             </TableRow>
