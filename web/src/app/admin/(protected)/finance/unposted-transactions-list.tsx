@@ -94,6 +94,18 @@ export function UnpostedTransactionsList({ transactions }: { transactions: Unpos
                   <p className="text-xs text-muted-foreground">
                     {tx.subject} · {new Date(tx.date).toLocaleDateString("zh-CN")}
                   </p>
+                  {tx.source_name && (
+                    <p className="text-xs text-muted-foreground">
+                      {ct("commission.page.source_prefix")}
+                      {tx.source_name}
+                    </p>
+                  )}
+                  {tx.customer_name && (
+                    <p className="text-xs text-muted-foreground">
+                      {ct("commission.page.customer_prefix")}
+                      {tx.customer_name}
+                    </p>
+                  )}
                 </div>
               </div>
               <span className="tabular-nums">{formatMYR(tx.amount)}</span>

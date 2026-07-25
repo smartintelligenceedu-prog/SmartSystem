@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { t, type TranslationKey } from "@/lib/i18n";
+import { resolveCommissionSourceNames } from "../commission/data";
 
 export interface UnpostedSummary {
   unpostedOrderCount: number;
@@ -50,6 +51,14 @@ export interface UnpostedTransactionRow {
   subject: string;
   amount: number;
   pending: boolean;
+  // Commission rows only — who actually generated it (e.g. the downline
+  // whose report earned a leader's override) and which customer's order it
+  // came from, so back office isn't just posting a bare "Lee Yan Leh RM100"
+  // line with no way to tell which agent/customer it traces back to. Reuses
+  // the same resolution commission/data.ts's own page already shows —
+  // see resolveCommissionSourceNames().
+  source_name: string | null;
+  customer_name: string | null;
 }
 
 // The itemized version of getUnpostedSummary()'s two counts — lets back
@@ -64,7 +73,7 @@ export async function listUnpostedTransactions(): Promise<UnpostedTransactionRow
     admin.from("journal_entries").select("source_id").eq("source_type", "order"),
     admin
       .from("commission_records")
-      .select("id, trigger_type, commission_amount, calculated_at, status, analyst_id, introducer_id"),
+      .select("id, trigger_type, commission_amount, calculated_at, status, analyst_id, introducer_id, source_transaction_type, source_transaction_id"),
     admin.from("journal_entries").select("source_id").eq("source_type", "commission_record"),
   ]);
   const postedOrderIds = new Set((postedOrderEntries ?? []).map((e) => e.source_id));
@@ -105,6 +114,10 @@ export async function listUnpostedTransactions(): Promise<UnpostedTransactionRow
     allPartyIds.length > 0 ? await admin.from("individuals").select("party_id, full_name").in("party_id", allPartyIds) : { data: [] };
   const nameByParty = new Map((identities ?? []).map((i) => [i.party_id, i.full_name]));
 
+  // Same "which agent / which customer did this actually come from" lookup
+  // the Commission page uses — see the field comment on UnpostedTransactionRow.
+  const commissionSourceById = await resolveCommissionSourceNames(unpostedCommissions);
+
   // t() is async (locale-aware) and can't be called inside a plain .map()
   // callback — resolved up front instead.
   const [andOthersSuffix, peopleSuffix] = await Promise.all([t("finance.list.and_others_suffix"), t("finance.list.people_suffix")]);
@@ -127,12 +140,15 @@ export async function listUnpostedTransactions(): Promise<UnpostedTransactionRow
       subject,
       amount: Number(o.total_amount),
       pending: false,
+      source_name: null,
+      customer_name: null,
     };
   });
 
   const commissionRows: UnpostedTransactionRow[] = unpostedCommissions.map((c) => {
     const isIntroducer = !!c.introducer_id;
     const partyId = isIntroducer ? partyByIntroducer.get(c.introducer_id as string) : partyByAnalyst.get(c.analyst_id as string);
+    const source = commissionSourceById.get(c.id);
     return {
       type: "commission",
       id: c.id,
@@ -141,6 +157,8 @@ export async function listUnpostedTransactions(): Promise<UnpostedTransactionRow
       subject: (partyId && nameByParty.get(partyId)) ?? "—",
       amount: Number(c.commission_amount),
       pending: c.status === "pending",
+      source_name: source?.name ?? null,
+      customer_name: source?.customerName ?? null,
     };
   });
 

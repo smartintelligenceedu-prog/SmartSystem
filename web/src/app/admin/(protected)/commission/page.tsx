@@ -7,6 +7,7 @@ import { listAllCommissions, listApprovedAnalystOptions, resolveCommissionSource
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { AdjustCommissionCell } from "./adjust-commission-cell";
 import { ApproveCommissionButton } from "./approve-commission-button";
 import { DeleteCommissionButton } from "./delete-commission-button";
@@ -55,7 +56,11 @@ interface SelfCommissionRow {
   source_transaction_id: string;
 }
 
-export default async function CommissionPage() {
+function isValidDateString(value: string | undefined): value is string {
+  return !!value && /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+export default async function CommissionPage({ searchParams }: { searchParams: Promise<{ from?: string; to?: string }> }) {
   const context = await getPortalUserContext();
   if (!context) redirect("/admin/login");
 
@@ -64,7 +69,10 @@ export default async function CommissionPage() {
   if (!isBackOffice && !canSelfView) redirect("/admin");
 
   if (isBackOffice) {
-    const [rows, analystOptions] = await Promise.all([listAllCommissions(), listApprovedAnalystOptions()]);
+    const { from, to } = await searchParams;
+    const dateFrom = isValidDateString(from) ? from : undefined;
+    const dateTo = isValidDateString(to) ? to : undefined;
+    const [rows, analystOptions] = await Promise.all([listAllCommissions(dateFrom, dateTo), listApprovedAnalystOptions()]);
     const triggerLabelByType = await resolveLabelMap(TRIGGER_KEY);
     const statusLabelByStatus = await resolveLabelMap(STATUS_KEY);
     const introducerLabel = await t("commission.page.payee_type.introducer");
@@ -90,6 +98,26 @@ export default async function CommissionPage() {
             <Button size="sm" variant="outline" render={<Link href="/admin/commission/rules">{await t("commission.page.rules_link")}</Link>} />
           )}
         </div>
+        <form className="flex flex-wrap items-end gap-2">
+          <div className="space-y-1">
+            <label htmlFor="from" className="text-xs text-muted-foreground">
+              {await t("commission.page.date_from_label")}
+            </label>
+            <Input id="from" type="date" name="from" defaultValue={dateFrom} className="w-40" />
+          </div>
+          <div className="space-y-1">
+            <label htmlFor="to" className="text-xs text-muted-foreground">
+              {await t("commission.page.date_to_label")}
+            </label>
+            <Input id="to" type="date" name="to" defaultValue={dateTo} className="w-40" />
+          </div>
+          <Button type="submit" size="sm">
+            {await t("commission.page.date_filter_button")}
+          </Button>
+          {(dateFrom || dateTo) && (
+            <Button size="sm" variant="ghost" render={<Link href="/admin/commission">{await t("commission.page.date_filter_clear")}</Link>} />
+          )}
+        </form>
         <div className="overflow-x-auto rounded-md border">
           <Table>
             <TableHeader>

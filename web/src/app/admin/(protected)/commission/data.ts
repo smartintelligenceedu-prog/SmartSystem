@@ -147,16 +147,30 @@ function maskPhone(phone: string): string {
 // resolution follows the same "no direct FK, merge flat queries" pattern as
 // listIntroducers() — analysts/introducers both point at parties, not at
 // individuals directly.
-export async function listAllCommissions(): Promise<CommissionRow[]> {
+//
+// dateFrom/dateTo ("YYYY-MM-DD", both optional, inclusive) let back office
+// look at a specific past period instead of only ever seeing the most
+// recent RECENT_LIMIT rows — the cap only applies when NO date filter is
+// given, since a deliberately date-scoped query should return everything in
+// range, not silently truncate.
+export async function listAllCommissions(dateFrom?: string, dateTo?: string): Promise<CommissionRow[]> {
   const admin = createAdminClient();
 
-  const { data: records } = await admin
+  let query = admin
     .from("commission_records")
     .select(
       "id, trigger_type, calculation_type, rate_applied, base_amount, commission_amount, original_amount, status, calculated_at, adjusted_at, adjustment_reason, analyst_id, introducer_id, customer_id, source_transaction_type, source_transaction_id"
     )
-    .order("calculated_at", { ascending: false })
-    .limit(RECENT_LIMIT);
+    .order("calculated_at", { ascending: false });
+  if (dateFrom) query = query.gte("calculated_at", `${dateFrom}T00:00:00+08:00`);
+  if (dateTo) {
+    const exclusiveEnd = new Date(`${dateTo}T00:00:00+08:00`);
+    exclusiveEnd.setDate(exclusiveEnd.getDate() + 1);
+    query = query.lt("calculated_at", exclusiveEnd.toISOString());
+  }
+  if (!dateFrom && !dateTo) query = query.limit(RECENT_LIMIT);
+
+  const { data: records } = await query;
   if (!records || records.length === 0) return [];
 
   // Source resolution — who actually generated the commission, as opposed to
