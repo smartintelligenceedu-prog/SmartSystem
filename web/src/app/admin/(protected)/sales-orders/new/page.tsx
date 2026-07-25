@@ -5,6 +5,10 @@ import { NewSalesOrderForm } from "./new-sales-order-form";
 import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
+// Same reasoning as /register/page.tsx — a real payment-screenshot photo on
+// a slow mobile connection can outrun the platform's default Server Action
+// timeout.
+export const maxDuration = 60;
 
 export default async function NewSalesOrderPage() {
   const context = await getPortalUserContext();

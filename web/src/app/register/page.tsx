@@ -10,6 +10,13 @@ import { t } from "@/lib/i18n";
 // static build — and this also avoids next build trying to execute the
 // Supabase call (and needing real env vars) at build time.
 export const dynamic = "force-dynamic";
+// Registration uploads two real photos (IC + payment screenshot) in one
+// Server Action call — on a slow mobile connection the platform's default
+// function timeout can be reached before both finish uploading, which
+// surfaces to the visitor as a generic client-side "page error, try again"
+// with no useful message. maxDuration on the page raises the ceiling for
+// every Server Action invoked from forms on it (see Next.js docs).
+export const maxDuration = 60;
 
 // Kit browsing happens before the visitor has any Supabase Auth session, so
 // there is no RLS-respecting client to read it through yet (see
