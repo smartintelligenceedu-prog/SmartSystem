@@ -50,56 +50,67 @@ export type ExamResultState =
 // already certified by another means (e.g. the admin's manual override
 // button) in between loading the page and submitting.
 export async function submitCertificationExam(_prev: ExamResultState, formData: FormData): Promise<ExamResultState> {
-  const auth = await requireAnalystUserId();
-  if ("error" in auth) return { status: "error", message: auth.error };
+  try {
+    const auth = await requireAnalystUserId();
+    if ("error" in auth) return { status: "error", message: auth.error };
 
-  const eligibility = await getMyCertificationEligibility(auth.analystId);
-  if (!eligibility.eligible) return { status: "error", message: await t("certification.error.not_eligible") };
+    const eligibility = await getMyCertificationEligibility(auth.analystId);
+    if (!eligibility.eligible) return { status: "error", message: await t("certification.error.not_eligible") };
 
-  const questionSet = Number(formData.get("question_set"));
-  if (questionSet !== 1 && questionSet !== 2) return { status: "error", message: await t("certification.error.invalid_submission") };
+    const questionSet = Number(formData.get("question_set"));
+    if (questionSet !== 1 && questionSet !== 2) return { status: "error", message: await t("certification.error.invalid_submission") };
 
-  const admin = createAdminClient();
-  const { data: questions } = await admin
-    .from("certification_questions")
-    .select("id, correct_choice_index")
-    .eq("question_set", questionSet)
-    .eq("is_active", true);
-  if (!questions || questions.length === 0) return { status: "error", message: await t("certification.error.invalid_submission") };
+    const admin = createAdminClient();
+    const { data: questions } = await admin
+      .from("certification_questions")
+      .select("id, correct_choice_index")
+      .eq("question_set", questionSet)
+      .eq("is_active", true);
+    if (!questions || questions.length === 0) return { status: "error", message: await t("certification.error.invalid_submission") };
 
-  const answers = questions.map((q) => {
-    const raw = formData.get(`q_${q.id}`);
-    const selectedIndex = raw === null ? null : Number(raw);
-    const correct = selectedIndex === q.correct_choice_index;
-    return { question_id: q.id, selected_index: selectedIndex, correct };
-  });
-  const correctCount = answers.filter((a) => a.correct).length;
-  const passingScore = await getPassingScore();
-  const passed = correctCount >= passingScore;
+    const answers = questions.map((q) => {
+      const raw = formData.get(`q_${q.id}`);
+      const selectedIndex = raw === null ? null : Number(raw);
+      const correct = selectedIndex === q.correct_choice_index;
+      return { question_id: q.id, selected_index: selectedIndex, correct };
+    });
+    const correctCount = answers.filter((a) => a.correct).length;
+    const passingScore = await getPassingScore();
+    const passed = correctCount >= passingScore;
 
-  const { error: attemptError } = await admin.from("certification_attempts").insert({
-    analyst_id: auth.analystId,
-    question_set: questionSet,
-    total_questions: questions.length,
-    correct_count: correctCount,
-    passed,
-    answers,
-  });
-  if (attemptError) return { status: "error", message: `${await t("certification.error.save_failed")}${attemptError.message}` };
+    const { error: attemptError } = await admin.from("certification_attempts").insert({
+      analyst_id: auth.analystId,
+      question_set: questionSet,
+      total_questions: questions.length,
+      correct_count: correctCount,
+      passed,
+      answers,
+    });
+    if (attemptError) return { status: "error", message: `${await t("certification.error.save_failed")}${attemptError.message}` };
 
-  if (passed) {
-    // Same column the manual adminApproveCertification() button sets — fires
-    // trg_unlock_resale_voucher_on_certification (migration 021) either way.
-    const { error: certifyError } = await admin
-      .from("analysts")
-      .update({ certification_passed_at: new Date().toISOString() })
-      .eq("id", auth.analystId)
-      .is("certification_passed_at", null);
-    if (certifyError) return { status: "error", message: `${await t("certification.error.save_failed")}${certifyError.message}` };
+    if (passed) {
+      // Same column the manual adminApproveCertification() button sets — fires
+      // trg_unlock_resale_voucher_on_certification (migration 021) either way.
+      const { error: certifyError } = await admin
+        .from("analysts")
+        .update({ certification_passed_at: new Date().toISOString() })
+        .eq("id", auth.analystId)
+        .is("certification_passed_at", null);
+      if (certifyError) return { status: "error", message: `${await t("certification.error.save_failed")}${certifyError.message}` };
+    }
+
+    revalidatePath("/admin/certification");
+    return { status: "graded", passed, correctCount, totalQuestions: questions.length, passingScore };
+  } catch (err) {
+    // Never let an unhandled exception crash the whole page with a generic
+    // "reload to try again" — surface it as a normal error state instead, and
+    // log the real cause server-side for diagnosis (was previously naked, so
+    // any unexpected throw here — e.g. a network hiccup talking to Supabase —
+    // took the whole exam submission down instead of just failing gracefully).
+    console.error("submitCertificationExam threw:", err);
+    const detail = err instanceof Error ? err.message : String(err);
+    return { status: "error", message: `${await t("certification.error.save_failed")}${detail}` };
   }
-
-  revalidatePath("/admin/certification");
-  return { status: "graded", passed, correctCount, totalQuestions: questions.length, passingScore };
 }
 
 const questionSchema = z.object({
