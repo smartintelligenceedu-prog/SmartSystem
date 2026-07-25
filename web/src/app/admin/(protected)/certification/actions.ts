@@ -113,15 +113,23 @@ export async function submitCertificationExam(_prev: ExamResultState, formData: 
   }
 }
 
-const questionSchema = z.object({
-  question_set: z.coerce.number().int().min(1).max(2),
-  question_text: z.string().trim().min(1, await t("certification.admin.error.question_required")),
-  choice_0: z.string().trim().min(1, await t("certification.admin.error.choice_required")),
-  choice_1: z.string().trim().min(1, await t("certification.admin.error.choice_required")),
-  choice_2: z.string().trim().min(1, await t("certification.admin.error.choice_required")),
-  choice_3: z.string().trim().min(1, await t("certification.admin.error.choice_required")),
-  correct_choice_index: z.coerce.number().int().min(0).max(3),
-});
+// Built inside a function (not at module scope) because t() awaits cookies()
+// from next/headers, which can only run inside an active request — a
+// top-level `await t(...)` here runs during module evaluation instead,
+// outside any request, and throws every time this module is loaded to
+// dispatch any Server Action in this file (see the same note in
+// register/actions.ts's buildRegistrationSchema()).
+async function buildQuestionSchema() {
+  return z.object({
+    question_set: z.coerce.number().int().min(1).max(2),
+    question_text: z.string().trim().min(1, await t("certification.admin.error.question_required")),
+    choice_0: z.string().trim().min(1, await t("certification.admin.error.choice_required")),
+    choice_1: z.string().trim().min(1, await t("certification.admin.error.choice_required")),
+    choice_2: z.string().trim().min(1, await t("certification.admin.error.choice_required")),
+    choice_3: z.string().trim().min(1, await t("certification.admin.error.choice_required")),
+    correct_choice_index: z.coerce.number().int().min(0).max(3),
+  });
+}
 
 export type QuestionFormState = { status: "idle" } | { status: "error"; message: string } | { status: "success" };
 
@@ -129,6 +137,7 @@ export async function createCertificationQuestion(_prev: QuestionFormState, form
   const auth = await requireBackOfficeUserId();
   if ("error" in auth) return { status: "error", message: auth.error };
 
+  const questionSchema = await buildQuestionSchema();
   const parsed = questionSchema.safeParse({
     question_set: formData.get("question_set"),
     question_text: formData.get("question_text"),
@@ -158,6 +167,7 @@ export async function updateCertificationQuestion(questionId: string, _prev: Que
   const auth = await requireBackOfficeUserId();
   if ("error" in auth) return { status: "error", message: auth.error };
 
+  const questionSchema = await buildQuestionSchema();
   const parsed = questionSchema.safeParse({
     question_set: formData.get("question_set"),
     question_text: formData.get("question_text"),
@@ -198,9 +208,11 @@ export async function toggleCertificationQuestionActive(questionId: string, isAc
   return { ok: true, message: await t("certification.admin.toggle_success") };
 }
 
-const passingScoreSchema = z.object({
-  passing_score: z.coerce.number().int().min(1, await t("certification.admin.error.invalid_passing_score")),
-});
+async function buildPassingScoreSchema() {
+  return z.object({
+    passing_score: z.coerce.number().int().min(1, await t("certification.admin.error.invalid_passing_score")),
+  });
+}
 
 export type PassingScoreState = { status: "idle" } | { status: "error"; message: string } | { status: "success" };
 
@@ -208,6 +220,7 @@ export async function updatePassingScore(_prev: PassingScoreState, formData: For
   const auth = await requireBackOfficeUserId();
   if ("error" in auth) return { status: "error", message: auth.error };
 
+  const passingScoreSchema = await buildPassingScoreSchema();
   const parsed = passingScoreSchema.safeParse({ passing_score: formData.get("passing_score") });
   if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message ?? await t("certification.admin.error.invalid_form") };
 

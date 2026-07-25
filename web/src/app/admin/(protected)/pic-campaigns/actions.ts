@@ -22,14 +22,20 @@ async function requireBackOfficeUserId(): Promise<{ userId: string } | { error: 
   return { userId: userRow.id };
 }
 
-const createCampaignSchema = z.object({
-  name: z.string().trim().min(1, await t("pic_campaigns.error.name_required")),
-  campaign_type: z.enum(["school", "institution", "roadshow", "other"]),
-  pic_analyst_id: z.string().uuid(await t("pic_campaigns.error.pic_required")),
-  location: z.string().trim().optional(),
-  pic_report_override_amount: z.coerce.number().min(0).optional(),
-  pic_analyst_report_fee_amount: z.coerce.number().min(0).optional(),
-});
+// Built inside the action (not at module scope) — t() awaits cookies() from
+// next/headers, which only works inside an active request; a top-level
+// `await t(...)` runs during module evaluation instead and throws every time
+// this module is loaded to dispatch a Server Action here.
+async function buildCreateCampaignSchema() {
+  return z.object({
+    name: z.string().trim().min(1, await t("pic_campaigns.error.name_required")),
+    campaign_type: z.enum(["school", "institution", "roadshow", "other"]),
+    pic_analyst_id: z.string().uuid(await t("pic_campaigns.error.pic_required")),
+    location: z.string().trim().optional(),
+    pic_report_override_amount: z.coerce.number().min(0).optional(),
+    pic_analyst_report_fee_amount: z.coerce.number().min(0).optional(),
+  });
+}
 
 export type CreateCampaignState = { status: "idle" } | { status: "error"; message: string } | { status: "success" };
 
@@ -37,6 +43,7 @@ export async function createCampaign(_prev: CreateCampaignState, formData: FormD
   const auth = await requireBackOfficeUserId();
   if ("error" in auth) return { status: "error", message: auth.error };
 
+  const createCampaignSchema = await buildCreateCampaignSchema();
   const parsed = createCampaignSchema.safeParse({
     name: formData.get("name"),
     campaign_type: formData.get("campaign_type"),

@@ -136,13 +136,19 @@ export async function runMonthlyPayout(_prev: RunPayoutState, formData: FormData
   };
 }
 
-const createStaffPayslipSchema = z.object({
-  party_id: z.string().uuid(await t("payroll.staff.error.select_recipient")),
-  period_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, await t("payroll.error.invalid_period")),
-  period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, await t("payroll.error.invalid_period")),
-  gross_amount: z.coerce.number().positive(await t("payroll.staff.error.invalid_amount")),
-  description: z.string().trim().optional(),
-});
+// Built inside the action (not at module scope) — t() awaits cookies() from
+// next/headers, which only works inside an active request; a top-level
+// `await t(...)` runs during module evaluation instead and throws every time
+// this module is loaded to dispatch a Server Action here.
+async function buildCreateStaffPayslipSchema() {
+  return z.object({
+    party_id: z.string().uuid(await t("payroll.staff.error.select_recipient")),
+    period_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, await t("payroll.error.invalid_period")),
+    period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, await t("payroll.error.invalid_period")),
+    gross_amount: z.coerce.number().positive(await t("payroll.staff.error.invalid_amount")),
+    description: z.string().trim().optional(),
+  });
+}
 
 export type CreateStaffPayslipState = { status: "idle" } | { status: "error"; message: string } | { status: "success" };
 
@@ -154,6 +160,7 @@ export async function createStaffPayslip(_prev: CreateStaffPayslipState, formDat
   const auth = await requireFinanceUserId();
   if ("error" in auth) return { status: "error", message: auth.error };
 
+  const createStaffPayslipSchema = await buildCreateStaffPayslipSchema();
   const parsed = createStaffPayslipSchema.safeParse({
     party_id: formData.get("party_id"),
     period_start: formData.get("period_start"),

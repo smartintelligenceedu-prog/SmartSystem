@@ -22,10 +22,16 @@ async function requireBackOfficeUserId(): Promise<{ userId: string } | { error: 
   return { userId: userRow.id };
 }
 
-const createDeviceSchema = z.object({
-  serial_no: z.string().trim().min(1, await t("devices.error.serial_required")),
-  model: z.string().trim().optional(),
-});
+// Built inside the action (not at module scope) — t() awaits cookies() from
+// next/headers, which only works inside an active request; a top-level
+// `await t(...)` runs during module evaluation instead and throws every time
+// this module is loaded to dispatch a Server Action here.
+async function buildCreateDeviceSchema() {
+  return z.object({
+    serial_no: z.string().trim().min(1, await t("devices.error.serial_required")),
+    model: z.string().trim().optional(),
+  });
+}
 
 export type CreateDeviceState = { status: "idle" } | { status: "error"; message: string } | { status: "success" };
 
@@ -33,6 +39,7 @@ export async function createDevice(_prev: CreateDeviceState, formData: FormData)
   const auth = await requireBackOfficeUserId();
   if ("error" in auth) return { status: "error", message: auth.error };
 
+  const createDeviceSchema = await buildCreateDeviceSchema();
   const parsed = createDeviceSchema.safeParse({
     serial_no: formData.get("serial_no"),
     model: formData.get("model") || undefined,

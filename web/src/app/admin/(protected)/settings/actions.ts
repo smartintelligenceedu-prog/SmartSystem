@@ -23,19 +23,25 @@ async function requireBackOfficeUserId(): Promise<{ userId: string } | { error: 
   return { userId: userRow.id };
 }
 
-const companyInfoSchema = z.object({
-  name: z.string().trim().min(1, await t("settings.error.name_required")),
-  ssmNumber: z.string().trim(),
-  addressLine1: z.string().trim(),
-  addressLine2: z.string().trim(),
-  phone: z.string().trim(),
-  email: z.string().trim().email(await t("settings.error.invalid_email")).or(z.literal("")),
-  bankName: z.string().trim(),
-  bankAccountName: z.string().trim(),
-  bankAccountNumber: z.string().trim(),
-  invoiceTerms: z.string().trim(),
-  agreementUrl: z.string().trim(),
-});
+// Built inside the action (not at module scope) — t() awaits cookies() from
+// next/headers, which only works inside an active request; a top-level
+// `await t(...)` runs during module evaluation instead and throws every time
+// this module is loaded to dispatch a Server Action here.
+async function buildCompanyInfoSchema() {
+  return z.object({
+    name: z.string().trim().min(1, await t("settings.error.name_required")),
+    ssmNumber: z.string().trim(),
+    addressLine1: z.string().trim(),
+    addressLine2: z.string().trim(),
+    phone: z.string().trim(),
+    email: z.string().trim().email(await t("settings.error.invalid_email")).or(z.literal("")),
+    bankName: z.string().trim(),
+    bankAccountName: z.string().trim(),
+    bankAccountNumber: z.string().trim(),
+    invoiceTerms: z.string().trim(),
+    agreementUrl: z.string().trim(),
+  });
+}
 
 export type UpdateCompanyInfoState = { status: "idle" } | { status: "error"; message: string } | { status: "success" };
 
@@ -43,6 +49,7 @@ export async function updateCompanyInfo(_prev: UpdateCompanyInfoState, formData:
   const auth = await requireBackOfficeUserId();
   if ("error" in auth) return { status: "error", message: auth.error };
 
+  const companyInfoSchema = await buildCompanyInfoSchema();
   const parsed = companyInfoSchema.safeParse({
     name: formData.get("name"),
     ssmNumber: formData.get("ssmNumber"),
