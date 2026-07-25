@@ -42,16 +42,23 @@ export async function submitLead(_prev: SubmitLeadState, formData: FormData): Pr
     .eq("referral_code", input.code)
     .eq("status", "active")
     .maybeSingle();
-  if (!introducer) {
+
+  // An agent's own code works the same link with no introducer in the
+  // middle — the lead goes straight to that agent, introducer_id stays null.
+  const analyst = introducer
+    ? null
+    : (await admin.from("analysts").select("id").eq("referral_code", input.code).eq("status", "approved").maybeSingle()).data;
+
+  if (!introducer && !analyst) {
     return { status: "error", message: await t("refer.form.error_invalid_link") };
   }
 
   const { error } = await admin.from("leads").insert({
     contact_name: input.contact_name,
     phone: input.phone,
-    source: `introducer:${input.code}`,
-    introducer_id: introducer.id,
-    assigned_analyst_id: introducer.assigned_analyst_id,
+    source: introducer ? `introducer:${input.code}` : `agent:${input.code}`,
+    introducer_id: introducer?.id ?? null,
+    assigned_analyst_id: introducer ? introducer.assigned_analyst_id : analyst!.id,
     status: "new",
   });
   if (error) return { status: "error", message: `${await t("refer.form.error_submit_failed_prefix")}${error.message}` };

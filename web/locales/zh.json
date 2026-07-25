@@ -531,7 +531,7 @@
   "dashboard.agent.status.rejected": "已拒绝",
   "dashboard.agent.status.terminated": "已终止",
   "dashboard.agent.field.agent_id": "推荐码",
-  "dashboard.agent.copy_referral_link": "复制推荐连结",
+  "dashboard.agent.copy_referral_link": "复制顾问注册连结",
   "dashboard.agent.stat.available_report_credit": "可用报告额度",
   "dashboard.agent.stat.total_customers": "顾客总数",
   "dashboard.agent.stat.total_sales_orders": "销售订单总数",
@@ -1628,6 +1628,7 @@
   "introducer_applications.page.column.referring_analyst": "推荐分析师",
 
   "dashboard.agent.copy_introducer_link": "复制邀请引荐人连结",
+  "dashboard.agent.copy_leads_link": "复制顾客留资连结",
 
   "payroll.run.bank_info_missing": "尚未填写银行资料"
 }

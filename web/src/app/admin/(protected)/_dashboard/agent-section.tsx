@@ -124,6 +124,7 @@ export async function AgentSection({ analystId }: { analystId: string }) {
               <>
                 <CopyLinkButton path={`/register?ref=${analyst.referral_code}`} label={await t("dashboard.agent.copy_referral_link")} />
                 <CopyLinkButton path={`/register-introducer?ref=${analyst.referral_code}`} label={await t("dashboard.agent.copy_introducer_link")} />
+                <CopyLinkButton path={`/refer/${analyst.referral_code}`} label={await t("dashboard.agent.copy_leads_link")} />
               </>
             )}
             <Badge variant="secondary">{await t(STATUS_LABEL_KEY[(analyst?.status as AnalystStatus) ?? "pending"])}</Badge>

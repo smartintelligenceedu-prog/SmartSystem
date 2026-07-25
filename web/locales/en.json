@@ -531,7 +531,7 @@
   "dashboard.agent.status.rejected": "Rejected",
   "dashboard.agent.status.terminated": "Terminated",
   "dashboard.agent.field.agent_id": "Agent ID",
-  "dashboard.agent.copy_referral_link": "Copy referral link",
+  "dashboard.agent.copy_referral_link": "Copy New Consultant Registration Link",
   "dashboard.agent.stat.available_report_credit": "Available Report Credit",
   "dashboard.agent.stat.total_customers": "Total Customers",
   "dashboard.agent.stat.total_sales_orders": "Total Sales Orders",
@@ -1628,6 +1628,7 @@
   "introducer_applications.page.column.referring_analyst": "Referring Analyst",
 
   "dashboard.agent.copy_introducer_link": "Copy Introducer Invite Link",
+  "dashboard.agent.copy_leads_link": "Copy Leads Link",
 
   "payroll.run.bank_info_missing": "Bank details not provided"
 }
