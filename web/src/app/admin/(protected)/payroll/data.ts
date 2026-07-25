@@ -110,7 +110,12 @@ export interface CommissionLineItem {
 // name the downline agent; the personal_sale doesn't need to name yourself).
 async function describeSourceTransactions(
   admin: ReturnType<typeof createAdminClient>,
-  records: { trigger_type: string; source_transaction_type: string; source_transaction_id: string }[]
+  records: { trigger_type: string; source_transaction_type: string; source_transaction_id: string }[],
+  // The payslip's own payee — every record here already belongs to them
+  // (getAnalystPayslipDetail scopes the query by analyst_id), so this is
+  // passed once rather than per-record. Undefined for introducer statements,
+  // which never have recruitment rows to begin with.
+  payeeAnalystId?: string
 ): Promise<Map<string, string>> {
   const orderItemIds = records.filter((r) => r.source_transaction_type === "order_item").map((r) => r.source_transaction_id);
   const orderIds = records.filter((r) => r.source_transaction_type === "order").map((r) => r.source_transaction_id);
@@ -177,17 +182,39 @@ async function describeSourceTransactions(
   }
 
   if (orderIds.length > 0) {
-    const { data: regOrders } = await admin.from("registration_orders").select("order_id, party_id").in("order_id", orderIds);
-    const partyIds = [...new Set((regOrders ?? []).map((r) => r.party_id))];
+    const { data: regOrders } = await admin.from("registration_orders").select("order_id, party_id, sponsor_id").in("order_id", orderIds);
+    // The new recruit's own direct (level-1) sponsor, when that's someone
+    // other than this payslip's payee — a level-2/3 recruitment bonus
+    // otherwise names the recruit but never says WHOSE downline actually
+    // did the recruiting (see the matching field on commission/data.ts's
+    // CommissionSource, same underlying gap the CTO flagged there).
+    const directSponsorIds = [
+      ...new Set((regOrders ?? []).filter((r) => r.sponsor_id && r.sponsor_id !== payeeAnalystId).map((r) => r.sponsor_id as string)),
+    ];
+    const [{ data: sponsorAnalysts }] = await Promise.all([
+      directSponsorIds.length > 0 ? admin.from("analysts").select("id, party_id").in("id", directSponsorIds) : Promise.resolve({ data: [] }),
+    ]);
+    const sponsorPartyByAnalyst = new Map((sponsorAnalysts ?? []).map((a) => [a.id, a.party_id]));
+
+    const partyIds = [
+      ...new Set([...(regOrders ?? []).map((r) => r.party_id), ...sponsorPartyByAnalyst.values()]),
+    ];
     const { data: individuals } =
       partyIds.length > 0 ? await admin.from("individuals").select("party_id, full_name").in("party_id", partyIds) : { data: [] };
     const nameByParty = new Map((individuals ?? []).map((i) => [i.party_id, i.full_name]));
 
     const recruitedPrefix = await t("payroll.line_item.recruited_prefix");
     const recruitedSuffix = await t("payroll.line_item.recruited_suffix");
+    const directSponsorPrefix = await t("payroll.line_item.direct_sponsor_prefix");
     for (const regOrder of regOrders ?? []) {
       const name = nameByParty.get(regOrder.party_id) ?? "—";
-      descByKey.set(`recruitment:order:${regOrder.order_id}`, `${recruitedPrefix} ${name} ${recruitedSuffix}`);
+      let label = `${recruitedPrefix} ${name} ${recruitedSuffix}`;
+      if (regOrder.sponsor_id && regOrder.sponsor_id !== payeeAnalystId) {
+        const sponsorParty = sponsorPartyByAnalyst.get(regOrder.sponsor_id);
+        const sponsorName = sponsorParty ? nameByParty.get(sponsorParty) : null;
+        if (sponsorName) label = `${label} · ${directSponsorPrefix}${sponsorName}`;
+      }
+      descByKey.set(`recruitment:order:${regOrder.order_id}`, label);
     }
 
     // Non-registration orders reaching here are migration-024 one-time
@@ -229,9 +256,10 @@ async function describeSourceTransactions(
 
 async function buildLineItems(
   admin: ReturnType<typeof createAdminClient>,
-  records: { id: string; trigger_type: string; commission_amount: number; calculated_at: string; source_transaction_type: string; source_transaction_id: string }[]
+  records: { id: string; trigger_type: string; commission_amount: number; calculated_at: string; source_transaction_type: string; source_transaction_id: string }[],
+  payeeAnalystId?: string
 ): Promise<CommissionLineItem[]> {
-  const descByKey = await describeSourceTransactions(admin, records);
+  const descByKey = await describeSourceTransactions(admin, records, payeeAnalystId);
   return records
     .map((r) => ({
       commission_record_id: r.id,
@@ -311,7 +339,7 @@ export async function getAnalystPayslipDetail(payslipId: string): Promise<Analys
     gross_amount: Number(payslip.gross_amount),
     analyst_id: payslip.analyst_id,
     analyst_name: identity?.full_name ?? "—",
-    line_items: await buildLineItems(admin, records ?? []),
+    line_items: await buildLineItems(admin, records ?? [], payslip.analyst_id),
   };
 }
 
