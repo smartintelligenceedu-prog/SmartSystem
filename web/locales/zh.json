@@ -1460,7 +1460,7 @@
   "register.form.registration_payment_heading": "注册与缴费",
   "register.form.sponsor_code_label": "推荐人推荐码（选填）",
   "register.form.sponsor_code_placeholder": "没有推荐人可留空",
-  "register.form.sponsor_code_hint": "已透过推荐连结自动带入，如有需要仍可自行修改。",
+  "register.form.sponsor_code_hint": "已透过推荐连结自动带入，不可修改。",
   "register.form.kit_label": "选择注册套装",
   "register.form.kit_placeholder": "请选择套装",
   "register.form.kit_hint_prefix": "套装内含 ",

@@ -1460,7 +1460,7 @@
   "register.form.registration_payment_heading": "Registration & Payment",
   "register.form.sponsor_code_label": "Sponsor Referral Code (optional)",
   "register.form.sponsor_code_placeholder": "Leave blank if you don't have a referrer",
-  "register.form.sponsor_code_hint": "Auto-filled from your referral link — you can still edit it if needed.",
+  "register.form.sponsor_code_hint": "Auto-filled from your referral link and locked.",
   "register.form.kit_label": "Select Registration Kit",
   "register.form.kit_placeholder": "Please select a kit",
   "register.form.kit_hint_prefix": "This kit includes ",

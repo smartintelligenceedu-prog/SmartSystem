@@ -123,6 +123,8 @@ export function RegisterForm({
                 name="sponsor_referral_code"
                 placeholder={ct("register.form.sponsor_code_placeholder")}
                 defaultValue={sponsorReferralCode ?? ""}
+                readOnly={!!sponsorReferralCode}
+                className={sponsorReferralCode ? "bg-muted text-muted-foreground" : undefined}
               />
               {sponsorReferralCode && (
                 <p className="text-xs text-muted-foreground">{ct("register.form.sponsor_code_hint")}</p>
