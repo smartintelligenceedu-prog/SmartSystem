@@ -59,6 +59,7 @@ export interface UnpostedTransactionRow {
   // see resolveCommissionSourceNames().
   source_name: string | null;
   customer_name: string | null;
+  direct_sponsor_name: string | null;
 }
 
 // The itemized version of getUnpostedSummary()'s two counts — lets back
@@ -142,6 +143,7 @@ export async function listUnpostedTransactions(): Promise<UnpostedTransactionRow
       pending: false,
       source_name: null,
       customer_name: null,
+      direct_sponsor_name: null,
     };
   });
 
@@ -159,6 +161,7 @@ export async function listUnpostedTransactions(): Promise<UnpostedTransactionRow
       pending: c.status === "pending",
       source_name: source?.name ?? null,
       customer_name: source?.customerName ?? null,
+      direct_sponsor_name: source?.directSponsorName ?? null,
     };
   });
 

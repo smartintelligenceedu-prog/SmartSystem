@@ -37,6 +37,10 @@ export interface CommissionRow {
   // Null when the source is the same person as the payee (nothing useful to
   // add) or for trigger_type = 'introducer' (customer_name already covers it).
   source_name: string | null;
+  // Recruitment level-2/3 rows only — the new recruit's own DIRECT sponsor,
+  // when that's someone other than the payee. See CommissionSource's field
+  // comment in resolveCommissionSourceNames() for why this matters.
+  direct_sponsor_name: string | null;
 }
 
 const RECENT_LIMIT = 200;
@@ -46,12 +50,20 @@ export interface CommissionSourceInput {
   trigger_type: string;
   source_transaction_type: string;
   source_transaction_id: string;
+  analyst_id: string | null;
 }
 
 export interface CommissionSource {
   name: string | null;
   analystId: string | null;
   customerName: string | null;
+  // Recruitment only, and only when it differs from the payee — the RM200
+  // bonus (level 1) is paid to the new recruit's OWN direct sponsor, so
+  // there's nothing extra to say there. The RM100 level-2/3 bonuses are paid
+  // to that sponsor's own upline, who otherwise has no way to tell WHOSE
+  // downline actually did the recruiting — "Recruited: New Analyst E" alone
+  // doesn't say that E signed up under Agent D, not under them directly.
+  directSponsorName: string | null;
 }
 
 // Shared source-resolution used by both the back-office list (listAllCommissions
@@ -75,13 +87,18 @@ export async function resolveCommissionSourceNames(records: CommissionSourceInpu
       ? admin.from("order_items").select("id, analyst_id, customer_id").in("id", orderItemSourceIds)
       : Promise.resolve({ data: [] }),
     recruitmentOrderIds.length > 0
-      ? admin.from("registration_orders").select("order_id, party_id").in("order_id", recruitmentOrderIds)
+      ? admin.from("registration_orders").select("order_id, party_id, sponsor_id").in("order_id", recruitmentOrderIds)
       : Promise.resolve({ data: [] }),
   ]);
   const sourceAnalystByItemId = new Map((sourceItems ?? []).filter((i) => i.analyst_id).map((i) => [i.id, i.analyst_id as string]));
   const itemCustomerByItemId = new Map((sourceItems ?? []).filter((i) => i.customer_id).map((i) => [i.id, i.customer_id as string]));
   const sourcePartyByOrderId = new Map((sourceRegOrders ?? []).map((o) => [o.order_id, o.party_id as string]));
-  const sourceAnalystIds = [...new Set(sourceAnalystByItemId.values())];
+  // The new recruit's own direct (level-1) sponsor — registration_orders.
+  // sponsor_id already IS that analyst, no need to walk the tree.
+  const directSponsorByOrderId = new Map(
+    (sourceRegOrders ?? []).filter((o) => o.sponsor_id).map((o) => [o.order_id, o.sponsor_id as string])
+  );
+  const sourceAnalystIds = [...new Set([...sourceAnalystByItemId.values(), ...directSponsorByOrderId.values()])];
 
   const { data: analysts } =
     sourceAnalystIds.length > 0 ? await admin.from("analysts").select("id, party_id").in("id", sourceAnalystIds) : { data: [] };
@@ -101,9 +118,15 @@ export async function resolveCommissionSourceNames(records: CommissionSourceInpu
   for (const r of records) {
     let name: string | null = null;
     let analystId: string | null = null;
+    let directSponsorName: string | null = null;
     if (r.trigger_type === "recruitment" && r.source_transaction_type === "order") {
       const sourceParty = sourcePartyByOrderId.get(r.source_transaction_id);
       name = (sourceParty && nameByParty.get(sourceParty)) ?? null;
+      const directSponsorId = directSponsorByOrderId.get(r.source_transaction_id);
+      if (directSponsorId && directSponsorId !== r.analyst_id) {
+        const directSponsorParty = partyByAnalyst.get(directSponsorId);
+        directSponsorName = (directSponsorParty && nameByParty.get(directSponsorParty)) ?? null;
+      }
     } else if (r.source_transaction_type === "order_item") {
       analystId = sourceAnalystByItemId.get(r.source_transaction_id) ?? null;
       const sourceParty = analystId ? partyByAnalyst.get(analystId) : null;
@@ -117,7 +140,7 @@ export async function resolveCommissionSourceNames(records: CommissionSourceInpu
       customerName = (customerParty && nameByParty.get(customerParty)) ?? null;
     }
 
-    if (name || customerName) result.set(r.id, { name, analystId, customerName });
+    if (name || customerName || directSponsorName) result.set(r.id, { name, analystId, customerName, directSponsorName });
   }
   return result;
 }
@@ -190,7 +213,7 @@ export async function listAllCommissions(dateFrom?: string, dateTo?: string): Pr
       ? admin.from("order_items").select("id, analyst_id, customer_id").in("id", orderItemSourceIds)
       : Promise.resolve({ data: [] }),
     recruitmentOrderIds.length > 0
-      ? admin.from("registration_orders").select("order_id, party_id").in("order_id", recruitmentOrderIds)
+      ? admin.from("registration_orders").select("order_id, party_id, sponsor_id").in("order_id", recruitmentOrderIds)
       : Promise.resolve({ data: [] }),
   ]);
   const sourceAnalystByItemId = new Map((sourceItems ?? []).filter((i) => i.analyst_id).map((i) => [i.id, i.analyst_id as string]));
@@ -200,8 +223,13 @@ export async function listAllCommissions(dateFrom?: string, dateTo?: string): Pr
   // agent" to show) can still show which customer's report earned it.
   const itemCustomerByItemId = new Map((sourceItems ?? []).filter((i) => i.customer_id).map((i) => [i.id, i.customer_id as string]));
   const sourcePartyByOrderId = new Map((sourceRegOrders ?? []).map((o) => [o.order_id, o.party_id as string]));
+  // The new recruit's own direct (level-1) sponsor — see the matching note
+  // in resolveCommissionSourceNames() above.
+  const directSponsorByOrderId = new Map(
+    (sourceRegOrders ?? []).filter((o) => o.sponsor_id).map((o) => [o.order_id, o.sponsor_id as string])
+  );
 
-  const sourceAnalystIds = [...new Set([...sourceAnalystByItemId.values()])];
+  const sourceAnalystIds = [...new Set([...sourceAnalystByItemId.values(), ...directSponsorByOrderId.values()])];
 
   const analystIds = [
     ...new Set([...records.filter((r) => r.analyst_id).map((r) => r.analyst_id as string), ...sourceAnalystIds]),
@@ -293,9 +321,15 @@ export async function listAllCommissions(dateFrom?: string, dateTo?: string): Pr
 
     let sourceName: string | null = null;
     let sourceAnalystId: string | null = null;
+    let directSponsorName: string | null = null;
     if (r.trigger_type === "recruitment" && r.source_transaction_type === "order") {
       const sourceParty = sourcePartyByOrderId.get(r.source_transaction_id);
       sourceName = (sourceParty && nameByParty.get(sourceParty)) ?? null;
+      const directSponsorId = directSponsorByOrderId.get(r.source_transaction_id);
+      if (directSponsorId && directSponsorId !== r.analyst_id) {
+        const directSponsorParty = partyByAnalyst.get(directSponsorId);
+        directSponsorName = (directSponsorParty && nameByParty.get(directSponsorParty)) ?? null;
+      }
     } else if (r.source_transaction_type === "order_item") {
       sourceAnalystId = sourceAnalystByItemId.get(r.source_transaction_id) ?? null;
       const sourceParty = sourceAnalystId ? partyByAnalyst.get(sourceAnalystId) : null;
@@ -324,6 +358,7 @@ export async function listAllCommissions(dateFrom?: string, dateTo?: string): Pr
       payee_type: isIntroducer ? "introducer" : "analyst",
       payee_name: payeeNameForCompare,
       source_name: sourceName,
+      direct_sponsor_name: directSponsorName,
       analyst_id: r.analyst_id,
       introducer_id: r.introducer_id,
       customer_name: customerName,

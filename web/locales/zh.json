@@ -389,6 +389,7 @@
   "commission.page.payee_type.analyst": "分析师",
   "commission.page.customer_prefix": "顾客：",
   "commission.page.source_prefix": "来源：",
+  "commission.page.direct_sponsor_prefix": "直属推荐人：",
   "commission.page.date_from_label": "起始日期",
   "commission.page.date_to_label": "结束日期",
   "commission.page.date_filter_button": "查询",

@@ -54,6 +54,7 @@ interface SelfCommissionRow {
   adjustment_reason: string | null;
   source_transaction_type: string;
   source_transaction_id: string;
+  analyst_id: string | null;
 }
 
 function isValidDateString(value: string | undefined): value is string {
@@ -79,6 +80,7 @@ export default async function CommissionPage({ searchParams }: { searchParams: P
     const analystLabel = await t("commission.page.payee_type.analyst");
     const customerPrefix = await t("commission.page.customer_prefix");
     const sourcePrefix = await t("commission.page.source_prefix");
+    const directSponsorPrefix = await t("commission.page.direct_sponsor_prefix");
     const priorSettlementPrefix = await t("commission.cell.prior_settlement_prefix");
     const priorSettlementSuffix = await t("commission.cell.prior_settlement_suffix");
     const flatAmountLabel = await t("commission.page.flat_amount");
@@ -169,6 +171,12 @@ export default async function CommissionPage({ searchParams }: { searchParams: P
                         {r.source_name}
                       </div>
                     )}
+                    {r.direct_sponsor_name && (
+                      <div className="mt-0.5 text-xs text-muted-foreground">
+                        {directSponsorPrefix}
+                        {r.direct_sponsor_name}
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell className="text-muted-foreground">{triggerLabelByType[r.trigger_type] ?? r.trigger_type}</TableCell>
                   <TableCell className="text-muted-foreground">
@@ -219,7 +227,7 @@ export default async function CommissionPage({ searchParams }: { searchParams: P
   const query = supabase
     .from("commission_records")
     .select(
-      "id, trigger_type, calculation_type, rate_applied, base_amount, commission_amount, original_amount, status, calculated_at, adjustment_reason, source_transaction_type, source_transaction_id"
+      "id, trigger_type, calculation_type, rate_applied, base_amount, commission_amount, original_amount, status, calculated_at, adjustment_reason, source_transaction_type, source_transaction_id, analyst_id"
     )
     .order("calculated_at", { ascending: false })
     .limit(100);
@@ -234,6 +242,7 @@ export default async function CommissionPage({ searchParams }: { searchParams: P
   const sourceByRecordId = await resolveCommissionSourceNames(rows);
   const sourcePrefix = await t("commission.page.source_prefix");
   const selfCustomerPrefix = await t("commission.page.customer_prefix");
+  const selfDirectSponsorPrefix = await t("commission.page.direct_sponsor_prefix");
 
   const total = rows.reduce((sum, r) => sum + r.commission_amount, 0);
   const selfTriggerLabelByType = await resolveLabelMap(TRIGGER_KEY);
@@ -278,6 +287,12 @@ export default async function CommissionPage({ searchParams }: { searchParams: P
                 <p className="text-xs text-muted-foreground">
                   {selfCustomerPrefix}
                   {sourceByRecordId.get(r.id)!.customerName}
+                </p>
+              )}
+              {sourceByRecordId.get(r.id)?.directSponsorName && (
+                <p className="text-xs text-muted-foreground">
+                  {selfDirectSponsorPrefix}
+                  {sourceByRecordId.get(r.id)!.directSponsorName}
                 </p>
               )}
             </div>

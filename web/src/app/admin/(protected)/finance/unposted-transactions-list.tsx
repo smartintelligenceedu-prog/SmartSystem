@@ -106,6 +106,12 @@ export function UnpostedTransactionsList({ transactions }: { transactions: Unpos
                       {tx.customer_name}
                     </p>
                   )}
+                  {tx.direct_sponsor_name && (
+                    <p className="text-xs text-muted-foreground">
+                      {ct("commission.page.direct_sponsor_prefix")}
+                      {tx.direct_sponsor_name}
+                    </p>
+                  )}
                 </div>
               </div>
               <span className="tabular-nums">{formatMYR(tx.amount)}</span>
