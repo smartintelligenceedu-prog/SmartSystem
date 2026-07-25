@@ -11,6 +11,7 @@ import { ct } from "@/lib/i18n-client";
 import {
   scheduleAppointment,
   scheduleAppointmentForNewCustomer,
+  reserveDeviceForBooth,
   type ScheduleAppointmentState,
 } from "../customers/children/[id]/schedule/actions";
 import type { CenterOption, DeviceOption, CustomerChildOption } from "../_scheduling/data";
@@ -38,28 +39,29 @@ export function InlineBookingForm({
   // record to pick from — "new" lets the analyst capture a walk-in's name
   // and phone right here instead of having to go create a customer first
   // and come back. Defaults to "new" when there's simply nothing to pick.
-  const [mode, setMode] = useState<"existing" | "new">(customers.length > 0 ? "existing" : "new");
+  const [mode, setMode] = useState<"existing" | "new" | "booth">(customers.length > 0 ? "existing" : "new");
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [subjectValue, setSubjectValue] = useState<string | null>(null);
 
   const [existingState, existingFormAction, existingPending] = useActionState(scheduleAppointment, initialState);
   const [newState, newFormAction, newPending] = useActionState(scheduleAppointmentForNewCustomer, initialState);
-  const state = mode === "existing" ? existingState : newState;
-  const formAction = mode === "existing" ? existingFormAction : newFormAction;
-  const isPending = mode === "existing" ? existingPending : newPending;
+  const [boothState, boothFormAction, boothPending] = useActionState(reserveDeviceForBooth, initialState);
+  const state = mode === "existing" ? existingState : mode === "new" ? newState : boothState;
+  const formAction = mode === "existing" ? existingFormAction : mode === "new" ? newFormAction : boothFormAction;
+  const isPending = mode === "existing" ? existingPending : mode === "new" ? newPending : boothPending;
 
   useEffect(() => {
-    if (existingState.status === "success" || newState.status === "success") {
+    if (existingState.status === "success" || newState.status === "success" || boothState.status === "success") {
       setOpen(false);
       setCustomerId(null);
       setSubjectValue(null);
       router.refresh();
     }
-    // Only re-run when one of the two action states actually changes —
-    // listing both explicitly (not `state`) avoids re-firing on the plain
+    // Only re-run when one of the three action states actually changes —
+    // listing them explicitly (not `state`) avoids re-firing on the plain
     // `mode` toggle, which also changes what `state` points to.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [existingState, newState, router]);
+  }, [existingState, newState, boothState, router]);
 
   if (!open) {
     return (
@@ -88,9 +90,14 @@ export function InlineBookingForm({
             <Button type="button" size="sm" variant={mode === "new" ? "default" : "outline"} onClick={() => setMode("new")} disabled={isPending}>
               {ct("schedule.booking.mode_new")}
             </Button>
+            <Button type="button" size="sm" variant={mode === "booth" ? "default" : "outline"} onClick={() => setMode("booth")} disabled={isPending}>
+              {ct("schedule.booking.mode_booth")}
+            </Button>
           </div>
 
-          {mode === "existing" ? (
+          {mode === "booth" ? (
+            <p className="text-sm text-muted-foreground">{ct("schedule.booking.booth_hint")}</p>
+          ) : mode === "existing" ? (
             customers.length === 0 ? (
               <p className="text-sm text-muted-foreground">{ct("schedule.booking.no_customers")}</p>
             ) : (

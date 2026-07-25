@@ -54,7 +54,11 @@ export type ScheduleAppointmentState = { status: "idle" } | { status: "error"; m
 // (device_id, time_range) — Postgres itself rejects any overlapping active
 // booking for the same device (SQLSTATE 23P01).
 async function insertAppointment(params: {
-  customerId: string;
+  // null only for the booth-reserved case (migration 042) — the DB's own
+  // check constraint (customer_id is not null or status = 'booth_reserved')
+  // is the real guard; this function just has to pass the right status
+  // alongside a null customer_id, never null customer_id on its own.
+  customerId: string | null;
   childId: string | null;
   analystId: string;
   centerId: string;
@@ -62,6 +66,7 @@ async function insertAppointment(params: {
   detectionDate: string;
   startTime: string;
   endTime: string;
+  status?: "pending_assessment" | "booth_reserved";
 }): Promise<ScheduleAppointmentState> {
   const scheduledAt = toMYTimestamp(params.detectionDate, params.startTime);
   const scheduledEnd = toMYTimestamp(params.detectionDate, params.endTime);
@@ -79,7 +84,7 @@ async function insertAppointment(params: {
     center_id: params.centerId,
     scheduled_at: scheduledAt.toISOString(),
     duration_minutes: durationMinutes,
-    status: "pending_assessment",
+    status: params.status ?? "pending_assessment",
   });
   if (error) {
     if (error.code === "23P01") {
@@ -245,5 +250,58 @@ export async function scheduleAppointmentForNewCustomer(
   } else {
     revalidatePath(`/admin/customers/${customerId}/self-report`);
   }
+  return result;
+}
+
+// Built inside the action (not at module scope) — see the note in
+// buildScheduleSchema() above / customers/actions.ts's buildCustomerFormSchema.
+async function buildBoothReservationSchema() {
+  return z.object({
+    center_id: z.string().uuid(await t("schedule.form.error.center_required")),
+    device_id: z.string().uuid(await t("schedule.form.error.device_required")),
+    detection_date: z.string().min(1, await t("schedule.form.error.date_required")),
+    start_time: z.string().regex(/^\d{2}:\d{2}$/, await t("schedule.form.error.start_time_required")),
+    end_time: z.string().regex(/^\d{2}:\d{2}$/, await t("schedule.form.error.end_time_required")),
+  });
+}
+
+// Pure placeholder — blocks a device/time on the shared timeline for a
+// booth/roadshow/school visit with no customer attached yet (migration 042).
+// Never becomes a real report: walk-ins during that event still get their
+// own real booking via scheduleAppointment()/scheduleAppointmentForNewCustomer()
+// once they're actually in front of the device. This only exists so other
+// analysts see the device is unavailable instead of trying to book over it.
+export async function reserveDeviceForBooth(_prev: ScheduleAppointmentState, formData: FormData): Promise<ScheduleAppointmentState> {
+  const auth = await requireCallerContext();
+  if ("error" in auth) return { status: "error", message: auth.error };
+  if (!auth.analystId) return { status: "error", message: await t("schedule.form.error.no_permission") };
+
+  const schema = await buildBoothReservationSchema();
+  const parsed = schema.safeParse({
+    center_id: formData.get("center_id"),
+    device_id: formData.get("device_id"),
+    detection_date: formData.get("detection_date"),
+    start_time: formData.get("start_time"),
+    end_time: formData.get("end_time"),
+  });
+  if (!parsed.success) {
+    return { status: "error", message: parsed.error.issues[0]?.message ?? (await t("schedule.form.error.invalid_form")) };
+  }
+  const input = parsed.data;
+
+  const result = await insertAppointment({
+    customerId: null,
+    childId: null,
+    analystId: auth.analystId,
+    centerId: input.center_id,
+    deviceId: input.device_id,
+    detectionDate: input.detection_date,
+    startTime: input.start_time,
+    endTime: input.end_time,
+    status: "booth_reserved",
+  });
+  if (result.status !== "success") return result;
+
+  revalidatePath("/admin/schedule");
   return result;
 }

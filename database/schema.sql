@@ -529,7 +529,11 @@ create table device_incidents (
 
 create table detection_appointments (
   id uuid primary key default gen_random_uuid(),
-  customer_id uuid not null references customers(id),
+  -- Migration 042 — nullable only for status = 'booth_reserved' (a device
+  -- blocked out for a booth/roadshow/school visit with no specific customer
+  -- yet, enforced by the check constraint below). Every other status still
+  -- requires a real customer.
+  customer_id uuid references customers(id),
   -- Migration 022 — which child this booking is for. Lets the report page
   -- list "this child's outstanding appointments" so scheduling (before the
   -- test) and score entry (after) stay two independent steps instead of one
@@ -545,9 +549,13 @@ create table detection_appointments (
   -- 'pending_assessment' (migration 022) = device slot reserved, assessment
   -- not yet performed / scores not yet entered — the gate between the
   -- Stage 1 booking form and the Stage 2 score-entry form.
-  status text not null default 'booked' check (status in ('booked', 'confirmed', 'pending_assessment', 'completed', 'cancelled', 'no_show')),
+  -- 'booth_reserved' (migration 042) = device blocked out for a booth/
+  -- roadshow/school event, no customer tied yet — a placeholder, never
+  -- becomes a real report.
+  status text not null default 'booked' check (status in ('booked', 'confirmed', 'pending_assessment', 'completed', 'cancelled', 'no_show', 'booth_reserved')),
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  constraint detection_appointments_customer_required_unless_booth check (customer_id is not null or status = 'booth_reserved')
 );
 
 -- time_range can't be a GENERATED column: timestamptz + interval is STABLE,

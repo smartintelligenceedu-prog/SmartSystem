@@ -129,6 +129,7 @@ export interface DeviceScheduleSlot {
   start_at: string;
   end_at: string;
   analyst_name: string;
+  is_booth: boolean;
 }
 
 export interface DeviceScheduleGroup {
@@ -179,6 +180,7 @@ export async function listDeviceScheduleForDate(dateStr: string): Promise<Device
           start_at: start.toISOString(),
           end_at: end.toISOString(),
           analyst_name: (party && nameByParty.get(party)) ?? "—",
+          is_booth: a.status === "booth_reserved",
         };
       })
       .sort((a, b) => a.start_at.localeCompare(b.start_at));

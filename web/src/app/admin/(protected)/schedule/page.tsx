@@ -33,11 +33,12 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
   const selectedDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : todayDateString();
 
   const isBackOffice = isBackOfficeRole(context);
-  const [groups, centers, devices, customers] = await Promise.all([
+  const [groups, centers, devices, customers, boothLabel] = await Promise.all([
     listDeviceScheduleForDate(selectedDate),
     listActiveCenters(),
     listActiveDevices(),
     listCustomersWithChildrenForBooking(isBackOffice, context.analystId),
+    t("schedule.badge.booth"),
   ]);
 
   return (
@@ -77,6 +78,7 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
                   {g.slots.map((s) => (
                     <Badge key={s.appointment_id} variant="outline">
                       {formatTime(s.start_at)}–{formatTime(s.end_at)} · {s.analyst_name}
+                      {s.is_booth ? ` · ${boothLabel}` : ""}
                     </Badge>
                   ))}
                 </div>

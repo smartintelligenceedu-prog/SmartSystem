@@ -1064,6 +1064,9 @@
   "schedule.booking.new_customer_name_label": "Customer Name",
   "schedule.booking.new_customer_phone_label": "Customer Phone",
   "schedule.booking.new_child_name_label": "Subject's Name (optional — leave blank for the customer's own assessment)",
+  "schedule.booking.mode_booth": "Booth Placeholder (no customer)",
+  "schedule.booking.booth_hint": "Only marks the device as taken out for a booth/roadshow/school visit that day — this does not create a real appointment. When a walk-in customer needs an assessment on-site, book them individually using \"New Customer\" or \"Existing Customer\" above.",
+  "schedule.badge.booth": "Booth placeholder",
 
   "registrations.certification.section_title": "Training Certification",
   "registrations.certification.passed_label": "Certified: ",

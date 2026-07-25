@@ -1064,6 +1064,9 @@
   "schedule.booking.new_customer_name_label": "顾客姓名",
   "schedule.booking.new_customer_phone_label": "顾客电话",
   "schedule.booking.new_child_name_label": "受测者姓名（选填，留空则视为顾客本人检测）",
+  "schedule.booking.mode_booth": "Booth 占位（无顾客）",
+  "schedule.booking.booth_hint": "只标示设备当天带去 booth／roadshow／学校使用，不产生真正预约记录。现场有顾客要检测时，请用上方「新顾客」或「现有顾客」个别预约。",
+  "schedule.badge.booth": "Booth 占位",
 
   "registrations.certification.section_title": "培训认证",
   "registrations.certification.passed_label": "已通过认证：",
