@@ -53,6 +53,7 @@ export function CreatePackageForm({
           <div className="space-y-2">
             <Label htmlFor="pkg_deposit_amount">{ct("finance.institutional.package.deposit_label")}</Label>
             <Input id="pkg_deposit_amount" name="deposit_amount" type="number" step="0.01" min="0" placeholder={ct("finance.institutional.package.deposit_placeholder")} />
+            <p className="text-xs text-muted-foreground">{ct("finance.institutional.package.deposit_hint")}</p>
           </div>
 
           <div className="border-t pt-4">

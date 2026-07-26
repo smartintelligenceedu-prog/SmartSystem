@@ -172,9 +172,15 @@ export type CreatePackageState = { status: "idle" } | { status: "error"; message
 
 // A negotiated bulk deal (migration 044) — see the header comment on that
 // migration for why this is a separate model from institutional_vouchers.
-// The deposit here is informational only (no ledger effect of its own);
-// the actual accounting still comes from each batch order's own
-// invoice/payment as usual.
+// When a deposit_amount is given, migration 046 gives it a real accounting
+// artifact: a "shell" order (same institution, item_type 'other' so it never
+// counts as a detection-session credit, institutional_package_id left null so
+// it never pollutes this package's used_credits sum) linked back via
+// deposit_for_package_id. It starts in the ordinary 'no_invoice' state on the
+// institutional orders list above, so back office records the deposit
+// through the exact same "登记定金" flow used for every other order —
+// deposit_received_at is only stamped once that actually happens (see
+// recordPayment below), not here at creation time.
 export async function createInstitutionalPackage(_prev: CreatePackageState, formData: FormData): Promise<CreatePackageState> {
   const auth = await requireBackOfficeUserId();
   if ("error" in auth) return { status: "error", message: auth.error };
@@ -208,18 +214,53 @@ export async function createInstitutionalPackage(_prev: CreatePackageState, form
   if (!resolved.partyId) return { status: "error", message: await t("finance.institutional.error.institution_name_required") };
 
   const admin = createAdminClient();
-  const { error } = await admin.from("institutional_packages").insert({
-    institution_party_id: resolved.partyId,
-    name: input.name,
-    total_credits: input.total_credits,
-    unit_price: input.unit_price,
-    deposit_amount: input.deposit_amount ?? null,
-    deposit_received_at: input.deposit_amount ? new Date().toISOString() : null,
-    responsible_analyst_id: input.responsible_analyst_id || null,
-    report_override_amount: input.report_override_amount ?? null,
-    analyst_report_fee_amount: input.analyst_report_fee_amount ?? null,
-  });
+  const { data: pkg, error } = await admin
+    .from("institutional_packages")
+    .insert({
+      institution_party_id: resolved.partyId,
+      name: input.name,
+      total_credits: input.total_credits,
+      unit_price: input.unit_price,
+      deposit_amount: input.deposit_amount ?? null,
+      deposit_received_at: null,
+      responsible_analyst_id: input.responsible_analyst_id || null,
+      report_override_amount: input.report_override_amount ?? null,
+      analyst_report_fee_amount: input.analyst_report_fee_amount ?? null,
+    })
+    .select("id")
+    .single();
   if (error) return { status: "error", message: `${await t("finance.institutional.error.create_order_failed_prefix")}${error.message}` };
+
+  if (input.deposit_amount) {
+    const { data: depositOrder, error: depositOrderError } = await admin
+      .from("orders")
+      .insert({
+        order_type: "detection_service",
+        status: "pending",
+        billing_mode: "invoice",
+        total_amount: input.deposit_amount,
+        institution_party_id: resolved.partyId,
+        deposit_for_package_id: pkg.id,
+      })
+      .select("id")
+      .single();
+    if (depositOrderError) {
+      return { status: "error", message: `${await t("finance.institutional.error.create_order_failed_prefix")}${depositOrderError.message}` };
+    }
+
+    const { error: depositItemError } = await admin.from("order_items").insert({
+      order_id: depositOrder.id,
+      item_type: "other",
+      description: `${await t("finance.institutional.package.deposit_item_prefix")}${input.name}`,
+      unit_price: input.deposit_amount,
+      quantity: 1,
+      subtotal: input.deposit_amount,
+      analyst_id: input.responsible_analyst_id || null,
+    });
+    if (depositItemError) {
+      return { status: "error", message: `${await t("finance.institutional.error.create_item_failed_prefix")}${depositItemError.message}` };
+    }
+  }
 
   revalidatePath("/admin/finance/institutional");
   return { status: "success" };
@@ -415,6 +456,16 @@ export async function recordPayment(
     reference_no: referenceNo.trim() || null,
   });
   if (error) return { ok: false, message: `${await t("finance.institutional.error.record_payment_failed_prefix")}${error.message}` };
+
+  // Migration 046 — this order may be a package's "shell" deposit order
+  // (deposit_for_package_id set); once its deposit is actually recorded here,
+  // stamp the package as received so the packages table reflects reality.
+  if (parsedType.data === "deposit") {
+    const { data: order } = await admin.from("orders").select("deposit_for_package_id").eq("id", orderId).maybeSingle();
+    if (order?.deposit_for_package_id) {
+      await admin.from("institutional_packages").update({ deposit_received_at: new Date().toISOString() }).eq("id", order.deposit_for_package_id);
+    }
+  }
 
   revalidatePath("/admin/finance/institutional");
   return { ok: true, message: await t("finance.institutional.success.payment_recorded") };

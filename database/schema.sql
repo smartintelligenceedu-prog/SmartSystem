@@ -667,6 +667,12 @@ create table orders (
   -- bulk package deal's total_credits, when one applies. Null for orders
   -- not tied to any package (the common case).
   institutional_package_id uuid references institutional_packages(id),
+  -- Migration 046 — links a "shell" deposit order back to the package it's
+  -- collecting a deposit for. Deliberately separate from
+  -- institutional_package_id above: this order carries no real credit-usage
+  -- (its order_item is item_type 'other'), so keeping institutional_package_id
+  -- null on it keeps that package's used_credits sum correct.
+  deposit_for_package_id uuid references institutional_packages(id),
   -- Deprecated as of migration 015 — delivery is now tracked per-report on
   -- order_items.report_delivered_at instead (a multi-person order can have
   -- reports delivered at different times). Column kept for historical data

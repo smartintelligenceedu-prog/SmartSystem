@@ -188,6 +188,11 @@ export interface PackageRow {
   responsible_analyst_name: string | null;
   report_override_amount: number | null;
   analyst_report_fee_amount: number | null;
+  // Migration 046 — the shell order that collects this package's deposit, if
+  // any (older packages get one via a one-time backfill; new ones get it at
+  // creation whenever deposit_amount is set). Lets the packages table link
+  // straight to that order's row in the list above to record/view payment.
+  deposit_order_id: string | null;
 }
 
 // A negotiated bulk deal (migration 044) — "used" is derived by summing
@@ -210,11 +215,13 @@ export async function listPackages(): Promise<PackageRow[]> {
   const institutionPartyIds = [...new Set(packages.map((p) => p.institution_party_id))];
   const responsibleAnalystIds = [...new Set(packages.filter((p) => p.responsible_analyst_id).map((p) => p.responsible_analyst_id as string))];
 
-  const [{ data: orders }, { data: orgs }, { data: responsibleAnalysts }] = await Promise.all([
+  const [{ data: orders }, { data: orgs }, { data: responsibleAnalysts }, { data: depositOrders }] = await Promise.all([
     admin.from("orders").select("id, institutional_package_id").in("institutional_package_id", packageIds).not("status", "in", "(cancelled,refunded)"),
     admin.from("organizations").select("party_id, legal_name").in("party_id", institutionPartyIds),
     responsibleAnalystIds.length > 0 ? admin.from("analysts").select("id, party_id").in("id", responsibleAnalystIds) : Promise.resolve({ data: [] }),
+    admin.from("orders").select("id, deposit_for_package_id").in("deposit_for_package_id", packageIds),
   ]);
+  const depositOrderIdByPackage = new Map((depositOrders ?? []).map((o) => [o.deposit_for_package_id as string, o.id]));
   const orgNameByParty = new Map((orgs ?? []).map((o) => [o.party_id, o.legal_name]));
   const analystPartyById = new Map((responsibleAnalysts ?? []).map((a) => [a.id, a.party_id]));
   const responsiblePartyIds = [...new Set([...analystPartyById.values()])];
@@ -257,6 +264,7 @@ export async function listPackages(): Promise<PackageRow[]> {
         : null,
       report_override_amount: p.report_override_amount === null ? null : Number(p.report_override_amount),
       analyst_report_fee_amount: p.analyst_report_fee_amount === null ? null : Number(p.analyst_report_fee_amount),
+      deposit_order_id: depositOrderIdByPackage.get(p.id) ?? null,
     };
   });
 }

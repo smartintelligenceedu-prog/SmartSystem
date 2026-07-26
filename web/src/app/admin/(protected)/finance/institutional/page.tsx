@@ -88,7 +88,7 @@ export default async function InstitutionalOrdersPage() {
               </TableRow>
             )}
             {orders.map((o) => (
-              <TableRow key={o.order_id}>
+              <TableRow key={o.order_id} id={`order-${o.order_id}`}>
                 <TableCell>
                   {o.description}
                   {o.package_name && <div className="text-xs text-muted-foreground">{o.package_name}</div>}
@@ -149,7 +149,28 @@ export default async function InstitutionalOrdersPage() {
                       <VoucherProgressBar total={p.total_credits} used={p.used_credits} />
                     </TableCell>
                     <TableCell className="tabular-nums">{formatMYR(p.unit_price)}</TableCell>
-                    <TableCell className="tabular-nums text-muted-foreground">{p.deposit_amount !== null ? formatMYR(p.deposit_amount) : "—"}</TableCell>
+                    <TableCell className="tabular-nums text-muted-foreground">
+                      {p.deposit_amount !== null ? (
+                        <div>
+                          <div>{formatMYR(p.deposit_amount)}</div>
+                          {p.deposit_received_at ? (
+                            <Badge variant="secondary" className="mt-1">
+                              {t("finance.institutional.package.deposit_received_badge")}
+                            </Badge>
+                          ) : p.deposit_order_id ? (
+                            <a href={`#order-${p.deposit_order_id}`} className="text-xs text-primary underline">
+                              {t("finance.institutional.package.deposit_pending_link")}
+                            </a>
+                          ) : (
+                            <Badge variant="outline" className="mt-1">
+                              {t("finance.institutional.package.deposit_pending_badge")}
+                            </Badge>
+                          )}
+                        </div>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
                     <TableCell className="text-muted-foreground">{p.responsible_analyst_name ?? "—"}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {p.report_override_amount !== null && <div>{formatMYR(p.report_override_amount)} → {t("finance.institutional.package.responsible_analyst_label")}</div>}
