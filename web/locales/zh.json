@@ -648,6 +648,7 @@
   "finance.institutional.new_order.add_student_button": "+ 添加受测者",
   "finance.institutional.new_order.remove_student_button": "移除",
   "finance.institutional.new_order.student_name_placeholder": "受测者姓名（选填，留空则不加注姓名）",
+  "finance.institutional.new_order.student_analyst_placeholder": "解读分析师（选填）",
   "finance.institutional.new_order.total_prefix": "共 ",
   "finance.institutional.new_order.total_middle": " 项，合计 ",
   "finance.institutional.new_order.analyst_label": "归属分析师（选填）",

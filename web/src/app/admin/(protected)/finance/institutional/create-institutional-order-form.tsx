@@ -17,6 +17,15 @@ function formatMYR(amount: number) {
   return new Intl.NumberFormat("ms-MY", { style: "currency", currency: "MYR" }).format(amount);
 }
 
+interface StudentRow {
+  name: string;
+  analystId: string;
+}
+
+function emptyRow(defaultAnalystId = ""): StudentRow {
+  return { name: "", analystId: defaultAnalystId };
+}
+
 export function CreateInstitutionalOrderForm({
   agents,
   institutions,
@@ -43,21 +52,24 @@ export function CreateInstitutionalOrderForm({
   const [packageId, setPackageId] = useState<string>(NO_PACKAGE);
   const selectedPackage = packages.find((p) => p.id === packageId);
 
-  // One order item per name on this list — a shared item/price billed once
-  // per test-taker, matching the business's existing external invoice
-  // format ("Ditoso 150 Package ( Taner )") so the institution can check
-  // names against the invoice. A blank name is fine (bulk line with no
-  // individual breakdown); at least one row is always required.
-  const [studentNames, setStudentNames] = useState<string[]>([""]);
+  // One order item per row — a shared item/price billed once per
+  // test-taker, matching the business's existing external invoice format
+  // ("Ditoso 150 Package ( Taner )") so the institution can check names
+  // against the invoice. Each row also picks its OWN interpreting analyst
+  // (independent of the package's fixed "responsible analyst", who gets a
+  // separate override regardless of who's picked here) — a batch commonly
+  // has different agents each interpreting different students' reports,
+  // and analyst_report_fee is paid per order_item's own analyst_id.
+  const [rows, setRows] = useState<StudentRow[]>([emptyRow()]);
   const [unitPrice, setUnitPrice] = useState("");
-  const total = (Number(unitPrice) || 0) * studentNames.length;
+  const total = (Number(unitPrice) || 0) * rows.length;
 
   useEffect(() => {
     if (state.status === "success") {
       formRef.current?.reset();
       setInstitutionPartyId(null);
       setPackageId(NO_PACKAGE);
-      setStudentNames([""]);
+      setRows([emptyRow()]);
       setUnitPrice("");
     }
   }, [state]);
@@ -104,7 +116,7 @@ export function CreateInstitutionalOrderForm({
             </div>
           )}
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="item_name">{ct("finance.institutional.new_order.item_name_label")}</Label>
               <Input id="item_name" name="item_name" required />
@@ -122,21 +134,6 @@ export function CreateInstitutionalOrderForm({
                 required
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="analyst_id">{ct("finance.institutional.new_order.analyst_label")}</Label>
-              <Select name="analyst_id" items={agents.map((a) => ({ value: a.id, label: a.name }))}>
-                <SelectTrigger id="analyst_id" className="w-full">
-                  <SelectValue placeholder="—" />
-                </SelectTrigger>
-                <SelectContent>
-                  {agents.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
           </div>
 
           <div className="border-t pt-4">
@@ -146,29 +143,47 @@ export function CreateInstitutionalOrderForm({
                 type="button"
                 size="sm"
                 variant="outline"
-                onClick={() => setStudentNames((prev) => [...prev, ""])}
+                onClick={() => setRows((prev) => [...prev, emptyRow(prev[prev.length - 1]?.analystId ?? "")])}
                 disabled={isPending}
               >
                 {ct("finance.institutional.new_order.add_student_button")}
               </Button>
             </div>
             <div className="space-y-2">
-              {studentNames.map((name, i) => (
+              {rows.map((row, i) => (
                 <div key={i} className="flex gap-2">
                   <Input
                     name="student_name"
-                    value={name}
-                    onChange={(e) =>
-                      setStudentNames((prev) => prev.map((n, idx) => (idx === i ? e.target.value : n)))
-                    }
+                    value={row.name}
+                    onChange={(e) => setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, name: e.target.value } : r)))}
                     placeholder={ct("finance.institutional.new_order.student_name_placeholder")}
                   />
+                  <Select
+                    items={agents.map((a) => ({ value: a.id, label: a.name }))}
+                    value={row.analystId || undefined}
+                    onValueChange={(v) => setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, analystId: (v as string) ?? "" } : r)))}
+                  >
+                    <SelectTrigger className="w-56 shrink-0">
+                      <SelectValue placeholder={ct("finance.institutional.new_order.student_analyst_placeholder")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {agents.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>
+                          {a.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {/* Controlled Select above has no `name` — same convention as the
+                      institution/package pickers in this file — its value is mirrored
+                      into this hidden input, which is what actually submits with the form. */}
+                  <input type="hidden" name="student_analyst_id" value={row.analystId} />
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    onClick={() => setStudentNames((prev) => prev.filter((_, idx) => idx !== i))}
-                    disabled={isPending || studentNames.length <= 1}
+                    onClick={() => setRows((prev) => prev.filter((_, idx) => idx !== i))}
+                    disabled={isPending || rows.length <= 1}
                   >
                     {ct("finance.institutional.new_order.remove_student_button")}
                   </Button>
@@ -177,7 +192,7 @@ export function CreateInstitutionalOrderForm({
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
               {ct("finance.institutional.new_order.total_prefix")}
-              {studentNames.length}
+              {rows.length}
               {ct("finance.institutional.new_order.total_middle")}
               {formatMYR(total)}
             </p>

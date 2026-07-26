@@ -30,7 +30,6 @@ async function buildCreateOrderSchema() {
     .object({
       item_name: z.string().trim().min(2, await t("finance.institutional.error.description_required")),
       unit_price: z.coerce.number().positive(await t("finance.institutional.error.amount_positive")),
-      analyst_id: z.string().uuid().optional().or(z.literal("")),
       // When set (migration 044), this batch counts against a negotiated
       // bulk package deal — its own institution_party_id is looked up
       // server-side rather than trusted from the client, and none of the
@@ -260,7 +259,6 @@ export async function createInstitutionalOrder(
   const parsed = createOrderSchema.safeParse({
     item_name: formData.get("item_name"),
     unit_price: formData.get("unit_price"),
-    analyst_id: formData.get("analyst_id") || undefined,
     institutional_package_id: formData.get("institutional_package_id") || undefined,
     institution_party_id: formData.get("institution_party_id") || undefined,
     institution_name: formData.get("institution_name") || undefined,
@@ -277,7 +275,12 @@ export async function createInstitutionalOrder(
   }
   const input = parsed.data;
 
+  // Paired by DOM order — each row in the form renders its name input and
+  // analyst hidden input together, so the two getAll() arrays line up 1:1
+  // index-wise (same convention the schedule/sales-order multi-row forms
+  // rely on for their own paired arrays).
   const studentNames = formData.getAll("student_name").map((v) => v.toString().trim());
+  const studentAnalystIds = formData.getAll("student_analyst_id").map((v) => v.toString().trim());
   if (studentNames.length === 0) {
     return { status: "error", message: await t("finance.institutional.error.at_least_one_item") };
   }
@@ -319,14 +322,14 @@ export async function createInstitutionalOrder(
   if (orderError) return { status: "error", message: `${await t("finance.institutional.error.create_order_failed_prefix")}${orderError.message}` };
 
   const { error: itemError } = await admin.from("order_items").insert(
-    studentNames.map((name) => ({
+    studentNames.map((name, i) => ({
       order_id: order.id,
       item_type: "detection_session",
       description: name ? `${input.item_name} ( ${name} )` : input.item_name,
       unit_price: input.unit_price,
       quantity: 1,
       subtotal: input.unit_price,
-      analyst_id: input.analyst_id || null,
+      analyst_id: studentAnalystIds[i] || null,
     }))
   );
   if (itemError) return { status: "error", message: `${await t("finance.institutional.error.create_item_failed_prefix")}${itemError.message}` };

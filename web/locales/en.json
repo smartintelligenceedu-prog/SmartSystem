@@ -648,6 +648,7 @@
   "finance.institutional.new_order.add_student_button": "+ Add Test-taker",
   "finance.institutional.new_order.remove_student_button": "Remove",
   "finance.institutional.new_order.student_name_placeholder": "Test-taker name (optional — leave blank for no name)",
+  "finance.institutional.new_order.student_analyst_placeholder": "Interpreting Analyst (optional)",
   "finance.institutional.new_order.total_prefix": "",
   "finance.institutional.new_order.total_middle": " item(s), total ",
   "finance.institutional.new_order.analyst_label": "Attributed Agent (optional)",
