@@ -40,6 +40,8 @@ export interface InstitutionalOrderRow {
   // against, so back office can see at a glance which invoices are drawing
   // down a school's 100-credit deal vs a standalone one-off order.
   package_name: string | null;
+  has_any_invoice_ever: boolean;
+  is_deposit_order: boolean;
 }
 
 // Institutional/B2B orders (orders.billing_mode = 'invoice', migration 016)
@@ -56,7 +58,7 @@ export async function listInstitutionalOrders(scopedToAnalystId?: string): Promi
 
   const { data: orders } = await admin
     .from("orders")
-    .select("id, total_amount, status, created_at, invoice_requested_at, institutional_package_id")
+    .select("id, total_amount, status, created_at, invoice_requested_at, institutional_package_id, deposit_for_package_id")
     .eq("billing_mode", "invoice")
     .order("created_at", { ascending: false });
   if (!orders || orders.length === 0) return [];
@@ -101,8 +103,11 @@ export async function listInstitutionalOrders(scopedToAnalystId?: string): Promi
       const orderInvoices = (invoices ?? []).filter((i) => i.order_id === o.id);
       const orderPayments = (payments ?? []).filter((p) => p.order_id === o.id);
       const depositTotal = orderPayments.filter((p) => p.payment_type === "deposit").reduce((s, p) => s + Number(p.amount), 0);
-      const standardInvoice = orderInvoices.find((i) => i.invoice_type === "standard");
-      const finalInvoice = orderInvoices.find((i) => i.invoice_type === "final_settlement");
+      // Migration 047 — a voided invoice (status='void') no longer counts as
+      // "this order has an invoice" here, so a voided order correctly falls
+      // back to the 'no_invoice' state and becomes editable again.
+      const standardInvoice = orderInvoices.find((i) => i.invoice_type === "standard" && i.status !== "void");
+      const finalInvoice = orderInvoices.find((i) => i.invoice_type === "final_settlement" && i.status !== "void");
 
       let state: InstitutionalOrderState;
       let arBalance = 0;
@@ -167,8 +172,61 @@ export async function listInstitutionalOrders(scopedToAnalystId?: string): Promi
         voucher_used: voucherUsed,
         invoice_requested_at: o.invoice_requested_at,
         package_name: o.institutional_package_id ? (packageNameById.get(o.institutional_package_id) ?? null) : null,
+        // Migration 047 — distinguishes "never invoiced" (safe to fully
+        // delete) from "was invoiced then voided" (edit-only, since the void
+        // invoice's order_id linkage must be kept — see actions.ts).
+        has_any_invoice_ever: orderInvoices.length > 0,
+        // Deposit shell orders (migration 046) have their own single 'other'
+        // item and no per-student rows — edit is hidden for these in the UI,
+        // only delete (before any invoice) or leaving them as-is otherwise.
+        is_deposit_order: !!o.deposit_for_package_id,
       };
     });
+}
+
+export interface EditableOrderRow {
+  name: string;
+  analyst_id: string | null;
+}
+
+export interface InstitutionalOrderForEdit {
+  order_id: string;
+  item_name: string;
+  unit_price: number;
+  rows: EditableOrderRow[];
+  package_name: string | null;
+}
+
+// Migration 047 — prefills the edit dialog. Every order_item in one
+// institutional order shares the same item_name/unit_price by construction
+// (createInstitutionalOrder), so it's safe to read them off the first row;
+// the per-row student name is recovered from the " ( name )" suffix that
+// same function appends to each item's description.
+export async function getInstitutionalOrderForEdit(orderId: string): Promise<InstitutionalOrderForEdit | null> {
+  const admin = createAdminClient();
+
+  const { data: order } = await admin.from("orders").select("id, institutional_package_id").eq("id", orderId).maybeSingle();
+  if (!order) return null;
+
+  const { data: items } = await admin.from("order_items").select("description, unit_price, analyst_id").eq("order_id", orderId);
+  if (!items || items.length === 0) return null;
+
+  let packageName: string | null = null;
+  if (order.institutional_package_id) {
+    const { data: pkg } = await admin.from("institutional_packages").select("name").eq("id", order.institutional_package_id).maybeSingle();
+    packageName = pkg?.name ?? null;
+  }
+
+  return {
+    order_id: order.id,
+    item_name: stripNameSuffix(items[0].description),
+    unit_price: Number(items[0].unit_price),
+    rows: items.map((it) => {
+      const match = it.description?.match(/\(([^)]*)\)\s*$/);
+      return { name: match ? match[1].trim() : "", analyst_id: it.analyst_id };
+    }),
+    package_name: packageName,
+  };
 }
 
 export interface PackageRow {

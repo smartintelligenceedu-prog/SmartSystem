@@ -63,7 +63,10 @@ begin
   if v_order.status <> 'pending' then
     raise exception 'order is not in a state that can be invoiced';
   end if;
-  if exists (select 1 from invoices where order_id = new.order_id and id <> new.id) then
+  -- Migration 047 — voided invoices (status='void') don't count here, so
+  -- back office can void a wrongly-issued invoice and re-issue a corrected
+  -- one for the same order.
+  if exists (select 1 from invoices where order_id = new.order_id and id <> new.id and status <> 'void') then
     raise exception 'this order already has an invoice';
   end if;
 

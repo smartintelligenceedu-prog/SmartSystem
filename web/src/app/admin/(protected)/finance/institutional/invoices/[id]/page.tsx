@@ -40,6 +40,7 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
   const ISSUER = await getCompanyInfo();
 
   const isPaid = invoice.status === "paid";
+  const isVoid = invoice.status === "void";
 
   return (
     <div className="mx-auto max-w-3xl bg-white text-black print:max-w-none">
@@ -56,6 +57,13 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
       </div>
 
       <div className="relative rounded-md border border-neutral-300 bg-white p-10 print:border-0 print:p-0">
+        {isVoid && (
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center overflow-hidden">
+            <span className="-rotate-12 border-8 border-red-600 px-8 py-2 text-6xl font-black tracking-widest text-red-600 opacity-60">
+              {t("finance.institutional.print.void_watermark")}
+            </span>
+          </div>
+        )}
         <div className="flex items-start justify-between border-b-4 border-black pb-6">
           <div>
             <h1 className="text-2xl font-extrabold tracking-tight">{ISSUER.name}</h1>
@@ -181,7 +189,7 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
               <span>{t("finance.institutional.print.total")}</span>
               <span className="tabular-nums">{formatMYR(invoice.amount)}</span>
             </div>
-            {!isPaid && (
+            {!isPaid && !isVoid && (
               <div className="flex justify-between font-bold text-red-600">
                 <span>{t("finance.institutional.print.balance_due")}</span>
                 <span className="tabular-nums">{formatMYR(invoice.ar_balance)}</span>

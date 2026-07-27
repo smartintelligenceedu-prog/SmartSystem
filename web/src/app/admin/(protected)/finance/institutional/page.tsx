@@ -109,7 +109,7 @@ export default async function InstitutionalOrdersPage() {
                   )}
                 </TableCell>
                 <TableCell className="text-right">
-                  <OrderActionsCell row={o} canManage={canManage} />
+                  <OrderActionsCell row={o} canManage={canManage} agents={agents} />
                 </TableCell>
               </TableRow>
             ))}

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { t } from "@/lib/i18n";
+import { getInstitutionalOrderForEdit, type InstitutionalOrderForEdit } from "./data";
 
 async function requireBackOfficeUserId(): Promise<{ userId: string } | { error: string }> {
   const supabase = await createServerSupabaseClient();
@@ -379,6 +380,154 @@ export async function createInstitutionalOrder(
   return { status: "success" };
 }
 
+// Migration 047 — shared by updateInstitutionalOrder and
+// deleteInstitutionalOrder. Migration 045's package-commission trigger fires
+// on order_item INSERT regardless of invoice status, so a wrongly-created
+// order under a package with commission configured may already have
+// commission_records pointing at its items (source_transaction_type =
+// 'order_item', not a real FK). Refuses if any of those were already paid
+// out in a payroll run (payout_run_id set) rather than silently orphaning a
+// paid record; otherwise deletes the not-yet-paid ones along with the items,
+// so re-inserting corrected items (edit) or leaving them gone (delete) never
+// leaves stale commission behind.
+async function deleteOrderItemsSafely(
+  admin: ReturnType<typeof createAdminClient>,
+  orderId: string
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const { data: items } = await admin.from("order_items").select("id").eq("order_id", orderId);
+  const itemIds = (items ?? []).map((i) => i.id);
+  if (itemIds.length === 0) return { ok: true };
+
+  const { data: paidCommissions } = await admin
+    .from("commission_records")
+    .select("id")
+    .eq("source_transaction_type", "order_item")
+    .in("source_transaction_id", itemIds)
+    .not("payout_run_id", "is", null);
+  if (paidCommissions && paidCommissions.length > 0) {
+    return { ok: false, message: await t("finance.institutional.error.commission_already_paid") };
+  }
+
+  await admin.from("commission_records").delete().eq("source_transaction_type", "order_item").in("source_transaction_id", itemIds);
+  await admin.from("order_items").delete().eq("order_id", orderId);
+  return { ok: true };
+}
+
+// An order is editable/deletable only while it has no ACTIVE invoice and no
+// payment at all — either it was never invoiced, or a previously-issued
+// invoice was voided (voidInvoice below). Shared guard for both actions.
+async function assertOrderIsEditable(
+  admin: ReturnType<typeof createAdminClient>,
+  orderId: string
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const { data: activeInvoice } = await admin.from("invoices").select("id").eq("order_id", orderId).neq("status", "void").limit(1);
+  if (activeInvoice && activeInvoice.length > 0) return { ok: false, message: await t("finance.institutional.error.order_not_editable") };
+  const { data: anyPayment } = await admin.from("payments").select("id").eq("order_id", orderId).limit(1);
+  if (anyPayment && anyPayment.length > 0) return { ok: false, message: await t("finance.institutional.error.order_not_editable") };
+  return { ok: true };
+}
+
+async function buildEditOrderSchema() {
+  return z.object({
+    item_name: z.string().trim().min(2, await t("finance.institutional.error.description_required")),
+    unit_price: z.coerce.number().positive(await t("finance.institutional.error.amount_positive")),
+  });
+}
+
+// Thin back-office-gated wrapper so the edit form (a client component) can
+// prefill from data.ts's server-only reader without exposing it directly.
+export async function fetchInstitutionalOrderForEdit(orderId: string): Promise<InstitutionalOrderForEdit | null> {
+  const auth = await requireBackOfficeUserId();
+  if ("error" in auth) return null;
+  return getInstitutionalOrderForEdit(orderId);
+}
+
+export type EditInstitutionalOrderState = { status: "idle" } | { status: "error"; message: string } | { status: "success" };
+
+// Deliberately does not allow changing institution_party_id or
+// institutional_package_id — a wrong institution/package on the order means
+// it should be deleted and recreated instead (deleteInstitutionalOrder), not
+// edited, since re-pointing an existing order at a different package would
+// need the credit-usage/commission implications re-reasoned from scratch.
+export async function updateInstitutionalOrder(
+  orderId: string,
+  _prev: EditInstitutionalOrderState,
+  formData: FormData
+): Promise<EditInstitutionalOrderState> {
+  const auth = await requireBackOfficeUserId();
+  if ("error" in auth) return { status: "error", message: auth.error };
+
+  const admin = createAdminClient();
+
+  const { data: order } = await admin.from("orders").select("id").eq("id", orderId).maybeSingle();
+  if (!order) return { status: "error", message: await t("finance.institutional.error.order_not_found") };
+
+  const editable = await assertOrderIsEditable(admin, orderId);
+  if (!editable.ok) return { status: "error", message: editable.message };
+
+  const schema = await buildEditOrderSchema();
+  const parsed = schema.safeParse({ item_name: formData.get("item_name"), unit_price: formData.get("unit_price") });
+  if (!parsed.success) {
+    return { status: "error", message: parsed.error.issues[0]?.message ?? (await t("finance.institutional.error.invalid_form")) };
+  }
+  const input = parsed.data;
+
+  const studentNames = formData.getAll("student_name").map((v) => v.toString().trim());
+  const studentAnalystIds = formData.getAll("student_analyst_id").map((v) => v.toString().trim());
+  if (studentNames.length === 0) return { status: "error", message: await t("finance.institutional.error.at_least_one_item") };
+
+  const deleted = await deleteOrderItemsSafely(admin, orderId);
+  if (!deleted.ok) return { status: "error", message: deleted.message };
+
+  const totalAmount = Math.round(input.unit_price * studentNames.length * 100) / 100;
+  const { error: itemError } = await admin.from("order_items").insert(
+    studentNames.map((name, i) => ({
+      order_id: orderId,
+      item_type: "detection_session",
+      description: name ? `${input.item_name} ( ${name} )` : input.item_name,
+      unit_price: input.unit_price,
+      quantity: 1,
+      subtotal: input.unit_price,
+      analyst_id: studentAnalystIds[i] || null,
+    }))
+  );
+  if (itemError) return { status: "error", message: `${await t("finance.institutional.error.create_item_failed_prefix")}${itemError.message}` };
+
+  const { error: orderUpdateError } = await admin.from("orders").update({ total_amount: totalAmount }).eq("id", orderId);
+  if (orderUpdateError) return { status: "error", message: `${await t("finance.institutional.error.create_order_failed_prefix")}${orderUpdateError.message}` };
+
+  revalidatePath("/admin/finance/institutional");
+  return { status: "success" };
+}
+
+// Only allowed when the order has NEVER had any invoice at all (not even a
+// voided one) — a voided invoice's order_id linkage must survive (its
+// invoice_no is kept as a record per the void-invoice design), so once an
+// order has been invoiced even once, it can only be edited, never deleted.
+export async function deleteInstitutionalOrder(orderId: string): Promise<{ ok: boolean; message: string }> {
+  const auth = await requireBackOfficeUserId();
+  if ("error" in auth) return { ok: false, message: auth.error };
+
+  const admin = createAdminClient();
+
+  const { data: order } = await admin.from("orders").select("id").eq("id", orderId).maybeSingle();
+  if (!order) return { ok: false, message: await t("finance.institutional.error.order_not_found") };
+
+  const { data: anyInvoiceEver } = await admin.from("invoices").select("id").eq("order_id", orderId).limit(1);
+  if (anyInvoiceEver && anyInvoiceEver.length > 0) return { ok: false, message: await t("finance.institutional.error.order_not_deletable") };
+  const { data: anyPayment } = await admin.from("payments").select("id").eq("order_id", orderId).limit(1);
+  if (anyPayment && anyPayment.length > 0) return { ok: false, message: await t("finance.institutional.error.order_not_deletable") };
+
+  const deleted = await deleteOrderItemsSafely(admin, orderId);
+  if (!deleted.ok) return { ok: false, message: deleted.message };
+
+  const { error } = await admin.from("orders").delete().eq("id", orderId);
+  if (error) return { ok: false, message: error.message };
+
+  revalidatePath("/admin/finance/institutional");
+  return { ok: true, message: await t("finance.institutional.success.order_deleted") };
+}
+
 function generateInvoiceNo() {
   const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const rand = Math.random().toString(36).slice(2, 8).toUpperCase();
@@ -428,6 +577,40 @@ export async function issueFinalSettlementInvoice(orderId: string): Promise<{ ok
 
   revalidatePath("/admin/finance/institutional");
   return { ok: true, message: await t("finance.institutional.success.settlement_issued") };
+}
+
+// Migration 047 — lets back office fix a wrongly-issued standard invoice
+// (wrong item/price/name caught after issuing, before any payment came in)
+// without leaving the order stuck: void keeps the invoice row and its
+// invoice_no as a record (status='void', never deleted) rather than erasing
+// it, then handle_invoice_issued()'s duplicate check (patched by this same
+// migration) lets a corrected invoice be issued afterward. Deliberately
+// scoped to standard invoices with zero payments recorded — a
+// final_settlement invoice implies a deposit already happened, which is a
+// deliberately out-of-scope case (touches the ledger, not just this table).
+export async function voidInvoice(orderId: string): Promise<{ ok: boolean; message: string }> {
+  const auth = await requireBackOfficeUserId();
+  if ("error" in auth) return { ok: false, message: auth.error };
+
+  const admin = createAdminClient();
+
+  const { data: anyPayment } = await admin.from("payments").select("id").eq("order_id", orderId).limit(1);
+  if (anyPayment && anyPayment.length > 0) return { ok: false, message: await t("finance.institutional.error.invoice_not_voidable") };
+
+  const { data: invoice } = await admin
+    .from("invoices")
+    .select("id")
+    .eq("order_id", orderId)
+    .eq("invoice_type", "standard")
+    .eq("status", "issued")
+    .maybeSingle();
+  if (!invoice) return { ok: false, message: await t("finance.institutional.error.invoice_not_voidable") };
+
+  const { error } = await admin.from("invoices").update({ status: "void" }).eq("id", invoice.id);
+  if (error) return { ok: false, message: error.message };
+
+  revalidatePath("/admin/finance/institutional");
+  return { ok: true, message: await t("finance.institutional.success.invoice_voided") };
 }
 
 const paymentTypeSchema = z.enum(["deposit", "full_payment", "final_payment"]);

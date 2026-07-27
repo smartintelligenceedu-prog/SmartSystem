@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ct } from "@/lib/i18n-client";
-import { issueInvoice, issueFinalSettlementInvoice, recordPayment, requestInvoice } from "./actions";
+import { issueInvoice, issueFinalSettlementInvoice, recordPayment, requestInvoice, deleteInstitutionalOrder, voidInvoice } from "./actions";
+import { EditInstitutionalOrderForm } from "./edit-institutional-order-form";
 import type { InstitutionalOrderRow } from "./data";
 
 type PaymentMode = "deposit" | "full_payment" | "final_payment";
@@ -14,7 +15,15 @@ function formatMYR(amount: number) {
   return new Intl.NumberFormat("ms-MY", { style: "currency", currency: "MYR" }).format(amount);
 }
 
-export function OrderActionsCell({ row, canManage }: { row: InstitutionalOrderRow; canManage: boolean }) {
+export function OrderActionsCell({
+  row,
+  canManage,
+  agents,
+}: {
+  row: InstitutionalOrderRow;
+  canManage: boolean;
+  agents: { id: string; name: string }[];
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [mode, setMode] = useState<PaymentMode | null>(null);
@@ -22,6 +31,25 @@ export function OrderActionsCell({ row, canManage }: { row: InstitutionalOrderRo
   const [method, setMethod] = useState("");
   const [referenceNo, setReferenceNo] = useState("");
   const [message, setMessage] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+
+  function doDelete() {
+    if (!window.confirm(ct("finance.institutional.action.confirm_delete_order"))) return;
+    startTransition(async () => {
+      const result = await deleteInstitutionalOrder(row.order_id);
+      setMessage(result.message);
+      if (result.ok) router.refresh();
+    });
+  }
+
+  function doVoidInvoice() {
+    if (!window.confirm(ct("finance.institutional.action.confirm_void_invoice"))) return;
+    startTransition(async () => {
+      const result = await voidInvoice(row.order_id);
+      setMessage(result.message);
+      if (result.ok) router.refresh();
+    });
+  }
 
   function submitRequestInvoice() {
     startTransition(async () => {
@@ -106,6 +134,20 @@ export function OrderActionsCell({ row, canManage }: { row: InstitutionalOrderRo
     return (row.invoice_id || row.latest_payment_id) ? <div className="flex flex-col items-end gap-1">{viewLinks}</div> : null;
   }
 
+  if (isEditing) {
+    return (
+      <EditInstitutionalOrderForm
+        orderId={row.order_id}
+        agents={agents}
+        onCancel={() => setIsEditing(false)}
+        onSuccess={() => {
+          setIsEditing(false);
+          router.refresh();
+        }}
+      />
+    );
+  }
+
   if (mode) {
     const amountReadOnly = mode !== "deposit";
     return (
@@ -151,12 +193,27 @@ export function OrderActionsCell({ row, canManage }: { row: InstitutionalOrderRo
             <Button size="sm" variant="secondary" disabled={isPending} onClick={() => openPaymentForm("deposit", null)}>
               {ct("finance.institutional.action.record_deposit")}
             </Button>
+            {!row.is_deposit_order && (
+              <Button size="sm" variant="outline" disabled={isPending} onClick={() => setIsEditing(true)}>
+                {ct("finance.institutional.action.edit_order")}
+              </Button>
+            )}
+            {!row.has_any_invoice_ever && (
+              <Button size="sm" variant="outline" className="text-destructive" disabled={isPending} onClick={doDelete}>
+                {ct("finance.institutional.action.delete_order")}
+              </Button>
+            )}
           </>
         )}
         {row.state === "invoiced_awaiting_payment" && (
-          <Button size="sm" disabled={isPending} onClick={() => openPaymentForm("full_payment", row.ar_balance)}>
-            {ct("finance.institutional.action.record_full_payment")}
-          </Button>
+          <>
+            <Button size="sm" disabled={isPending} onClick={() => openPaymentForm("full_payment", row.ar_balance)}>
+              {ct("finance.institutional.action.record_full_payment")}
+            </Button>
+            <Button size="sm" variant="outline" className="text-destructive" disabled={isPending} onClick={doVoidInvoice}>
+              {ct("finance.institutional.action.void_invoice")}
+            </Button>
+          </>
         )}
         {row.state === "deposit_received_awaiting_settlement" && (
           <>
