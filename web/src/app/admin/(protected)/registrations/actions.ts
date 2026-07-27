@@ -319,6 +319,39 @@ export async function adminSetSuspendStatus(
 const GRANTABLE_EXTRA_ROLES = ["leader", "pic"] as const;
 type GrantableExtraRole = (typeof GRANTABLE_EXTRA_ROLES)[number];
 
+// Auto-promotion: the moment a downline's login goes live, their sponsor
+// provably has at least one active recruit — so the sponsor should have
+// leader-level access without back office having to remember to toggle it
+// manually. Only ever grants, never revokes (a leader never gets demoted by
+// this, e.g. if their one downline later gets suspended). No-ops silently
+// when the sponsor has no login yet themselves, or already is a leader —
+// reused by both adminCreateAnalystLogin below and the one-time backfill
+// script that ran once against production for pre-existing qualifying agents.
+async function autoPromoteSponsorToLeader(
+  admin: ReturnType<typeof createAdminClient>,
+  sponsorAnalystId: string,
+  grantedBy: string
+): Promise<void> {
+  const { data: leaderRole } = await admin.from("roles").select("id").eq("name", "leader").maybeSingle();
+  if (!leaderRole) return;
+
+  const { data: sponsor } = await admin.from("analysts").select("party_id").eq("id", sponsorAnalystId).maybeSingle();
+  if (!sponsor) return;
+
+  const { data: sponsorUser } = await admin.from("users").select("id").eq("party_id", sponsor.party_id).maybeSingle();
+  if (!sponsorUser) return;
+
+  const { data: existing } = await admin
+    .from("user_roles")
+    .select("user_id")
+    .eq("user_id", sponsorUser.id)
+    .eq("role_id", leaderRole.id)
+    .maybeSingle();
+  if (existing) return;
+
+  await admin.from("user_roles").insert({ user_id: sponsorUser.id, role_id: leaderRole.id, granted_by: grantedBy });
+}
+
 /**
  * Creates the Supabase Auth account + users row for an already-approved
  * analyst and grants 'agent' plus any selected extra roles (leader/pic).
@@ -335,7 +368,7 @@ export async function adminCreateAnalystLogin(
 
   const admin = createAdminClient();
 
-  const { data: analyst } = await admin.from("analysts").select("party_id, status").eq("id", analystId).single();
+  const { data: analyst } = await admin.from("analysts").select("party_id, status, sponsor_id").eq("id", analystId).single();
   if (!analyst) return { ok: false, message: await t("registrations.error.analyst_not_found") };
   if (analyst.status !== "approved") return { ok: false, message: await t("registrations.error.only_approved_can_create_login") };
 
@@ -367,6 +400,14 @@ export async function adminCreateAnalystLogin(
   const { data: roleRows } = await admin.from("roles").select("id, name").in("name", roleNames);
   const inserts = (roleRows ?? []).map((r) => ({ user_id: userRow.id, role_id: r.id, granted_by: auth.userId }));
   if (inserts.length > 0) await admin.from("user_roles").insert(inserts);
+
+  // This new analyst going live is exactly the event that proves their
+  // sponsor now has an active downline — auto-grant the sponsor 'leader'
+  // access right here rather than relying on back office to notice and
+  // toggle it manually (see autoPromoteSponsorToLeader's header comment).
+  if (analyst.sponsor_id) {
+    await autoPromoteSponsorToLeader(admin, analyst.sponsor_id, auth.userId);
+  }
 
   await sendEmail({
     to: [identity.email],
