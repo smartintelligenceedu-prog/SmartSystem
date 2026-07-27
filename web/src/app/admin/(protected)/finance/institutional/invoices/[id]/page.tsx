@@ -147,6 +147,30 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
           </p>
         )}
 
+        {invoice.package_deposit_info &&
+          (invoice.package_deposit_info.is_deposit_order ? (
+            <p className="mt-3 text-sm text-neutral-600">
+              {t("finance.institutional.print.deposit_order_prefix")}
+              {invoice.package_deposit_info.package_name}
+              {t("finance.institutional.print.deposit_order_middle")}
+              {formatMYR(invoice.package_deposit_info.total_value)}
+              {t("finance.institutional.print.deposit_order_percent_suffix")}
+              {invoice.package_deposit_info.percent_of_total}%
+            </p>
+          ) : (
+            <p className="mt-3 text-sm text-neutral-600">
+              {t("finance.institutional.print.deposit_reminder_prefix")}
+              {invoice.package_deposit_info.package_name}
+              {t("finance.institutional.print.deposit_reminder_middle")}
+              {formatMYR(invoice.package_deposit_info.deposit_amount)}
+              {" "}
+              {invoice.package_deposit_info.deposit_received_at
+                ? t("finance.institutional.print.deposit_status_received")
+                : t("finance.institutional.print.deposit_status_pending")}
+              {t("finance.institutional.print.deposit_reminder_suffix")}
+            </p>
+          ))}
+
         <div className="mt-6 flex justify-end">
           <div className="w-64 space-y-2 text-sm">
             <div className="flex justify-between">

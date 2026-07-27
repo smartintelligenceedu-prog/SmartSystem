@@ -443,6 +443,55 @@ async function getPackageRemaining(admin: ReturnType<typeof createAdminClient>, 
   return { name: pkg.name, total_credits: pkg.total_credits, used_credits: usedCredits };
 }
 
+export interface PackageDepositInfo {
+  package_name: string;
+  total_credits: number;
+  unit_price: number;
+  deposit_amount: number;
+  deposit_received_at: string | null;
+  total_value: number;
+  // Rounded % that deposit_amount represents of the package's full agreed
+  // value (total_credits × unit_price) — purely informational context for
+  // the printed document, e.g. "10% of the RM38,800 package total".
+  percent_of_total: number;
+  // true when the order THIS document is for IS the deposit shell order
+  // itself (migration 046); false when it's a regular batch order under the
+  // same package, shown alongside package_remaining as a reminder that a
+  // deposit exists to be manually netted off a later invoice.
+  is_deposit_order: boolean;
+}
+
+// Migration 046 — surfaces a package's deposit terms on printed documents so
+// back office has the context to manually apply it later (e.g. discounting
+// the final batch's invoice) — this project deliberately does NOT automate
+// that netting, per the user's explicit choice to keep it a manual step.
+async function getPackageDepositInfo(admin: ReturnType<typeof createAdminClient>, orderId: string): Promise<PackageDepositInfo | null> {
+  const { data: order } = await admin.from("orders").select("institutional_package_id, deposit_for_package_id").eq("id", orderId).maybeSingle();
+  const packageId = order?.institutional_package_id ?? order?.deposit_for_package_id;
+  if (!packageId) return null;
+
+  const { data: pkg } = await admin
+    .from("institutional_packages")
+    .select("name, total_credits, unit_price, deposit_amount, deposit_received_at")
+    .eq("id", packageId)
+    .maybeSingle();
+  if (!pkg || pkg.deposit_amount === null) return null;
+
+  const totalValue = pkg.total_credits * Number(pkg.unit_price);
+  const percent = totalValue > 0 ? Math.round((Number(pkg.deposit_amount) / totalValue) * 100) : 0;
+
+  return {
+    package_name: pkg.name,
+    total_credits: pkg.total_credits,
+    unit_price: Number(pkg.unit_price),
+    deposit_amount: Number(pkg.deposit_amount),
+    deposit_received_at: pkg.deposit_received_at,
+    total_value: totalValue,
+    percent_of_total: percent,
+    is_deposit_order: !!order?.deposit_for_package_id,
+  };
+}
+
 export interface InvoiceDetail {
   invoice_id: string;
   invoice_no: string;
@@ -457,6 +506,7 @@ export interface InvoiceDetail {
   responsible_analyst_name: string | null;
   line_items: OrderLineItem[];
   package_remaining: PackageRemainingInfo | null;
+  package_deposit_info: PackageDepositInfo | null;
 }
 
 // Powers the printable invoice page — a fully-settled ('paid') invoice
@@ -510,6 +560,7 @@ export async function getInvoiceDetail(invoiceId: string): Promise<InvoiceDetail
       subtotal: Number(it.subtotal),
     })),
     package_remaining: await getPackageRemaining(admin, invoice.order_id),
+    package_deposit_info: await getPackageDepositInfo(admin, invoice.order_id),
   };
 }
 
@@ -527,6 +578,7 @@ export interface PaymentDetail {
   responsible_analyst_name: string | null;
   line_items: OrderLineItem[];
   package_remaining: PackageRemainingInfo | null;
+  package_deposit_info: PackageDepositInfo | null;
 }
 
 export async function getPaymentDetail(paymentId: string): Promise<PaymentDetail | null> {
@@ -566,5 +618,6 @@ export async function getPaymentDetail(paymentId: string): Promise<PaymentDetail
       subtotal: Number(it.subtotal),
     })),
     package_remaining: await getPackageRemaining(admin, payment.order_id),
+    package_deposit_info: await getPackageDepositInfo(admin, payment.order_id),
   };
 }
