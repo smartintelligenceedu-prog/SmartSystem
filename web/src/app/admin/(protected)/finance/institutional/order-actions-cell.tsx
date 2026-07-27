@@ -182,7 +182,7 @@ export function OrderActionsCell({
   }
 
   return (
-    <div className="flex flex-col items-end gap-1">
+    <div className="flex max-w-56 flex-col items-end gap-1">
       {(row.invoice_id || row.latest_payment_id) && viewLinks}
       <div className="flex flex-wrap justify-end gap-2">
         {row.state === "no_invoice" && (
