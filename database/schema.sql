@@ -640,6 +640,9 @@ create table institutional_packages (
   responsible_analyst_id uuid references analysts(id),
   report_override_amount numeric(12,2),
   analyst_report_fee_amount numeric(12,2),
+  -- Migration 048 — flat commission paid to responsible_analyst_id the
+  -- moment the deposit payment is actually recorded (not at creation time).
+  deposit_commission_amount numeric(12,2),
   created_at timestamptz not null default now()
 );
 create index idx_institutional_packages_institution on institutional_packages(institution_party_id);
@@ -841,7 +844,7 @@ create index idx_commission_rules_plan on commission_rules(plan_id, trigger_type
 create table commission_records (
   id uuid primary key default gen_random_uuid(),
   trigger_type text not null check (
-    trigger_type in ('personal_sale', 'pic_channel', 'introducer', 'recruitment', 'voucher_resale', 'report_override', 'analyst_report_fee')
+    trigger_type in ('personal_sale', 'pic_channel', 'introducer', 'recruitment', 'voucher_resale', 'report_override', 'analyst_report_fee', 'package_deposit_commission')
   ),
   -- polymorphic reference to the originating transaction (order, registration_order, ...);
   -- intentionally not FK-constrained since it can point at more than one table

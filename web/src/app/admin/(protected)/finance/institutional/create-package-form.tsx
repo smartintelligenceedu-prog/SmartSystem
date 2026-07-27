@@ -60,7 +60,7 @@ export function CreatePackageForm({
             <p className="mb-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">
               {ct("finance.institutional.package.commission_section")}
             </p>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-4 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="pkg_responsible_analyst_id">{ct("finance.institutional.package.responsible_analyst_label")}</Label>
                 <Select name="responsible_analyst_id" items={agents.map((a) => ({ value: a.id, label: a.name }))}>
@@ -98,8 +98,20 @@ export function CreatePackageForm({
                   placeholder={ct("finance.institutional.package.commission_placeholder")}
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="pkg_deposit_commission_amount">{ct("finance.institutional.package.deposit_commission_label")}</Label>
+                <Input
+                  id="pkg_deposit_commission_amount"
+                  name="deposit_commission_amount"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder={ct("finance.institutional.package.commission_placeholder")}
+                />
+              </div>
             </div>
             <p className="mt-2 text-xs text-muted-foreground">{ct("finance.institutional.package.commission_hint")}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{ct("finance.institutional.package.deposit_commission_hint")}</p>
           </div>
 
           <div className="border-t pt-4">

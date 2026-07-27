@@ -632,6 +632,68 @@ create trigger trg_generate_institutional_package_commission_for_item
   execute function generate_institutional_package_commission_for_item();
 
 -- ----------------------------------------------------------------------------
+-- Migration 048 — optional flat commission paid to a package's responsible
+-- analyst the moment its deposit payment is actually recorded (not at
+-- package creation), e.g. "10% deposit, 50% of that to the responsible
+-- person". Fires on payments insert; coexists with trg_payment_recorded on
+-- the same table/event.
+-- ----------------------------------------------------------------------------
+
+create or replace function generate_institutional_package_deposit_commission()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_order orders%rowtype;
+  v_pkg institutional_packages%rowtype;
+  v_item order_items%rowtype;
+begin
+  if new.payment_type <> 'deposit' then
+    return new;
+  end if;
+
+  select * into v_order from orders where id = new.order_id;
+  if not found or v_order.deposit_for_package_id is null then
+    return new;
+  end if;
+
+  select * into v_pkg from institutional_packages where id = v_order.deposit_for_package_id;
+  if not found or v_pkg.deposit_commission_amount is null or v_pkg.responsible_analyst_id is null then
+    return new;
+  end if;
+
+  select * into v_item from order_items where order_id = new.order_id limit 1;
+  if not found then
+    return new;
+  end if;
+
+  if exists (
+    select 1 from commission_records
+    where source_transaction_type = 'order_item'
+      and source_transaction_id = v_item.id
+      and trigger_type = 'package_deposit_commission'
+  ) then
+    return new;
+  end if;
+
+  perform insert_item_commission(
+    'package_deposit_commission', v_item.id, 1, v_pkg.responsible_analyst_id, null,
+    'flat', null, v_pkg.deposit_commission_amount, null, new.amount
+  );
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_generate_institutional_package_deposit_commission on payments;
+create trigger trg_generate_institutional_package_deposit_commission
+  after insert on payments
+  for each row
+  execute function generate_institutional_package_deposit_commission();
+
+-- ----------------------------------------------------------------------------
 -- Approval step: back office reviews 'pending' records (e.g. past the refund
 -- window) and flips them to 'approved'. Left as a plain UPDATE for the admin
 -- UI to call — no dedicated function needed for something this simple.

@@ -243,9 +243,13 @@ export interface PackageRow {
   created_at: string;
   // Migration 045 — optional fixed commission for this deal, mirroring
   // channel_campaigns' pic_report_override_amount / pic_analyst_report_fee_amount.
+  responsible_analyst_id: string | null;
   responsible_analyst_name: string | null;
   report_override_amount: number | null;
   analyst_report_fee_amount: number | null;
+  // Migration 048 — flat commission paid to responsible_analyst_id the
+  // moment the deposit payment is actually recorded.
+  deposit_commission_amount: number | null;
   // Migration 046 — the shell order that collects this package's deposit, if
   // any (older packages get one via a one-time backfill; new ones get it at
   // creation whenever deposit_amount is set). Lets the packages table link
@@ -264,7 +268,7 @@ export async function listPackages(): Promise<PackageRow[]> {
   const { data: packages } = await admin
     .from("institutional_packages")
     .select(
-      "id, institution_party_id, name, total_credits, unit_price, deposit_amount, deposit_received_at, status, created_at, responsible_analyst_id, report_override_amount, analyst_report_fee_amount"
+      "id, institution_party_id, name, total_credits, unit_price, deposit_amount, deposit_received_at, status, created_at, responsible_analyst_id, report_override_amount, analyst_report_fee_amount, deposit_commission_amount"
     )
     .order("created_at", { ascending: false });
   if (!packages || packages.length === 0) return [];
@@ -317,11 +321,13 @@ export async function listPackages(): Promise<PackageRow[]> {
       deposit_received_at: p.deposit_received_at,
       status: p.status,
       created_at: p.created_at,
+      responsible_analyst_id: p.responsible_analyst_id,
       responsible_analyst_name: p.responsible_analyst_id
         ? (responsibleNameByParty.get(analystPartyById.get(p.responsible_analyst_id) ?? "") ?? null)
         : null,
       report_override_amount: p.report_override_amount === null ? null : Number(p.report_override_amount),
       analyst_report_fee_amount: p.analyst_report_fee_amount === null ? null : Number(p.analyst_report_fee_amount),
+      deposit_commission_amount: p.deposit_commission_amount === null ? null : Number(p.deposit_commission_amount),
       deposit_order_id: depositOrderIdByPackage.get(p.id) ?? null,
     };
   });

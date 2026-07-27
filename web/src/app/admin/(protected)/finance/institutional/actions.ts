@@ -153,6 +153,10 @@ async function buildCreatePackageSchema() {
       responsible_analyst_id: z.string().uuid().optional().or(z.literal("")),
       report_override_amount: z.coerce.number().min(0).optional(),
       analyst_report_fee_amount: z.coerce.number().min(0).optional(),
+      // Migration 048 — flat commission paid to responsible_analyst_id when
+      // the deposit payment is actually recorded (see recordPayment below),
+      // not at creation time.
+      deposit_commission_amount: z.coerce.number().min(0).optional(),
       institution_party_id: z.string().uuid().optional().or(z.literal("")),
       institution_name: z.string().trim().optional(),
       ssm_number: z.string().trim().optional(),
@@ -195,6 +199,7 @@ export async function createInstitutionalPackage(_prev: CreatePackageState, form
     responsible_analyst_id: formData.get("responsible_analyst_id") || undefined,
     report_override_amount: formData.get("report_override_amount") || undefined,
     analyst_report_fee_amount: formData.get("analyst_report_fee_amount") || undefined,
+    deposit_commission_amount: formData.get("deposit_commission_amount") || undefined,
     institution_party_id: formData.get("institution_party_id") || undefined,
     institution_name: formData.get("institution_name") || undefined,
     ssm_number: formData.get("ssm_number") || undefined,
@@ -227,6 +232,7 @@ export async function createInstitutionalPackage(_prev: CreatePackageState, form
       responsible_analyst_id: input.responsible_analyst_id || null,
       report_override_amount: input.report_override_amount ?? null,
       analyst_report_fee_amount: input.analyst_report_fee_amount ?? null,
+      deposit_commission_amount: input.deposit_commission_amount ?? null,
     })
     .select("id")
     .single();
@@ -262,6 +268,59 @@ export async function createInstitutionalPackage(_prev: CreatePackageState, form
       return { status: "error", message: `${await t("finance.institutional.error.create_item_failed_prefix")}${depositItemError.message}` };
     }
   }
+
+  revalidatePath("/admin/finance/institutional");
+  return { status: "success" };
+}
+
+export type UpdatePackageCommissionState = { status: "idle" } | { status: "error"; message: string } | { status: "success" };
+
+// Deliberately scoped to just the deal's commission terms — total_credits,
+// unit_price, and deposit_amount are foundational figures set once at
+// creation; if those are wrong the package itself should be recreated
+// instead. This lets back office set/adjust the responsible analyst and any
+// of the three flat commission amounts on an EXISTING package (e.g. filling
+// in deposit_commission_amount for a package created before migration 048
+// added it).
+export async function updateInstitutionalPackageCommission(
+  packageId: string,
+  _prev: UpdatePackageCommissionState,
+  formData: FormData
+): Promise<UpdatePackageCommissionState> {
+  const auth = await requireBackOfficeUserId();
+  if ("error" in auth) return { status: "error", message: auth.error };
+
+  const admin = createAdminClient();
+  const { data: pkg } = await admin.from("institutional_packages").select("id").eq("id", packageId).maybeSingle();
+  if (!pkg) return { status: "error", message: await t("finance.institutional.error.order_not_found") };
+
+  const schema = z.object({
+    responsible_analyst_id: z.string().uuid().optional().or(z.literal("")),
+    report_override_amount: z.coerce.number().min(0).optional(),
+    analyst_report_fee_amount: z.coerce.number().min(0).optional(),
+    deposit_commission_amount: z.coerce.number().min(0).optional(),
+  });
+  const parsed = schema.safeParse({
+    responsible_analyst_id: formData.get("responsible_analyst_id") || undefined,
+    report_override_amount: formData.get("report_override_amount") || undefined,
+    analyst_report_fee_amount: formData.get("analyst_report_fee_amount") || undefined,
+    deposit_commission_amount: formData.get("deposit_commission_amount") || undefined,
+  });
+  if (!parsed.success) {
+    return { status: "error", message: parsed.error.issues[0]?.message ?? (await t("finance.institutional.error.invalid_form")) };
+  }
+  const input = parsed.data;
+
+  const { error } = await admin
+    .from("institutional_packages")
+    .update({
+      responsible_analyst_id: input.responsible_analyst_id || null,
+      report_override_amount: input.report_override_amount ?? null,
+      analyst_report_fee_amount: input.analyst_report_fee_amount ?? null,
+      deposit_commission_amount: input.deposit_commission_amount ?? null,
+    })
+    .eq("id", packageId);
+  if (error) return { status: "error", message: error.message };
 
   revalidatePath("/admin/finance/institutional");
   return { status: "success" };

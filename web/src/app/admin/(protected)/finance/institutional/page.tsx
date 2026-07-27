@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { OrderActionsCell } from "./order-actions-cell";
 import { CreateInstitutionalOrderForm } from "./create-institutional-order-form";
 import { CreatePackageForm } from "./create-package-form";
+import { EditPackageCommissionCell } from "./edit-package-commission-cell";
 import { VoucherProgressBar } from "./voucher-progress-bar";
 import { t } from "@/lib/i18n";
 
@@ -172,10 +173,8 @@ export default async function InstitutionalOrdersPage() {
                       )}
                     </TableCell>
                     <TableCell className="text-muted-foreground">{p.responsible_analyst_name ?? "—"}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {p.report_override_amount !== null && <div>{formatMYR(p.report_override_amount)} → {t("finance.institutional.package.responsible_analyst_label")}</div>}
-                      {p.analyst_report_fee_amount !== null && <div>{formatMYR(p.analyst_report_fee_amount)} → {t("finance.institutional.package.analyst_fee_label")}</div>}
-                      {p.report_override_amount === null && p.analyst_report_fee_amount === null && "—"}
+                    <TableCell className="text-xs">
+                      <EditPackageCommissionCell pkg={p} agents={agents} />
                     </TableCell>
                   </TableRow>
                 ))}
