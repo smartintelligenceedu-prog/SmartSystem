@@ -73,20 +73,23 @@ export default async function VouchersPage() {
                   </p>
                 )}
 
-                {v.status === "issued" && v.voucher_type === "self_use" && (
-                  <div className="space-y-1">
-                    <Button size="sm" variant="outline" render={<Link href="/admin/customers">{t("vouchers.self_use.action")}</Link>} />
-                    <p className="text-xs text-muted-foreground">{t("vouchers.self_use.hint")}</p>
-                  </div>
-                )}
-
-                {v.status === "issued" && v.voucher_type === "resale" && (
-                  <div className="space-y-1">
-                    <Button
-                      size="sm"
-                      render={<Link href={`/admin/sales-orders/new?mode=redeem_voucher&voucher_id=${v.id}`}>{t("vouchers.resale.action")}</Link>}
-                    />
-                    <p className="text-xs text-muted-foreground">{t("vouchers.resale.hint")}</p>
+                {/* Either voucher, once issued, can go either way — the
+                    voucher_type badge above is just which slot it started
+                    as, not a hard restriction (report/actions.ts and
+                    sales-orders/data.ts both accept either type here). */}
+                {v.status === "issued" && (
+                  <div className="flex flex-wrap gap-4">
+                    <div className="space-y-1">
+                      <Button size="sm" variant="outline" render={<Link href="/admin/customers">{t("vouchers.self_use.action")}</Link>} />
+                      <p className="text-xs text-muted-foreground">{t("vouchers.self_use.hint")}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <Button
+                        size="sm"
+                        render={<Link href={`/admin/sales-orders/new?mode=redeem_voucher&voucher_id=${v.id}`}>{t("vouchers.resale.action")}</Link>}
+                      />
+                      <p className="text-xs text-muted-foreground">{t("vouchers.resale.hint")}</p>
+                    </div>
                   </div>
                 )}
               </CardContent>

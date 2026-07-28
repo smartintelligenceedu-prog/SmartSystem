@@ -142,11 +142,15 @@ export async function saveOnePageReport(_prev: SaveOnePageReportState, formData:
   const useSelfUseVoucher = formData.get("use_self_use_voucher") === "true";
   let selfUseVoucherId: string | null = null;
   if (useSelfUseVoucher) {
+    // Either voucher_type is spendable this way, not just self_use ones — an
+    // analyst can freely choose either voucher for either purpose once it's
+    // status='issued' (a resale voucher just has to clear the certification
+    // unlock first, same gate as always).
     const { data: voucher } = await admin
       .from("detection_vouchers")
       .select("id")
       .eq("analyst_id", appointment.analyst_id)
-      .eq("voucher_type", "self_use")
+      .in("voucher_type", ["self_use", "resale"])
       .eq("status", "issued")
       .order("issued_at", { ascending: true })
       .limit(1)

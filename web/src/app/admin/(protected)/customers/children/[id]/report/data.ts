@@ -66,17 +66,20 @@ export async function getCustomerSelfContext(customerId: string): Promise<ChildC
   };
 }
 
-// How many self-use detection vouchers this analyst can still redeem — shown
-// as an optional checkbox on the report form (Stage 2). Deliberately not
-// wired into the schedule form (Stage 1): a booking can be cancelled or
+// How many detection vouchers this analyst can still spend on themselves —
+// shown as an optional checkbox on the report form (Stage 2). Deliberately
+// not wired into the schedule form (Stage 1): a booking can be cancelled or
 // rescheduled, so the voucher is only spent once a report is actually saved.
+// Counts BOTH voucher types (self_use and resale) as long as status='issued'
+// — either voucher can be spent self-use or sold, the analyst's choice; see
+// report/actions.ts's matching query.
 export async function countAvailableSelfUseVouchers(analystId: string): Promise<number> {
   const admin = createAdminClient();
   const { count } = await admin
     .from("detection_vouchers")
     .select("id", { count: "exact", head: true })
     .eq("analyst_id", analystId)
-    .eq("voucher_type", "self_use")
+    .in("voucher_type", ["self_use", "resale"])
     .eq("status", "issued");
   return count ?? 0;
 }
