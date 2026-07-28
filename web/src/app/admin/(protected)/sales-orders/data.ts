@@ -283,9 +283,14 @@ export async function listSalesItems(): Promise<SalesItemRow[]> {
   return (data ?? []).map((i) => ({ ...i, price: Number(i.price) }));
 }
 
-export async function listOwnCustomersForPicker(analystId: string): Promise<{ id: string; name: string }[]> {
+// includeAll (admin only, see page.tsx) drops the owner_analyst_id filter so
+// an admin creating an order isn't stuck picking only customers they
+// personally own — every other analyst still only sees their own.
+export async function listOwnCustomersForPicker(analystId: string, includeAll = false): Promise<{ id: string; name: string }[]> {
   const admin = createAdminClient();
-  const { data: customers } = await admin.from("customers").select("id, party_id").eq("owner_analyst_id", analystId).eq("status", "active");
+  let query = admin.from("customers").select("id, party_id").eq("status", "active");
+  if (!includeAll) query = query.eq("owner_analyst_id", analystId);
+  const { data: customers } = await query;
   if (!customers || customers.length === 0) return [];
   const { data: identities } = await admin.from("individuals").select("party_id, full_name").in("party_id", customers.map((c) => c.party_id));
   const nameByParty = new Map((identities ?? []).map((i) => [i.party_id, i.full_name]));

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getPortalUserContext } from "@/lib/auth/context";
+import { hasRole } from "@/lib/auth/roles";
 import { listOwnCustomersForPicker, listOwnRedeemableVouchers, listApprovedAgents, listActiveSalesItems } from "../data";
 import { NewSalesOrderForm } from "./new-sales-order-form";
 import { t } from "@/lib/i18n";
@@ -19,8 +20,12 @@ export default async function NewSalesOrderPage({
   if (!context) redirect("/admin/login");
   if (!context.analystId) redirect("/admin");
 
+  // Admin sees every active customer here, not just ones they personally
+  // own — every other analyst stays scoped to their own.
+  const isAdmin = hasRole(context, "admin");
+
   const [customers, vouchers, agents, salesItems, params] = await Promise.all([
-    listOwnCustomersForPicker(context.analystId),
+    listOwnCustomersForPicker(context.analystId, isAdmin),
     listOwnRedeemableVouchers(context.analystId),
     listApprovedAgents(),
     listActiveSalesItems(),
