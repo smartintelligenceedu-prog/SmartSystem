@@ -1729,5 +1729,23 @@
   "dashboard.agent.copy_introducer_link": "Copy Introducer Invite Link",
   "dashboard.agent.copy_leads_link": "Copy Leads Link",
 
-  "payroll.run.bank_info_missing": "Bank details not provided"
+  "payroll.run.bank_info_missing": "Bank details not provided",
+
+  "vouchers.nav.label": "My Vouchers",
+  "vouchers.page.title": "My Vouchers",
+  "vouchers.page.subtitle": "The self-use/resale detection vouchers included in your new-analyst kit — self-use is free, resale means the customer pays and you get the full commission",
+  "vouchers.type.self_use": "Self-Use",
+  "vouchers.type.resale": "Resale",
+  "vouchers.status.locked": "Locked",
+  "vouchers.status.issued": "Available",
+  "vouchers.status.redeemed": "Used",
+  "vouchers.status.expired": "Expired",
+  "vouchers.locked_hint": "Unlocks automatically once you pass certification",
+  "vouchers.self_use.action": "Use It (find/create a customer)",
+  "vouchers.self_use.hint": "After booking a detection session, tick \"Use self-use voucher\" on the report form to redeem it for free — no customer payment needed.",
+  "vouchers.resale.action": "Sell It (create a customer order)",
+  "vouchers.resale.hint": "Once the customer pays into the company account, the full commission is paid out to you immediately.",
+  "vouchers.empty": "No vouchers yet",
+  "vouchers.column.issued_at": "Issued: ",
+  "vouchers.column.redeemed_at": "Redeemed: "
 }

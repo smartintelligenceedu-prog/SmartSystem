@@ -36,6 +36,8 @@ export function NewSalesOrderForm({
   agents,
   vouchers,
   salesItems,
+  defaultMode,
+  defaultVoucherId,
 }: {
   ownAnalystId: string;
   ownAnalystName: string;
@@ -43,10 +45,12 @@ export function NewSalesOrderForm({
   agents: { id: string; name: string }[];
   vouchers: { id: string; label: string }[];
   salesItems: SalesItemRow[];
+  defaultMode?: "pay_now" | "redeem_voucher";
+  defaultVoucherId?: string;
 }) {
   const router = useRouter();
   const [state, formAction, isPending] = useActionState(createSalesOrder, initialState);
-  const [mode, setMode] = useState<"pay_now" | "redeem_voucher">("pay_now");
+  const [mode, setMode] = useState<"pay_now" | "redeem_voucher">(defaultMode ?? "pay_now");
   const [members, setMembers] = useState<Member[]>([{ customer_id: "", analyst_id: ownAnalystId, lines: [emptyLine()] }]);
 
   // redeem_voucher mode keeps the original single-person fields.
@@ -291,7 +295,12 @@ export function NewSalesOrderForm({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="voucher_id">{ct("sales_orders.form.select_voucher_label")}</Label>
-                <Select name="voucher_id" items={vouchers.map((v) => ({ value: v.id, label: v.label }))} required>
+                <Select
+                  name="voucher_id"
+                  items={vouchers.map((v) => ({ value: v.id, label: v.label }))}
+                  defaultValue={defaultVoucherId}
+                  required
+                >
                   <SelectTrigger id="voucher_id" className="w-full">
                     <SelectValue placeholder={ct("sales_orders.form.select_voucher_placeholder")} />
                   </SelectTrigger>

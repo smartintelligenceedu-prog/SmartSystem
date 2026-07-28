@@ -1729,5 +1729,23 @@
   "dashboard.agent.copy_introducer_link": "复制邀请引荐人连结",
   "dashboard.agent.copy_leads_link": "复制顾客留资连结",
 
-  "payroll.run.bank_info_missing": "尚未填写银行资料"
+  "payroll.run.bank_info_missing": "尚未填写银行资料",
+
+  "vouchers.nav.label": "我的检测券",
+  "vouchers.page.title": "我的检测券",
+  "vouchers.page.subtitle": "新分析师套装内含的自用/转售检测券 — 自用免费抵扣，转售则由顾客付款、全额佣金归你所有",
+  "vouchers.type.self_use": "自用券",
+  "vouchers.type.resale": "转售券",
+  "vouchers.status.locked": "待解锁",
+  "vouchers.status.issued": "可使用",
+  "vouchers.status.redeemed": "已使用",
+  "vouchers.status.expired": "已过期",
+  "vouchers.locked_hint": "通过认证考核后自动解锁",
+  "vouchers.self_use.action": "自用（去建立/挑选顾客）",
+  "vouchers.self_use.hint": "预约检测后，在填写检测报告时勾选「使用自用券」即可免费抵扣，不需要顾客付款。",
+  "vouchers.resale.action": "转售（开立顾客订单）",
+  "vouchers.resale.hint": "顾客付款进公司户口后，全额佣金即时发放给你。",
+  "vouchers.empty": "目前没有检测券",
+  "vouchers.column.issued_at": "发放日期：",
+  "vouchers.column.redeemed_at": "使用日期："
 }

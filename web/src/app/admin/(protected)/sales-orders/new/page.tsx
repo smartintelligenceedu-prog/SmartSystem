@@ -10,17 +10,28 @@ export const dynamic = "force-dynamic";
 // timeout.
 export const maxDuration = 60;
 
-export default async function NewSalesOrderPage() {
+export default async function NewSalesOrderPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ mode?: string; voucher_id?: string }>;
+}) {
   const context = await getPortalUserContext();
   if (!context) redirect("/admin/login");
   if (!context.analystId) redirect("/admin");
 
-  const [customers, vouchers, agents, salesItems] = await Promise.all([
+  const [customers, vouchers, agents, salesItems, params] = await Promise.all([
     listOwnCustomersForPicker(context.analystId),
     listOwnRedeemableVouchers(context.analystId),
     listApprovedAgents(),
     listActiveSalesItems(),
+    searchParams,
   ]);
+
+  // Lets /admin/vouchers's "转售" button jump straight into this form with
+  // redeem_voucher mode and the specific voucher already selected, instead
+  // of making the analyst re-pick it from the dropdown themselves.
+  const defaultMode = params.mode === "redeem_voucher" ? "redeem_voucher" : "pay_now";
+  const defaultVoucherId = params.voucher_id && vouchers.some((v) => v.id === params.voucher_id) ? params.voucher_id : undefined;
 
   return (
     <div className="mx-auto max-w-lg space-y-6">
@@ -35,6 +46,8 @@ export default async function NewSalesOrderPage() {
         agents={agents}
         vouchers={vouchers}
         salesItems={salesItems}
+        defaultMode={defaultMode}
+        defaultVoucherId={defaultVoucherId}
       />
     </div>
   );

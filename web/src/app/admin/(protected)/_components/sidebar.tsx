@@ -31,6 +31,7 @@ export function Sidebar({ context }: { context: PortalUserContext }) {
       : []),
     ...(hasAnalyst || isBackOffice ? [{ href: "/admin/sales-orders", label: ct("sales_orders.page.title") }] : []),
     ...(hasAnalyst || isBackOffice ? [{ href: "/admin/schedule", label: ct("schedule.nav.label") }] : []),
+    ...(hasAnalyst ? [{ href: "/admin/vouchers", label: ct("vouchers.nav.label") }] : []),
     ...(hasAnalyst || isBackOffice ? [{ href: "/admin/leads", label: ct("leads.nav.label") }] : []),
     ...(hasAnalyst ? [{ href: "/admin/reports", label: ct("reports.title.self") }] : isBackOffice ? [{ href: "/admin/reports", label: ct("reports.title.back_office") }] : []),
     ...(hasAnalyst || context.introducerId || isBackOffice ? [{ href: "/admin/commission", label: ct("commission.page.title") }] : []),
