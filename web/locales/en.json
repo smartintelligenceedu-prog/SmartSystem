@@ -619,6 +619,7 @@
   "finance.institutional.action.edit_order": "Edit",
   "finance.institutional.action.delete_order": "Delete",
   "finance.institutional.action.void_invoice": "Void Invoice",
+  "finance.institutional.action.edit_and_reissue": "Edit & Reissue Invoice",
   "finance.institutional.action.confirm_delete_order": "Delete this order? This cannot be undone.",
   "finance.institutional.action.confirm_void_invoice": "Void this invoice? Once voided you can edit the order and issue a corrected invoice.",
   "finance.institutional.edit_order.title": "Edit Institutional Order",

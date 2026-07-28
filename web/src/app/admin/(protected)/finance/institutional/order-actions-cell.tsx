@@ -52,6 +52,22 @@ export function OrderActionsCell({
     });
   }
 
+  // Voids the mistaken invoice (server-side re-checked by updateInstitutionalOrder's
+  // assertOrderIsEditable regardless of this component's still-stale `row.state`
+  // prop) then goes straight into the edit form, instead of making back office
+  // void, wait for the page to refresh, then separately click Edit.
+  function doVoidAndEdit() {
+    if (!window.confirm(ct("finance.institutional.action.confirm_void_invoice"))) return;
+    startTransition(async () => {
+      const result = await voidInvoice(row.order_id);
+      setMessage(result.message);
+      if (result.ok) {
+        router.refresh();
+        setIsEditing(true);
+      }
+    });
+  }
+
   function submitRequestInvoice() {
     startTransition(async () => {
       const result = await requestInvoice(row.order_id);
@@ -218,6 +234,9 @@ export function OrderActionsCell({
           <>
             <Button size="sm" disabled={isPending} onClick={() => openPaymentForm("full_payment", row.ar_balance)}>
               {ct("finance.institutional.action.record_full_payment")}
+            </Button>
+            <Button size="sm" variant="outline" disabled={isPending} onClick={doVoidAndEdit}>
+              {ct("finance.institutional.action.edit_and_reissue")}
             </Button>
             <Button size="sm" variant="outline" className="text-destructive" disabled={isPending} onClick={doVoidInvoice}>
               {ct("finance.institutional.action.void_invoice")}
