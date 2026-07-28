@@ -559,6 +559,55 @@ export async function updateInstitutionalOrder(
   return { status: "success" };
 }
 
+// Deposit shell orders (migration 046, deposit_for_package_id set) don't fit
+// updateInstitutionalOrder's item_name/student-rows shape — they're a single
+// 'other'-type line whose only meaningful editable field is the amount. No
+// commission-safety check is needed here (unlike deleteOrderItemsSafely):
+// package_deposit_commission only fires when the deposit PAYMENT is recorded
+// (migration 048), never at order/item creation, so there's nothing to have
+// been paid out yet at this stage. Keeps institutional_packages.deposit_amount
+// in sync so the packages table never shows a stale figure.
+export async function updateDepositOrderAmount(
+  orderId: string,
+  _prev: EditInstitutionalOrderState,
+  formData: FormData
+): Promise<EditInstitutionalOrderState> {
+  const auth = await requireBackOfficeUserId();
+  if ("error" in auth) return { status: "error", message: auth.error };
+
+  const admin = createAdminClient();
+
+  const { data: order } = await admin.from("orders").select("id, deposit_for_package_id").eq("id", orderId).maybeSingle();
+  if (!order) return { status: "error", message: await t("finance.institutional.error.order_not_found") };
+  if (!order.deposit_for_package_id) return { status: "error", message: await t("finance.institutional.error.order_not_found") };
+
+  const editable = await assertOrderIsEditable(admin, orderId);
+  if (!editable.ok) return { status: "error", message: editable.message };
+
+  const amount = z.coerce.number().positive(await t("finance.institutional.error.amount_positive")).safeParse(formData.get("amount"));
+  if (!amount.success) {
+    return { status: "error", message: amount.error.issues[0]?.message ?? (await t("finance.institutional.error.invalid_form")) };
+  }
+
+  const { error: itemError } = await admin
+    .from("order_items")
+    .update({ unit_price: amount.data, subtotal: amount.data })
+    .eq("order_id", orderId);
+  if (itemError) return { status: "error", message: `${await t("finance.institutional.error.create_item_failed_prefix")}${itemError.message}` };
+
+  const { error: orderError } = await admin.from("orders").update({ total_amount: amount.data }).eq("id", orderId);
+  if (orderError) return { status: "error", message: `${await t("finance.institutional.error.create_order_failed_prefix")}${orderError.message}` };
+
+  const { error: pkgError } = await admin
+    .from("institutional_packages")
+    .update({ deposit_amount: amount.data })
+    .eq("id", order.deposit_for_package_id);
+  if (pkgError) return { status: "error", message: pkgError.message };
+
+  revalidatePath("/admin/finance/institutional");
+  return { status: "success" };
+}
+
 // Only allowed when the order has NEVER had any invoice at all (not even a
 // voided one) — a voided invoice's order_id linkage must survive (its
 // invoice_no is kept as a record per the void-invoice design), so once an

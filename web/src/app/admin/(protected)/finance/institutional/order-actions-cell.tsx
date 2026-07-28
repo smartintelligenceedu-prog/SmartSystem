@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { ct } from "@/lib/i18n-client";
 import { issueInvoice, issueFinalSettlementInvoice, recordPayment, requestInvoice, deleteInstitutionalOrder, voidInvoice } from "./actions";
 import { EditInstitutionalOrderForm } from "./edit-institutional-order-form";
+import { EditDepositOrderForm } from "./edit-deposit-order-form";
 import type { InstitutionalOrderRow } from "./data";
 
 type PaymentMode = "deposit" | "full_payment" | "final_payment";
@@ -135,7 +136,17 @@ export function OrderActionsCell({
   }
 
   if (isEditing) {
-    return (
+    return row.is_deposit_order ? (
+      <EditDepositOrderForm
+        orderId={row.order_id}
+        currentAmount={row.total_amount}
+        onCancel={() => setIsEditing(false)}
+        onSuccess={() => {
+          setIsEditing(false);
+          router.refresh();
+        }}
+      />
+    ) : (
       <EditInstitutionalOrderForm
         orderId={row.order_id}
         agents={agents}
@@ -193,11 +204,9 @@ export function OrderActionsCell({
             <Button size="sm" variant="secondary" disabled={isPending} onClick={() => openPaymentForm("deposit", null)}>
               {ct("finance.institutional.action.record_deposit")}
             </Button>
-            {!row.is_deposit_order && (
-              <Button size="sm" variant="outline" disabled={isPending} onClick={() => setIsEditing(true)}>
-                {ct("finance.institutional.action.edit_order")}
-              </Button>
-            )}
+            <Button size="sm" variant="outline" disabled={isPending} onClick={() => setIsEditing(true)}>
+              {ct("finance.institutional.action.edit_order")}
+            </Button>
             {!row.has_any_invoice_ever && (
               <Button size="sm" variant="outline" className="text-destructive" disabled={isPending} onClick={doDelete}>
                 {ct("finance.institutional.action.delete_order")}
