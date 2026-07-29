@@ -5,7 +5,15 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ct } from "@/lib/i18n-client";
-import { issueInvoice, issueFinalSettlementInvoice, recordPayment, requestInvoice, deleteInstitutionalOrder, voidInvoice } from "./actions";
+import {
+  issueInvoice,
+  issueFinalSettlementInvoice,
+  recordPayment,
+  requestInvoice,
+  deleteInstitutionalOrder,
+  voidInvoice,
+  applyPackageDeposit,
+} from "./actions";
 import { EditInstitutionalOrderForm } from "./edit-institutional-order-form";
 import { EditDepositOrderForm } from "./edit-deposit-order-form";
 import type { InstitutionalOrderRow } from "./data";
@@ -47,6 +55,15 @@ export function OrderActionsCell({
     if (!window.confirm(ct("finance.institutional.action.confirm_void_invoice"))) return;
     startTransition(async () => {
       const result = await voidInvoice(row.order_id);
+      setMessage(result.message);
+      if (result.ok) router.refresh();
+    });
+  }
+
+  function doApplyPackageDeposit() {
+    if (!window.confirm(ct("finance.institutional.action.confirm_apply_deposit"))) return;
+    startTransition(async () => {
+      const result = await applyPackageDeposit(row.order_id);
       setMessage(result.message);
       if (result.ok) router.refresh();
     });
@@ -235,6 +252,11 @@ export function OrderActionsCell({
             <Button size="sm" disabled={isPending} onClick={() => openPaymentForm("full_payment", row.ar_balance)}>
               {ct("finance.institutional.action.record_full_payment")}
             </Button>
+            {row.package_deposit_remaining > 0 && (
+              <Button size="sm" variant="secondary" disabled={isPending} onClick={doApplyPackageDeposit}>
+                {ct("finance.institutional.action.apply_package_deposit")}
+              </Button>
+            )}
             <Button size="sm" variant="outline" disabled={isPending} onClick={doVoidAndEdit}>
               {ct("finance.institutional.action.edit_and_reissue")}
             </Button>

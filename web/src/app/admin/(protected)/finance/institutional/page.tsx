@@ -97,7 +97,15 @@ export default async function InstitutionalOrdersPage() {
                 <TableCell className="tabular-nums">{formatMYR(o.total_amount)}</TableCell>
                 <TableCell className="text-muted-foreground">{o.analyst_name ?? "—"}</TableCell>
                 <TableCell className="font-mono text-xs text-muted-foreground">{o.invoice_no ?? "—"}</TableCell>
-                <TableCell className="tabular-nums">{o.ar_balance > 0 ? formatMYR(o.ar_balance) : "—"}</TableCell>
+                <TableCell className="tabular-nums">
+                  {o.ar_balance > 0 ? formatMYR(o.ar_balance) : "—"}
+                  {o.package_deposit_applied > 0 && (
+                    <div className="text-xs text-muted-foreground">
+                      {t("finance.institutional.column.deposit_applied_prefix")}
+                      {formatMYR(o.package_deposit_applied)}
+                    </div>
+                  )}
+                </TableCell>
                 <TableCell>
                   <VoucherProgressBar total={o.voucher_total} used={o.voucher_used} />
                 </TableCell>

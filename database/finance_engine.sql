@@ -189,8 +189,12 @@ begin
     if not found then
       raise exception 'no outstanding standard invoice found for this order';
     end if;
-    if new.amount <> v_invoice.amount then
-      raise exception 'payment amount must equal the invoice amount (%)', v_invoice.amount;
+    -- Migration 049 — package_deposit_applied (apply_package_deposit_to_order())
+    -- may have already netted part of this invoice against a package's
+    -- received deposit, so "full payment" here only needs to cover whatever
+    -- cash remains, not the full invoice amount.
+    if new.amount <> (v_invoice.amount - v_order.package_deposit_applied) then
+      raise exception 'payment amount must equal the remaining balance after any package deposit applied (%)', v_invoice.amount - v_order.package_deposit_applied;
     end if;
 
     insert into journal_entries (entry_date, source_type, source_id, description, posted_by)
@@ -200,12 +204,17 @@ begin
       (v_entry_id, v_cash_account, new.amount, 0),
       (v_entry_id, v_ar_account, 0, new.amount);
 
+    -- Revenue recognized for the FULL invoice amount regardless of how much
+    -- of it was cash vs. an already-applied deposit — the deposit-funded
+    -- portion already moved from Deposits (2300) to AR via
+    -- apply_package_deposit_to_order(), so this simply completes the
+    -- deferred-revenue recognition for the whole invoice.
     insert into journal_entries (entry_date, source_type, source_id, description, posted_by)
     values (current_date, 'payment', new.id, '收入确认 - ' || v_invoice.invoice_no, 'system')
     returning id into v_entry_id;
     insert into journal_lines (journal_entry_id, account_id, debit, credit) values
-      (v_entry_id, v_deferred_account, new.amount, 0),
-      (v_entry_id, v_revenue_account, 0, new.amount);
+      (v_entry_id, v_deferred_account, v_invoice.amount, 0),
+      (v_entry_id, v_revenue_account, 0, v_invoice.amount);
 
     update invoices set status = 'paid' where id = v_invoice.id;
     update orders set status = 'paid', updated_at = now() where id = new.order_id;
@@ -245,6 +254,104 @@ create trigger trg_payment_recorded
   after insert on payments
   for each row
   execute function handle_payment_recorded();
+
+-- ----------------------------------------------------------------------------
+-- Migration 049 — apply an institutional package's already-received deposit
+-- against a later batch order's invoice. Callable directly as an RPC (not a
+-- trigger — there's no natural insert event for "apply an existing credit"),
+-- invoked from finance/institutional/actions.ts's applyPackageDeposit().
+--
+-- Deliberately does NOT touch the cash account: the cash side was already
+-- recorded once, when the deposit itself was originally collected via
+-- handle_payment_recorded()'s 'deposit' branch. This only moves the amount
+-- from Deposits (2300) to AR (1100) — recording it as a second cash receipt
+-- here would double-book money that was never actually paid twice.
+-- ----------------------------------------------------------------------------
+
+create or replace function apply_package_deposit_to_order(p_order_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_order orders%rowtype;
+  v_invoice invoices%rowtype;
+  v_pkg institutional_packages%rowtype;
+  v_remaining_deposit numeric;
+  v_remaining_ar numeric;
+  v_apply_amount numeric;
+  v_entry_id uuid;
+  v_deposits_account uuid;
+  v_ar_account uuid;
+  v_deferred_account uuid;
+  v_revenue_account uuid;
+begin
+  select * into v_order from orders where id = p_order_id for update;
+  if not found then
+    raise exception 'order % not found', p_order_id;
+  end if;
+  if v_order.institutional_package_id is null then
+    raise exception 'this order is not linked to a package';
+  end if;
+
+  select * into v_invoice from invoices where order_id = p_order_id and invoice_type = 'standard' and status = 'issued';
+  if not found then
+    raise exception 'no active standard invoice found for this order';
+  end if;
+
+  select * into v_pkg from institutional_packages where id = v_order.institutional_package_id for update;
+  if not found then
+    raise exception 'package not found';
+  end if;
+  if v_pkg.deposit_received_at is null or v_pkg.deposit_amount is null then
+    raise exception 'this package has no received deposit to apply';
+  end if;
+
+  v_remaining_deposit := v_pkg.deposit_amount - v_pkg.deposit_applied_amount;
+  if v_remaining_deposit <= 0 then
+    raise exception 'this package deposit has already been fully applied';
+  end if;
+
+  v_remaining_ar := v_order.total_amount - v_order.package_deposit_applied;
+  if v_remaining_ar <= 0 then
+    raise exception 'this order has no remaining balance to apply against';
+  end if;
+
+  v_apply_amount := least(v_remaining_deposit, v_remaining_ar);
+
+  select id into v_deposits_account from chart_of_accounts where code = '2300';
+  select id into v_ar_account from chart_of_accounts where code = '1100';
+
+  insert into journal_entries (entry_date, source_type, source_id, description, posted_by)
+  values (current_date, 'payment', v_invoice.id, '套餐定金抵扣 - ' || v_invoice.invoice_no, 'system')
+  returning id into v_entry_id;
+  insert into journal_lines (journal_entry_id, account_id, debit, credit) values
+    (v_entry_id, v_deposits_account, v_apply_amount, 0),
+    (v_entry_id, v_ar_account, 0, v_apply_amount);
+
+  update institutional_packages set deposit_applied_amount = deposit_applied_amount + v_apply_amount where id = v_pkg.id;
+  update orders set package_deposit_applied = package_deposit_applied + v_apply_amount where id = v_order.id;
+
+  -- Fully settled by the deposit alone — recognize revenue and close out,
+  -- the same way handle_payment_recorded()'s full_payment branch does for a
+  -- cash payment, since no separate payments row will ever be recorded now.
+  if v_remaining_ar - v_apply_amount <= 0 then
+    select id into v_deferred_account from chart_of_accounts where code = '2200';
+    select id into v_revenue_account from chart_of_accounts where code = '4100';
+
+    insert into journal_entries (entry_date, source_type, source_id, description, posted_by)
+    values (current_date, 'payment', v_invoice.id, '收入确认（定金抵扣结清） - ' || v_invoice.invoice_no, 'system')
+    returning id into v_entry_id;
+    insert into journal_lines (journal_entry_id, account_id, debit, credit) values
+      (v_entry_id, v_deferred_account, v_invoice.amount, 0),
+      (v_entry_id, v_revenue_account, 0, v_invoice.amount);
+
+    update invoices set status = 'paid' where id = v_invoice.id;
+    update orders set status = 'paid', updated_at = now() where id = v_order.id;
+  end if;
+end;
+$$;
 
 -- ----------------------------------------------------------------------------
 -- Institutional voucher generation (Phase 2 Task 1, migration 018).

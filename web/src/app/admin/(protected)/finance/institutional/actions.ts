@@ -721,6 +721,23 @@ export async function voidInvoice(orderId: string): Promise<{ ok: boolean; messa
   return { ok: true, message: await t("finance.institutional.success.invoice_voided") };
 }
 
+// Migration 049 — nets a package's already-received deposit against this
+// batch order's invoice via the apply_package_deposit_to_order() RPC, which
+// posts the correct (non-cash-duplicating) journal entries itself; this
+// action is just an auth-gated wrapper. See that function's header comment
+// for why this can't just be a second payments.payment_type='deposit' row.
+export async function applyPackageDeposit(orderId: string): Promise<{ ok: boolean; message: string }> {
+  const auth = await requireBackOfficeUserId();
+  if ("error" in auth) return { ok: false, message: auth.error };
+
+  const admin = createAdminClient();
+  const { error } = await admin.rpc("apply_package_deposit_to_order", { p_order_id: orderId });
+  if (error) return { ok: false, message: `${await t("finance.institutional.error.apply_deposit_failed_prefix")}${error.message}` };
+
+  revalidatePath("/admin/finance/institutional");
+  return { ok: true, message: await t("finance.institutional.success.deposit_applied") };
+}
+
 const paymentTypeSchema = z.enum(["deposit", "full_payment", "final_payment"]);
 
 export async function recordPayment(

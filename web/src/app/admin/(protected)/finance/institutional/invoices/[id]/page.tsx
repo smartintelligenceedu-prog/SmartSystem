@@ -189,6 +189,12 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
               <span>{t("finance.institutional.print.total")}</span>
               <span className="tabular-nums">{formatMYR(invoice.amount)}</span>
             </div>
+            {invoice.package_deposit_applied > 0 && (
+              <div className="flex justify-between text-neutral-600">
+                <span>{t("finance.institutional.print.deposit_applied_label")}</span>
+                <span className="tabular-nums">-{formatMYR(invoice.package_deposit_applied)}</span>
+              </div>
+            )}
             {!isPaid && !isVoid && (
               <div className="flex justify-between font-bold text-red-600">
                 <span>{t("finance.institutional.print.balance_due")}</span>

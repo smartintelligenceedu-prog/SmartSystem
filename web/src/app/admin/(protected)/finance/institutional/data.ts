@@ -40,6 +40,12 @@ export interface InstitutionalOrderRow {
   // against, so back office can see at a glance which invoices are drawing
   // down a school's 100-credit deal vs a standalone one-off order.
   package_name: string | null;
+  // Migration 049 — how much of the linked package's deposit has already
+  // been applied to this order, and how much the package still has left to
+  // give (0 when there's no linked package, no received deposit, or it's
+  // already fully applied) — gates the "套餐定金抵扣" button.
+  package_deposit_applied: number;
+  package_deposit_remaining: number;
   has_any_invoice_ever: boolean;
   is_deposit_order: boolean;
 }
@@ -58,7 +64,7 @@ export async function listInstitutionalOrders(scopedToAnalystId?: string): Promi
 
   const { data: orders } = await admin
     .from("orders")
-    .select("id, total_amount, status, created_at, invoice_requested_at, institutional_package_id, deposit_for_package_id")
+    .select("id, total_amount, status, created_at, invoice_requested_at, institutional_package_id, deposit_for_package_id, package_deposit_applied")
     .eq("billing_mode", "invoice")
     .order("created_at", { ascending: false });
   if (!orders || orders.length === 0) return [];
@@ -71,9 +77,19 @@ export async function listInstitutionalOrders(scopedToAnalystId?: string): Promi
     admin.from("invoices").select("id, order_id, invoice_no, invoice_type, status, amount").in("order_id", orderIds),
     admin.from("payments").select("id, order_id, amount, payment_type, paid_at").in("order_id", orderIds),
     admin.from("institutional_vouchers").select("order_id, status").in("order_id", orderIds),
-    packageIds.length > 0 ? admin.from("institutional_packages").select("id, name").in("id", packageIds) : Promise.resolve({ data: [] }),
+    packageIds.length > 0
+      ? admin.from("institutional_packages").select("id, name, deposit_amount, deposit_applied_amount, deposit_received_at").in("id", packageIds)
+      : Promise.resolve({ data: [] }),
   ]);
   const packageNameById = new Map((packages ?? []).map((p) => [p.id, p.name]));
+  // Migration 049 — how much of a linked package's deposit is still
+  // unapplied, so the order list can gate the "套餐定金抵扣" button.
+  const packageDepositRemainingById = new Map(
+    (packages ?? []).map((p) => [
+      p.id,
+      p.deposit_received_at && p.deposit_amount !== null ? Number(p.deposit_amount) - Number(p.deposit_applied_amount) : 0,
+    ])
+  );
 
   // One order can have multiple order_items now (migration: per-student
   // named line items, see createInstitutionalOrder) — grouped by order_id
@@ -126,7 +142,11 @@ export async function listInstitutionalOrders(scopedToAnalystId?: string): Promi
         invoiceId = finalInvoice.id;
       } else if (standardInvoice) {
         state = "invoiced_awaiting_payment";
-        arBalance = Number(standardInvoice.amount);
+        // Migration 049 — nets off whatever's already been applied from a
+        // linked package's deposit, so the displayed balance (and what
+        // "登记全款" actually demands, enforced server-side too) reflects
+        // reality once some/all of it has been offset that way.
+        arBalance = Number(standardInvoice.amount) - Number(o.package_deposit_applied);
         invoiceNo = standardInvoice.invoice_no;
         invoiceId = standardInvoice.id;
       } else if (depositTotal > 0) {
@@ -172,6 +192,8 @@ export async function listInstitutionalOrders(scopedToAnalystId?: string): Promi
         voucher_used: voucherUsed,
         invoice_requested_at: o.invoice_requested_at,
         package_name: o.institutional_package_id ? (packageNameById.get(o.institutional_package_id) ?? null) : null,
+        package_deposit_applied: Number(o.package_deposit_applied),
+        package_deposit_remaining: o.institutional_package_id ? (packageDepositRemainingById.get(o.institutional_package_id) ?? 0) : 0,
         // Migration 047 — distinguishes "never invoiced" (safe to fully
         // delete) from "was invoiced then voided" (edit-only, since the void
         // invoice's order_id linkage must be kept — see actions.ts).
@@ -596,6 +618,9 @@ export interface InvoiceDetail {
   line_items: OrderLineItem[];
   package_remaining: PackageRemainingInfo | null;
   package_deposit_info: PackageDepositInfo | null;
+  // Migration 049 — how much of a linked package's deposit has been applied
+  // against THIS invoice specifically, shown as a line item for transparency.
+  package_deposit_applied: number;
 }
 
 // Powers the printable invoice page — a fully-settled ('paid') invoice
@@ -613,7 +638,7 @@ export async function getInvoiceDetail(invoiceId: string): Promise<InvoiceDetail
   if (!invoice) return null;
 
   const [{ data: order }, { data: items }] = await Promise.all([
-    admin.from("orders").select("institution_party_id").eq("id", invoice.order_id).maybeSingle(),
+    admin.from("orders").select("institution_party_id, package_deposit_applied").eq("id", invoice.order_id).maybeSingle(),
     admin.from("order_items").select("description, quantity, unit_price, subtotal").eq("order_id", invoice.order_id),
   ]);
 
@@ -624,7 +649,9 @@ export async function getInvoiceDetail(invoiceId: string): Promise<InvoiceDetail
       const depositTotal = (deposits ?? []).reduce((s, d) => s + Number(d.amount), 0);
       arBalance = Number(invoice.amount) - depositTotal;
     } else {
-      arBalance = Number(invoice.amount);
+      // Migration 049 — nets off any amount already applied from a linked
+      // package's deposit (apply_package_deposit_to_order()).
+      arBalance = Number(invoice.amount) - Number(order?.package_deposit_applied ?? 0);
     }
   }
 
@@ -645,6 +672,7 @@ export async function getInvoiceDetail(invoiceId: string): Promise<InvoiceDetail
     line_items: groupLineItems(items ?? []),
     package_remaining: await getPackageRemaining(admin, invoice.order_id),
     package_deposit_info: await getPackageDepositInfo(admin, invoice.order_id),
+    package_deposit_applied: Number(order?.package_deposit_applied ?? 0),
   };
 }
 
@@ -663,6 +691,7 @@ export interface PaymentDetail {
   line_items: OrderLineItem[];
   package_remaining: PackageRemainingInfo | null;
   package_deposit_info: PackageDepositInfo | null;
+  package_deposit_applied: number;
 }
 
 export async function getPaymentDetail(paymentId: string): Promise<PaymentDetail | null> {
@@ -676,7 +705,7 @@ export async function getPaymentDetail(paymentId: string): Promise<PaymentDetail
   if (!payment) return null;
 
   const [{ data: order }, { data: items }, { data: receipt }] = await Promise.all([
-    admin.from("orders").select("institution_party_id").eq("id", payment.order_id).maybeSingle(),
+    admin.from("orders").select("institution_party_id, package_deposit_applied").eq("id", payment.order_id).maybeSingle(),
     admin.from("order_items").select("description, quantity, unit_price, subtotal").eq("order_id", payment.order_id),
     admin.from("receipts").select("receipt_no").eq("payment_id", payment.id).maybeSingle(),
   ]);
@@ -698,5 +727,6 @@ export async function getPaymentDetail(paymentId: string): Promise<PaymentDetail
     line_items: groupLineItems(items ?? []),
     package_remaining: await getPackageRemaining(admin, payment.order_id),
     package_deposit_info: await getPackageDepositInfo(admin, payment.order_id),
+    package_deposit_applied: Number(order?.package_deposit_applied ?? 0),
   };
 }

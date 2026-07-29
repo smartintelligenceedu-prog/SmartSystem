@@ -643,6 +643,10 @@ create table institutional_packages (
   -- Migration 048 — flat commission paid to responsible_analyst_id the
   -- moment the deposit payment is actually recorded (not at creation time).
   deposit_commission_amount numeric(12,2),
+  -- Migration 049 — cumulative amount of this deposit applied against batch
+  -- order invoices so far (apply_package_deposit_to_order()); remaining
+  -- applicable = deposit_amount - deposit_applied_amount.
+  deposit_applied_amount numeric(12,2) not null default 0,
   created_at timestamptz not null default now()
 );
 create index idx_institutional_packages_institution on institutional_packages(institution_party_id);
@@ -676,6 +680,11 @@ create table orders (
   -- (its order_item is item_type 'other'), so keeping institutional_package_id
   -- null on it keeps that package's used_credits sum correct.
   deposit_for_package_id uuid references institutional_packages(id),
+  -- Migration 049 — cumulative amount of a linked package's deposit that's
+  -- been applied against this order's invoice (apply_package_deposit_to_order()),
+  -- netted off both the printed ar_balance and handle_payment_recorded()'s
+  -- full_payment amount check.
+  package_deposit_applied numeric(12,2) not null default 0,
   -- Deprecated as of migration 015 — delivery is now tracked per-report on
   -- order_items.report_delivered_at instead (a multi-person order can have
   -- reports delivered at different times). Column kept for historical data
