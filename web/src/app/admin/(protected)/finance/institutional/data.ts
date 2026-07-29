@@ -435,6 +435,31 @@ export interface OrderLineItem {
   subtotal: number;
 }
 
+// Printed invoices/receipts show one combined row per distinct
+// description+unit_price instead of one row per order_item — a batch
+// created via the bulk-fill quantity shortcut is many identically-described
+// order_items (needed underneath for per-item commission/delivery tracking,
+// see create-institutional-order-form.tsx), which would otherwise print as
+// the same line repeated dozens of times. Named rows keep their own line
+// since each has a distinct "{item} ( name )" description.
+function groupLineItems(items: { description: string | null; quantity: number; unit_price: number; subtotal: number }[]): OrderLineItem[] {
+  const grouped: OrderLineItem[] = [];
+  const indexByKey = new Map<string, number>();
+  for (const it of items) {
+    const description = it.description ?? "—";
+    const key = `${description} ${it.unit_price}`;
+    const existingIndex = indexByKey.get(key);
+    if (existingIndex !== undefined) {
+      grouped[existingIndex].quantity += it.quantity;
+      grouped[existingIndex].subtotal += Number(it.subtotal);
+    } else {
+      indexByKey.set(key, grouped.length);
+      grouped.push({ description, quantity: it.quantity, unit_price: Number(it.unit_price), subtotal: Number(it.subtotal) });
+    }
+  }
+  return grouped;
+}
+
 async function getBillingEntity(admin: ReturnType<typeof createAdminClient>, institutionPartyId: string | null): Promise<BillingEntity | null> {
   if (!institutionPartyId) return null;
   const [{ data: org }, { data: address }] = await Promise.all([
@@ -617,12 +642,7 @@ export async function getInvoiceDetail(invoiceId: string): Promise<InvoiceDetail
     billing_entity: await getBillingEntity(admin, order?.institution_party_id ?? null),
     responsible_analyst_id: responsibleAnalyst.id,
     responsible_analyst_name: responsibleAnalyst.name,
-    line_items: (items ?? []).map((it) => ({
-      description: it.description ?? "—",
-      quantity: it.quantity,
-      unit_price: Number(it.unit_price),
-      subtotal: Number(it.subtotal),
-    })),
+    line_items: groupLineItems(items ?? []),
     package_remaining: await getPackageRemaining(admin, invoice.order_id),
     package_deposit_info: await getPackageDepositInfo(admin, invoice.order_id),
   };
@@ -675,12 +695,7 @@ export async function getPaymentDetail(paymentId: string): Promise<PaymentDetail
     billing_entity: await getBillingEntity(admin, order?.institution_party_id ?? null),
     responsible_analyst_id: responsibleAnalyst.id,
     responsible_analyst_name: responsibleAnalyst.name,
-    line_items: (items ?? []).map((it) => ({
-      description: it.description ?? "—",
-      quantity: it.quantity,
-      unit_price: Number(it.unit_price),
-      subtotal: Number(it.subtotal),
-    })),
+    line_items: groupLineItems(items ?? []),
     package_remaining: await getPackageRemaining(admin, payment.order_id),
     package_deposit_info: await getPackageDepositInfo(admin, payment.order_id),
   };
