@@ -36,6 +36,8 @@ export function EditInstitutionalOrderForm({
   const [packageName, setPackageName] = useState<string | null>(null);
   const [rows, setRows] = useState<StudentRow[]>([]);
   const [isFetchPending, startFetchTransition] = useTransition();
+  const [bulkQuantity, setBulkQuantity] = useState("");
+  const [bulkAnalystId, setBulkAnalystId] = useState("");
 
   const boundUpdate = updateInstitutionalOrder.bind(null, orderId);
   const [state, formAction, isPending] = useActionState(boundUpdate, initialState);
@@ -87,6 +89,43 @@ export function EditInstitutionalOrderForm({
           onChange={(e) => setUnitPrice(e.target.value)}
           placeholder={ct("finance.institutional.new_order.unit_price_label")}
         />
+      </div>
+      <div className="flex flex-wrap items-end gap-1 rounded-md border border-dashed p-2">
+        <Input
+          type="number"
+          min="1"
+          step="1"
+          className="h-8 w-20"
+          placeholder={ct("finance.institutional.new_order.bulk_quantity_label")}
+          value={bulkQuantity}
+          onChange={(e) => setBulkQuantity(e.target.value)}
+          disabled={isPending}
+        />
+        <Select
+          items={agents.map((a) => ({ value: a.id, label: a.name }))}
+          value={bulkAnalystId || undefined}
+          onValueChange={(v) => setBulkAnalystId((v as string) ?? "")}
+        >
+          <SelectTrigger className="h-8 w-40">
+            <SelectValue placeholder={ct("finance.institutional.new_order.bulk_analyst_label")} />
+          </SelectTrigger>
+          <SelectContent>
+            {agents.map((a) => (
+              <SelectItem key={a.id} value={a.id}>
+                {a.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          disabled={isPending || !bulkQuantity || Number(bulkQuantity) < 1}
+          onClick={() => setRows(Array.from({ length: Math.floor(Number(bulkQuantity)) }, () => ({ name: "", analystId: bulkAnalystId })))}
+        >
+          {ct("finance.institutional.new_order.bulk_fill_button")}
+        </Button>
       </div>
       <div className="flex w-full flex-col items-end gap-1">
         {rows.map((row, i) => (

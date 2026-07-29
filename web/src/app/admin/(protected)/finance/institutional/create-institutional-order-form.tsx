@@ -64,6 +64,14 @@ export function CreateInstitutionalOrderForm({
   const [unitPrice, setUnitPrice] = useState("");
   const total = (Number(unitPrice) || 0) * rows.length;
 
+  // Quick-fill shortcut for the common case of one big batch all handled by
+  // the same analyst — replaces manually clicking "add" N times. Still
+  // generates one order_item row per test-taker underneath (names blank,
+  // same analyst_id) rather than a single quantity=N row, since commission
+  // and per-report delivery tracking both key off individual order_items.
+  const [bulkQuantity, setBulkQuantity] = useState("");
+  const [bulkAnalystId, setBulkAnalystId] = useState("");
+
   useEffect(() => {
     if (state.status === "success") {
       formRef.current?.reset();
@@ -71,6 +79,8 @@ export function CreateInstitutionalOrderForm({
       setPackageId(NO_PACKAGE);
       setRows([emptyRow()]);
       setUnitPrice("");
+      setBulkQuantity("");
+      setBulkAnalystId("");
     }
   }, [state]);
 
@@ -147,6 +157,48 @@ export function CreateInstitutionalOrderForm({
                 disabled={isPending}
               >
                 {ct("finance.institutional.new_order.add_student_button")}
+              </Button>
+            </div>
+            <div className="mb-3 flex flex-wrap items-end gap-2 rounded-md border border-dashed p-2">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">{ct("finance.institutional.new_order.bulk_quantity_label")}</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  step="1"
+                  className="w-24"
+                  value={bulkQuantity}
+                  onChange={(e) => setBulkQuantity(e.target.value)}
+                  disabled={isPending}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">{ct("finance.institutional.new_order.bulk_analyst_label")}</Label>
+                <Select
+                  items={agents.map((a) => ({ value: a.id, label: a.name }))}
+                  value={bulkAnalystId || undefined}
+                  onValueChange={(v) => setBulkAnalystId((v as string) ?? "")}
+                >
+                  <SelectTrigger className="w-56">
+                    <SelectValue placeholder={ct("finance.institutional.new_order.student_analyst_placeholder")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {agents.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                disabled={isPending || !bulkQuantity || Number(bulkQuantity) < 1}
+                onClick={() => setRows(Array.from({ length: Math.floor(Number(bulkQuantity)) }, () => emptyRow(bulkAnalystId)))}
+              >
+                {ct("finance.institutional.new_order.bulk_fill_button")}
               </Button>
             </div>
             <div className="space-y-2">
