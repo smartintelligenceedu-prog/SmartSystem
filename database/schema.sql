@@ -1001,7 +1001,11 @@ create table payments (
   -- accounting entry handle_payment_recorded() posts (migration 016).
   payment_type text not null default 'full_payment' check (payment_type in ('deposit', 'full_payment', 'final_payment')),
   paid_at timestamptz not null default now(),
-  reference_no text
+  reference_no text,
+  -- Migration 050 — lets a wrongly-recorded deposit payment be undone
+  -- (void_deposit_payment()) without deleting the audit trail. Only
+  -- payment_type='deposit' rows are ever voided this way.
+  status text not null default 'recorded' check (status in ('recorded', 'voided'))
 );
 
 create table receipts (

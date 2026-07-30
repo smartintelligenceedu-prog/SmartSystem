@@ -738,6 +738,23 @@ export async function applyPackageDeposit(orderId: string): Promise<{ ok: boolea
   return { ok: true, message: await t("finance.institutional.success.deposit_applied") };
 }
 
+// Migration 050 — undoes a wrongly-recorded deposit payment (e.g. a
+// double-click that recorded the same deposit two or three times) via the
+// void_deposit_payment() RPC, which posts the exact reversing journal entry
+// and marks the payment 'voided' (kept, not deleted). Deliberately scoped to
+// payment_type='deposit' — see that function's header comment for why.
+export async function voidDepositPayment(paymentId: string): Promise<{ ok: boolean; message: string }> {
+  const auth = await requireBackOfficeUserId();
+  if ("error" in auth) return { ok: false, message: auth.error };
+
+  const admin = createAdminClient();
+  const { error } = await admin.rpc("void_deposit_payment", { p_payment_id: paymentId });
+  if (error) return { ok: false, message: `${await t("finance.institutional.error.void_payment_failed_prefix")}${error.message}` };
+
+  revalidatePath("/admin/finance/institutional");
+  return { ok: true, message: await t("finance.institutional.success.payment_voided") };
+}
+
 const paymentTypeSchema = z.enum(["deposit", "full_payment", "final_payment"]);
 
 export async function recordPayment(

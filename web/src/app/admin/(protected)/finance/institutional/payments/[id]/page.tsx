@@ -55,6 +55,13 @@ export default async function ReceiptPrintPage({ params }: { params: Promise<{ i
       </div>
 
       <div className="relative rounded-md border border-neutral-300 bg-white p-10 print:border-0 print:p-0">
+        {payment.status === "voided" && (
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center overflow-hidden">
+            <span className="-rotate-12 border-8 border-red-600 px-8 py-2 text-6xl font-black tracking-widest text-red-600 opacity-60">
+              {t("finance.institutional.print.void_watermark")}
+            </span>
+          </div>
+        )}
         <div className="flex items-start justify-between border-b-4 border-black pb-6">
           <div>
             <h1 className="text-2xl font-extrabold tracking-tight">{ISSUER.name}</h1>

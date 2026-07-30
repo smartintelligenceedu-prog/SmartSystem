@@ -36,6 +36,11 @@ export interface InstitutionalOrderRow {
   voucher_total: number;
   voucher_used: number;
   invoice_requested_at: string | null;
+  // Migration 050 — every deposit-type payment recorded on this order
+  // (voided ones included), so the actions cell can offer a void button per
+  // still-recorded one — e.g. undoing an accidental double-click that
+  // recorded the same deposit more than once.
+  deposit_payments: { id: string; amount: number; method: string; paid_at: string; status: "recorded" | "voided" }[];
   // Migration 044 — which bulk package deal (if any) this batch counts
   // against, so back office can see at a glance which invoices are drawing
   // down a school's 100-credit deal vs a standalone one-off order.
@@ -75,7 +80,7 @@ export async function listInstitutionalOrders(scopedToAnalystId?: string): Promi
   const [{ data: items }, { data: invoices }, { data: payments }, { data: vouchers }, { data: packages }] = await Promise.all([
     admin.from("order_items").select("order_id, description, analyst_id").in("order_id", orderIds),
     admin.from("invoices").select("id, order_id, invoice_no, invoice_type, status, amount").in("order_id", orderIds),
-    admin.from("payments").select("id, order_id, amount, payment_type, paid_at").in("order_id", orderIds),
+    admin.from("payments").select("id, order_id, amount, method, payment_type, paid_at, status").in("order_id", orderIds),
     admin.from("institutional_vouchers").select("order_id, status").in("order_id", orderIds),
     packageIds.length > 0
       ? admin.from("institutional_packages").select("id, name, deposit_amount, deposit_applied_amount, deposit_received_at").in("id", packageIds)
@@ -118,7 +123,11 @@ export async function listInstitutionalOrders(scopedToAnalystId?: string): Promi
       const analystParty = firstItem?.analyst_id ? analystPartyById.get(firstItem.analyst_id) : null;
       const orderInvoices = (invoices ?? []).filter((i) => i.order_id === o.id);
       const orderPayments = (payments ?? []).filter((p) => p.order_id === o.id);
-      const depositTotal = orderPayments.filter((p) => p.payment_type === "deposit").reduce((s, p) => s + Number(p.amount), 0);
+      // Migration 050 — a voided deposit payment (double-click, wrong
+      // amount, etc.) no longer counts toward the deposit total anywhere.
+      const depositTotal = orderPayments
+        .filter((p) => p.payment_type === "deposit" && p.status !== "voided")
+        .reduce((s, p) => s + Number(p.amount), 0);
       // Migration 047 — a voided invoice (status='void') no longer counts as
       // "this order has an invoice" here, so a voided order correctly falls
       // back to the 'no_invoice' state and becomes editable again.
@@ -191,6 +200,12 @@ export async function listInstitutionalOrders(scopedToAnalystId?: string): Promi
         voucher_total: orderVouchers.length,
         voucher_used: voucherUsed,
         invoice_requested_at: o.invoice_requested_at,
+        // Migration 050 — every deposit-type payment on this order (voided
+        // ones included, so back office can see what happened), letting the
+        // actions cell offer a void button per still-recorded one.
+        deposit_payments: orderPayments
+          .filter((p) => p.payment_type === "deposit")
+          .map((p) => ({ id: p.id, amount: Number(p.amount), method: p.method, paid_at: p.paid_at, status: p.status as "recorded" | "voided" })),
         package_name: o.institutional_package_id ? (packageNameById.get(o.institutional_package_id) ?? null) : null,
         package_deposit_applied: Number(o.package_deposit_applied),
         package_deposit_remaining: o.institutional_package_id ? (packageDepositRemainingById.get(o.institutional_package_id) ?? 0) : 0,
@@ -469,7 +484,7 @@ function groupLineItems(items: { description: string | null; quantity: number; u
   const indexByKey = new Map<string, number>();
   for (const it of items) {
     const description = it.description ?? "—";
-    const key = `${description} ${it.unit_price}`;
+    const key = `${description}|${it.unit_price}`;
     const existingIndex = indexByKey.get(key);
     if (existingIndex !== undefined) {
       grouped[existingIndex].quantity += it.quantity;
@@ -692,6 +707,9 @@ export interface PaymentDetail {
   package_remaining: PackageRemainingInfo | null;
   package_deposit_info: PackageDepositInfo | null;
   package_deposit_applied: number;
+  // Migration 050 — a voided deposit payment's receipt is kept as a record
+  // but should never print as if it were still valid.
+  status: "recorded" | "voided";
 }
 
 export async function getPaymentDetail(paymentId: string): Promise<PaymentDetail | null> {
@@ -699,7 +717,7 @@ export async function getPaymentDetail(paymentId: string): Promise<PaymentDetail
 
   const { data: payment } = await admin
     .from("payments")
-    .select("id, order_id, amount, method, payment_type, paid_at, reference_no")
+    .select("id, order_id, amount, method, payment_type, paid_at, reference_no, status")
     .eq("id", paymentId)
     .maybeSingle();
   if (!payment) return null;
@@ -728,5 +746,6 @@ export async function getPaymentDetail(paymentId: string): Promise<PaymentDetail
     package_remaining: await getPackageRemaining(admin, payment.order_id),
     package_deposit_info: await getPackageDepositInfo(admin, payment.order_id),
     package_deposit_applied: Number(order?.package_deposit_applied ?? 0),
+    status: payment.status as "recorded" | "voided",
   };
 }

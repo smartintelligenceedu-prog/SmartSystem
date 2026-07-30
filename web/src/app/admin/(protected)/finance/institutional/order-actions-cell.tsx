@@ -13,6 +13,7 @@ import {
   deleteInstitutionalOrder,
   voidInvoice,
   applyPackageDeposit,
+  voidDepositPayment,
 } from "./actions";
 import { EditInstitutionalOrderForm } from "./edit-institutional-order-form";
 import { EditDepositOrderForm } from "./edit-deposit-order-form";
@@ -64,6 +65,15 @@ export function OrderActionsCell({
     if (!window.confirm(ct("finance.institutional.action.confirm_apply_deposit"))) return;
     startTransition(async () => {
       const result = await applyPackageDeposit(row.order_id);
+      setMessage(result.message);
+      if (result.ok) router.refresh();
+    });
+  }
+
+  function doVoidDepositPayment(paymentId: string) {
+    if (!window.confirm(ct("finance.institutional.action.confirm_void_payment"))) return;
+    startTransition(async () => {
+      const result = await voidDepositPayment(paymentId);
       setMessage(result.message);
       if (result.ok) router.refresh();
     });
@@ -286,6 +296,33 @@ export function OrderActionsCell({
         <p className="text-xs text-muted-foreground">
           {ct("finance.institutional.column.deposit_balance")}: {formatMYR(row.deposit_balance)}
         </p>
+      )}
+      {/* Every deposit payment on this order, so a duplicate/mistaken one
+          (e.g. a double-click that recorded the same deposit twice) can be
+          individually voided rather than only ever seeing the combined total. */}
+      {row.deposit_payments.length > 0 && (
+        <div className="flex flex-col items-end gap-0.5">
+          {row.deposit_payments.map((p) => (
+            <div key={p.id} className="flex items-center gap-1 text-xs">
+              {p.status === "voided" ? (
+                <span className="text-muted-foreground line-through">{formatMYR(p.amount)}</span>
+              ) : (
+                <>
+                  <span>{formatMYR(p.amount)}</span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-5 px-1 text-destructive"
+                    disabled={isPending}
+                    onClick={() => doVoidDepositPayment(p.id)}
+                  >
+                    {ct("finance.institutional.action.void_payment")}
+                  </Button>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
