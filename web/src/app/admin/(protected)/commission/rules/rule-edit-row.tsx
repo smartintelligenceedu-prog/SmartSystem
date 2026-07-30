@@ -9,6 +9,7 @@ import { updateCommissionRule, type UpdateCommissionRuleState } from "./actions"
 import type { CommissionRuleRow } from "./data";
 import { ct } from "@/lib/i18n-client";
 import type { TranslationKey } from "@/lib/i18n-shared";
+import { submitWithoutReset } from "@/lib/submit-without-reset";
 
 const initialState: UpdateCommissionRuleState = { status: "idle" };
 
@@ -73,7 +74,7 @@ export function RuleEditRow({ rule }: { rule: CommissionRuleRow }) {
   return (
     <div className="space-y-3 px-4 py-3 text-sm">
       <p className="font-medium">{label}</p>
-      <form action={formAction} className="space-y-3">
+      <form onSubmit={submitWithoutReset(formAction)} className="space-y-3">
         <input type="hidden" name="trigger_type" value={rule.trigger_type} />
         <input type="hidden" name="level_number" value={rule.level_number} />
         <input type="hidden" name="calculation_type" value={calcType} />

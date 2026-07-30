@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ct } from "@/lib/i18n-client";
 import { updateDepositOrderAmount, type EditInstitutionalOrderState } from "./actions";
+import { submitWithoutReset } from "@/lib/submit-without-reset";
 
 const initialState: EditInstitutionalOrderState = { status: "idle" };
 
@@ -29,7 +30,7 @@ export function EditDepositOrderForm({
   }, [state, onSuccess]);
 
   return (
-    <form action={formAction} className="flex flex-col items-end gap-2">
+    <form onSubmit={submitWithoutReset(formAction)} className="flex flex-col items-end gap-2">
       <Input
         name="amount"
         type="number"

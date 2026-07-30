@@ -251,7 +251,7 @@ export function NewSalesOrderForm({
 
               <div className="space-y-2">
                 <Label htmlFor="payment_screenshot">{ct("sales_orders.form.upload_payment_screenshot_label")}</Label>
-                <Input id="payment_screenshot" name="payment_screenshot" type="file" accept="image/jpeg,image/png,image/webp,.pdf" required />
+                <Input id="payment_screenshot" name="payment_screenshot" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,.pdf" required />
                 <p className="text-xs text-muted-foreground">{ct("sales_orders.form.pending_review_hint")}</p>
               </div>
             </>

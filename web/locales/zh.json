@@ -117,7 +117,7 @@
 
   "upload.error.required_prefix": "请上传",
   "upload.error.too_large_suffix": "档案过大，请控制在 8MB 以内",
-  "upload.error.invalid_type_suffix": "只接受 JPG / PNG / WEBP / PDF 格式",
+  "upload.error.invalid_type_suffix": "只接受 JPG / PNG / WEBP / HEIC / PDF 格式",
 
   "sales_orders.error.not_signed_in": "请先登入",
   "sales_orders.error.no_user_row": "找不到对应的使用者资料",

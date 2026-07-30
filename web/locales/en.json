@@ -117,7 +117,7 @@
 
   "upload.error.required_prefix": "Please upload ",
   "upload.error.too_large_suffix": " is too large — please keep it under 8MB",
-  "upload.error.invalid_type_suffix": " only accepts JPG / PNG / WEBP / PDF",
+  "upload.error.invalid_type_suffix": " only accepts JPG / PNG / WEBP / HEIC / PDF",
 
   "sales_orders.error.not_signed_in": "Please sign in first",
   "sales_orders.error.no_user_row": "Couldn't find your user record",

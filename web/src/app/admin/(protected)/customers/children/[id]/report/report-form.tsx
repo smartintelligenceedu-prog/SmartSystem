@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ct } from "@/lib/i18n-client";
 import { saveOnePageReport, type SaveOnePageReportState } from "./actions";
+import { submitWithoutReset } from "@/lib/submit-without-reset";
 import {
   BRAIN_ZONES,
   LEARNING_STYLES,
@@ -62,7 +63,7 @@ export function ReportForm({
   return (
     <Card>
       <CardContent className="pt-6">
-        <form action={formAction} className="space-y-6">
+        <form onSubmit={submitWithoutReset(formAction)} className="space-y-6">
           {childId ? <input type="hidden" name="child_id" value={childId} /> : <input type="hidden" name="customer_id" value={customerId} />}
           <input type="hidden" name="appointment_id" value={appointmentId} />
           {selectedStyles.map((style) => (

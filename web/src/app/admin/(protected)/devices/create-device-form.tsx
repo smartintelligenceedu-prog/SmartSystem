@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ct } from "@/lib/i18n-client";
 import { createDevice, type CreateDeviceState } from "./actions";
+import { submitWithoutReset } from "@/lib/submit-without-reset";
 
 const initialState: CreateDeviceState = { status: "idle" };
 
@@ -21,7 +22,7 @@ export function CreateDeviceForm() {
   return (
     <Card>
       <CardContent className="pt-6">
-        <form ref={formRef} action={formAction} className="flex flex-wrap items-end gap-3">
+        <form ref={formRef} onSubmit={submitWithoutReset(formAction)} className="flex flex-wrap items-end gap-3">
           <div className="space-y-2">
             <Label htmlFor="serial_no">{ct("devices.form.serial_no_label")}</Label>
             <Input id="serial_no" name="serial_no" required />

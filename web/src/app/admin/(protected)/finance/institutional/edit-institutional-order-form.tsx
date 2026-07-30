@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ct } from "@/lib/i18n-client";
 import { fetchInstitutionalOrderForEdit, updateInstitutionalOrder, type EditInstitutionalOrderState } from "./actions";
+import { submitWithoutReset } from "@/lib/submit-without-reset";
 
 interface StudentRow {
   name: string;
@@ -64,7 +65,7 @@ export function EditInstitutionalOrderForm({
   }
 
   return (
-    <form action={formAction} className="flex flex-col items-end gap-2">
+    <form onSubmit={submitWithoutReset(formAction)} className="flex flex-col items-end gap-2">
       {packageName && (
         <p className="text-xs text-muted-foreground">
           {ct("finance.institutional.edit_order.package_readonly_prefix")}

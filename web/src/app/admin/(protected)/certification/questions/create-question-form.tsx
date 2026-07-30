@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { createCertificationQuestion, type QuestionFormState } from "../actions";
 import { ct } from "@/lib/i18n-client";
+import { submitWithoutReset } from "@/lib/submit-without-reset";
 
 const initialState: QuestionFormState = { status: "idle" };
 
@@ -24,10 +25,12 @@ export function CreateQuestionForm() {
   return (
     <Card>
       <CardContent className="pt-6">
-        {/* Uncontrolled Select (defaultValue, not value/onValueChange) inside a
-            real <form action> — the only pattern proven not to silently submit
-            the wrong value with Base UI's Select, see record-expense-form.tsx. */}
-        <form ref={formRef} action={formAction} className="space-y-4">
+        {/* Uncontrolled Select (defaultValue, not value/onValueChange) reads via
+            FormData(form) on submit — confirmed this captures the live selected
+            value correctly even through submitWithoutReset's manual FormData
+            construction, not just a native <form action>. See
+            submit-without-reset.ts for why this form doesn't use action={} directly. */}
+        <form ref={formRef} onSubmit={submitWithoutReset(formAction)} className="space-y-4">
           <div className="space-y-1">
             <Label htmlFor="question_set">{ct("certification.admin.form.question_set_label")}</Label>
             <Select name="question_set" items={[{ value: "1", label: "1" }, { value: "2", label: "2" }]} defaultValue="1" required>

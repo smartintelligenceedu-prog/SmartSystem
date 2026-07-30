@@ -3,7 +3,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { t } from "@/lib/i18n";
 
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024; // 8MB
-const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+// iPhones shoot in HEIC/HEIF by default (Settings > Camera > Formats > High
+// Efficiency) — Safari does NOT always transcode this to JPEG on upload the
+// way some other browsers do, so a real iPhone user can hit "invalid file
+// type" on a totally normal photo depending on their camera settings. Some
+// iOS/Safari versions also report an empty file.type for these instead of
+// the correct MIME type, so extension is checked as a fallback below.
+const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "application/pdf"];
+const ALLOWED_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "heic", "heif", "pdf"];
 
 export type UploadBucket = "ic-documents" | "payment-screenshots";
 
@@ -16,7 +23,8 @@ export async function validateUploadFile(file: File | null, label: string, requi
   if (file.size > MAX_UPLOAD_BYTES) {
     return `${label}${await t("upload.error.too_large_suffix")}`;
   }
-  if (!ALLOWED_TYPES.includes(file.type)) {
+  const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+  if (!ALLOWED_TYPES.includes(file.type) && !ALLOWED_EXTENSIONS.includes(extension)) {
     return `${label}${await t("upload.error.invalid_type_suffix")}`;
   }
   return null;

@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ct } from "@/lib/i18n-client";
 import { updateInstitutionalPackageCommission, type UpdatePackageCommissionState } from "./actions";
+import { submitWithoutReset } from "@/lib/submit-without-reset";
 import type { PackageRow } from "./data";
 
 function formatMYR(amount: number) {
@@ -59,7 +60,7 @@ export function EditPackageCommissionCell({ pkg, agents }: { pkg: PackageRow; ag
   }
 
   return (
-    <form action={formAction} className="flex flex-col gap-2">
+    <form onSubmit={submitWithoutReset(formAction)} className="flex flex-col gap-2">
       <div className="space-y-1">
         <Label className="text-xs">{ct("finance.institutional.package.responsible_analyst_label")}</Label>
         <Select

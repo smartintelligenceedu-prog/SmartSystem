@@ -17,6 +17,7 @@ import { Separator } from "@/components/ui/separator";
 import { submitRegistration, type RegistrationState } from "./actions";
 import type { RegistrationKit } from "@/lib/types/registration";
 import { ct } from "@/lib/i18n-client";
+import { submitWithoutReset } from "@/lib/submit-without-reset";
 
 const initialState: RegistrationState = { status: "idle" };
 
@@ -51,7 +52,7 @@ export function RegisterForm({
   return (
     <Card>
       <CardContent className="pt-6">
-        <form action={formAction} className="space-y-6">
+        <form onSubmit={submitWithoutReset(formAction)} className="space-y-6">
           <section className="space-y-5">
             <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{ct("register.form.personal_info_heading")}</p>
 
@@ -83,7 +84,7 @@ export function RegisterForm({
 
             <div className="space-y-2">
               <Label htmlFor="ic_document">{ct("register.form.ic_document_label")}</Label>
-              <Input id="ic_document" name="ic_document" type="file" accept="image/jpeg,image/png,image/webp,.pdf" required />
+              <Input id="ic_document" name="ic_document" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,.pdf" required />
             </div>
           </section>
 
@@ -166,7 +167,7 @@ export function RegisterForm({
                 id="payment_screenshot"
                 name="payment_screenshot"
                 type="file"
-                accept="image/jpeg,image/png,image/webp,.pdf"
+                accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,.pdf"
                 required
               />
               <p className="text-xs text-muted-foreground">

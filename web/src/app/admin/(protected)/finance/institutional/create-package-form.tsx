@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ct } from "@/lib/i18n-client";
 import { createInstitutionalPackage, type CreatePackageState } from "./actions";
+import { submitWithoutReset } from "@/lib/submit-without-reset";
 import type { InstitutionOption } from "./data";
 
 const initialState: CreatePackageState = { status: "idle" };
@@ -35,7 +36,7 @@ export function CreatePackageForm({
   return (
     <Card>
       <CardContent className="pt-6">
-        <form ref={formRef} action={formAction} className="space-y-4">
+        <form ref={formRef} onSubmit={submitWithoutReset(formAction)} className="space-y-4">
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="pkg_name">{ct("finance.institutional.package.name_label")}</Label>

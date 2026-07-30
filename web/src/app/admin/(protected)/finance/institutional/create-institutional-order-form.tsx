@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ct } from "@/lib/i18n-client";
 import { createInstitutionalOrder, type CreateInstitutionalOrderState } from "./actions";
+import { submitWithoutReset } from "@/lib/submit-without-reset";
 import type { InstitutionOption, PackageOption } from "./data";
 
 const initialState: CreateInstitutionalOrderState = { status: "idle" };
@@ -87,7 +88,7 @@ export function CreateInstitutionalOrderForm({
   return (
     <Card>
       <CardContent className="pt-6">
-        <form ref={formRef} action={formAction} className="space-y-4">
+        <form ref={formRef} onSubmit={submitWithoutReset(formAction)} className="space-y-4">
           {packages.length > 0 && (
             <div className="space-y-2 border-b pb-4">
               <Label htmlFor="package_select">{ct("finance.institutional.new_order.package_select_label")}</Label>

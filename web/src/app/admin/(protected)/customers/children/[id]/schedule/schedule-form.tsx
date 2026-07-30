@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ct } from "@/lib/i18n-client";
 import { scheduleAppointment, type ScheduleAppointmentState } from "./actions";
+import { submitWithoutReset } from "@/lib/submit-without-reset";
 import type { CenterOption, DeviceOption } from "@/app/admin/(protected)/_scheduling/data";
 
 const initialState: ScheduleAppointmentState = { status: "idle" };
@@ -40,7 +41,7 @@ export function ScheduleForm({
   return (
     <Card>
       <CardContent className="pt-6">
-        <form action={formAction} className="space-y-4">
+        <form onSubmit={submitWithoutReset(formAction)} className="space-y-4">
           {childId ? <input type="hidden" name="child_id" value={childId} /> : <input type="hidden" name="customer_id" value={customerId} />}
 
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">

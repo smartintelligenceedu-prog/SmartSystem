@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { createCustomer, updateCustomer, type CustomerFormState } from "./actions";
 import { ct } from "@/lib/i18n-client";
+import { submitWithoutReset } from "@/lib/submit-without-reset";
 
 const initialState: CustomerFormState = { status: "idle" };
 
@@ -107,7 +108,7 @@ export function CustomerForm({
   return (
     <Card>
       <CardContent className="pt-6">
-        <form action={formAction} className="space-y-6">
+        <form onSubmit={submitWithoutReset(formAction)} className="space-y-6">
           <input type="hidden" name="children_json" value={JSON.stringify(children)} />
           {leadId && <input type="hidden" name="lead_id" value={leadId} />}
 

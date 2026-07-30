@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { recordOperatingExpense, type RecordExpenseState } from "./actions";
 import { ct } from "@/lib/i18n-client";
+import { submitWithoutReset } from "@/lib/submit-without-reset";
 
 const CATEGORY_OPTIONS = [
   { value: "software", label: ct("finance.expense_form.category.software") },
@@ -34,7 +35,7 @@ export function RecordExpenseForm() {
   return (
     <Card>
       <CardContent className="pt-6">
-        <form ref={formRef} action={formAction} className="flex flex-wrap items-end gap-3">
+        <form ref={formRef} onSubmit={submitWithoutReset(formAction)} className="flex flex-wrap items-end gap-3">
           <div className="space-y-2">
             <Label htmlFor="expense_date">{ct("finance.expense_form.date_label")}</Label>
             <Input id="expense_date" name="expense_date" type="date" defaultValue={today()} required />

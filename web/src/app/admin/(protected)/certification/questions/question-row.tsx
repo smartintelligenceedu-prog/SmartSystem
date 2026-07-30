@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { updateCertificationQuestion, toggleCertificationQuestionActive, type QuestionFormState } from "../actions";
 import { ct } from "@/lib/i18n-client";
 import type { CertificationQuestionRow } from "../data";
+import { submitWithoutReset } from "@/lib/submit-without-reset";
 
 const initialState: QuestionFormState = { status: "idle" };
 
@@ -29,7 +30,7 @@ export function QuestionRow({ question }: { question: CertificationQuestionRow }
   if (editing) {
     return (
       <div className="space-y-3 px-4 py-3 text-sm">
-        <form action={formAction} className="space-y-3">
+        <form onSubmit={submitWithoutReset(formAction)} className="space-y-3">
           <div className="flex items-center gap-2">
             <Select
               name="question_set"

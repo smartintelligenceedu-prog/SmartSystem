@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { submitCertificationExam, type ExamResultState } from "./actions";
 import { ct } from "@/lib/i18n-client";
 import type { ExamQuestion } from "./data";
+import { submitWithoutReset } from "@/lib/submit-without-reset";
 
 const initialState: ExamResultState = { status: "idle" };
 
@@ -51,7 +52,7 @@ export function ExamForm({
   }
 
   return (
-    <form action={formAction}>
+    <form onSubmit={submitWithoutReset(formAction)}>
       <input type="hidden" name="question_set" value={questionSet} />
       <div className="space-y-4">
         <p className="text-xs text-muted-foreground">
