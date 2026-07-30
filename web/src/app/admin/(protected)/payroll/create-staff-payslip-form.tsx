@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ct } from "@/lib/i18n-client";
 import { createStaffPayslip, type CreateStaffPayslipState } from "./actions";
+import { submitWithoutReset } from "@/lib/submit-without-reset";
 
 const initialState: CreateStaffPayslipState = { status: "idle" };
 
@@ -24,7 +25,7 @@ export function CreateStaffPayslipForm({ recipients }: { recipients: { party_id:
   return (
     <Card>
       <CardContent className="pt-6">
-        <form ref={formRef} action={formAction} className="space-y-4">
+        <form ref={formRef} onSubmit={submitWithoutReset(formAction)} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="party_id">{ct("payroll.staff.recipient_label")}</Label>
             {/* Base UI's Select.Value shows the raw value unless Root gets an

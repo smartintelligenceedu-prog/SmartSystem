@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { submitIntroducerApplication, type IntroducerApplicationState } from "./actions";
 import { ct } from "@/lib/i18n-client";
+import { submitWithoutReset } from "@/lib/submit-without-reset";
 
 const initialState: IntroducerApplicationState = { status: "idle" };
 
@@ -22,7 +23,7 @@ export function RegisterIntroducerForm({ analystReferralCode }: { analystReferra
   }
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form onSubmit={submitWithoutReset(formAction)} className="space-y-4">
       {analystReferralCode && (
         <>
           <input type="hidden" name="analyst_referral_code" value={analystReferralCode} />

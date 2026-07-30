@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { createSalesItem, type CreateSalesItemState } from "../actions";
 import { ct } from "@/lib/i18n-client";
+import { submitWithoutReset } from "@/lib/submit-without-reset";
 
 const KIND_OPTIONS = [
   { value: "item", label: ct("sales_orders.item_form.kind.item") },
@@ -29,7 +30,7 @@ export function CreateSalesItemForm() {
   return (
     <Card>
       <CardContent className="pt-6">
-        <form ref={formRef} action={formAction} className="space-y-4">
+        <form ref={formRef} onSubmit={submitWithoutReset(formAction)} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="name">{ct("sales_orders.item_form.name_label")}</Label>

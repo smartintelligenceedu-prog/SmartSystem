@@ -15,6 +15,7 @@ import {
   type ScheduleAppointmentState,
 } from "../customers/children/[id]/schedule/actions";
 import type { CenterOption, DeviceOption, CustomerChildOption } from "../_scheduling/data";
+import { submitWithoutReset } from "@/lib/submit-without-reset";
 
 const initialState: ScheduleAppointmentState = { status: "idle" };
 
@@ -76,7 +77,7 @@ export function InlineBookingForm({
   return (
     <Card>
       <CardContent className="pt-6">
-        <form action={formAction} className="space-y-4">
+        <form onSubmit={submitWithoutReset(formAction)} className="space-y-4">
           <div className="flex gap-2">
             <Button
               type="button"

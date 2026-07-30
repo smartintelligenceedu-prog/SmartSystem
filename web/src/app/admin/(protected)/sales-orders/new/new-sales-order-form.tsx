@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { createSalesOrder, type CreateSalesOrderState } from "../actions";
+import { submitWithoutReset } from "@/lib/submit-without-reset";
 import type { SalesItemRow } from "../data";
 import { ct } from "@/lib/i18n-client";
 
@@ -111,7 +112,7 @@ export function NewSalesOrderForm({
   return (
     <Card>
       <CardContent className="pt-6">
-        <form action={formAction} className="space-y-4">
+        <form onSubmit={submitWithoutReset(formAction)} className="space-y-4">
           <input type="hidden" name="mode" value={mode} />
 
           <div className="space-y-2">

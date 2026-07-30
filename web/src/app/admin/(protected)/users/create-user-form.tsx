@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { adminCreateBackOfficeUser, type CreateUserState } from "./actions";
 import { ct } from "@/lib/i18n-client";
+import { submitWithoutReset } from "@/lib/submit-without-reset";
 
 const initialState: CreateUserState = { status: "idle" };
 
@@ -29,7 +30,7 @@ export function CreateUserForm() {
   return (
     <Card>
       <CardContent className="pt-6">
-        <form ref={formRef} action={formAction} className="space-y-4">
+        <form ref={formRef} onSubmit={submitWithoutReset(formAction)} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="full_name">{ct("users.form.full_name")}</Label>
             <Input id="full_name" name="full_name" required />

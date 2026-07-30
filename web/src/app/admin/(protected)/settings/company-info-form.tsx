@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ct } from "@/lib/i18n-client";
 import { updateCompanyInfo, type UpdateCompanyInfoState } from "./actions";
+import { submitWithoutReset } from "@/lib/submit-without-reset";
 import type { CompanyInfo } from "./data";
 
 const initialState: UpdateCompanyInfoState = { status: "idle" };
@@ -14,7 +15,7 @@ export function CompanyInfoForm({ companyInfo }: { companyInfo: CompanyInfo }) {
   const [state, formAction, isPending] = useActionState(updateCompanyInfo, initialState);
 
   return (
-    <form action={formAction} className="max-w-lg space-y-4">
+    <form onSubmit={submitWithoutReset(formAction)} className="max-w-lg space-y-4">
       <div className="space-y-1">
         <label className="text-xs text-muted-foreground">{ct("settings.company.name_label")}</label>
         <Input name="name" defaultValue={companyInfo.name} required />

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ct } from "@/lib/i18n-client";
 import { runMonthlyPayout, type RunPayoutState } from "./actions";
+import { submitWithoutReset } from "@/lib/submit-without-reset";
 
 const initialState: RunPayoutState = { status: "idle" };
 
@@ -28,7 +29,7 @@ export function RunPayoutForm() {
   return (
     <Card>
       <CardContent className="pt-6">
-        <form action={formAction} className="flex flex-wrap items-end gap-3">
+        <form onSubmit={submitWithoutReset(formAction)} className="flex flex-wrap items-end gap-3">
           <div className="space-y-2">
             <Label htmlFor="period_start">{ct("payroll.run.period_start_label")}</Label>
             <Input id="period_start" name="period_start" type="date" defaultValue={firstOfLastMonth()} required />

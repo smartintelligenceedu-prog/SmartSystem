@@ -4,6 +4,7 @@ import { useActionState, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ct } from "@/lib/i18n-client";
 import { updateCampaignInstitution, type UpdateCampaignInstitutionState } from "./actions";
+import { submitWithoutReset } from "@/lib/submit-without-reset";
 import type { InstitutionOption } from "../finance/institutional/data";
 import { InstitutionPickerFields } from "./institution-picker-fields";
 
@@ -36,7 +37,7 @@ export function EditCampaignInstitutionForm({
   }, [state]);
 
   return (
-    <form action={formAction} className="space-y-3 rounded-md border bg-accent/20 p-4">
+    <form onSubmit={submitWithoutReset(formAction)} className="space-y-3 rounded-md border bg-accent/20 p-4">
       <input type="hidden" name="campaign_id" value={campaignId} />
       <InstitutionPickerFields
         institutions={institutions}

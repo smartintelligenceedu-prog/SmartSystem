@@ -31,7 +31,7 @@ export function CreateIntroducerForm({
   return (
     <Card>
       <CardContent className="pt-6">
-        <form ref={formRef} action={formAction} className="space-y-4">
+        <form ref={formRef} onSubmit={submitWithoutReset(formAction)} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="full_name">{ct("introducers.form.name_label")}</Label>
