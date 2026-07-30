@@ -109,6 +109,24 @@ export async function recordOperatingExpense(_prev: RecordExpenseState, formData
   return { status: "success" };
 }
 
+// Undoes a wrongly-recorded manual expense (see recordOperatingExpense above
+// — posts straight to the ledger with no review queue and, until now, no way
+// to fix a mistake). Posts the exact reverse entry via void_manual_expense
+// (migration 053), same approach as void_deposit_payment in
+// finance/institutional/actions.ts. Scoped server-side to source_type =
+// 'manual_expense' only — the RPC itself rejects anything else.
+export async function voidOperatingExpense(journalEntryId: string): Promise<{ ok: boolean; message: string }> {
+  const auth = await requireBackOfficeUserId();
+  if ("error" in auth) return { ok: false, message: auth.error };
+
+  const admin = createAdminClient();
+  const { error } = await admin.rpc("void_manual_expense", { p_journal_entry_id: journalEntryId, p_posted_by: auth.userId });
+  if (error) return { ok: false, message: `${await t("finance.error.void_expense_failed_prefix")}${error.message}` };
+
+  revalidatePath("/admin/finance");
+  return { ok: true, message: await t("finance.success.expense_voided") };
+}
+
 /**
  * Manual/periodic posting (the user's explicit choice over automatic
  * per-transaction posting): back office reviews the unposted count/list on

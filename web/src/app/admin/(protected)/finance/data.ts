@@ -280,6 +280,10 @@ export interface JournalEntryRow {
   id: string;
   entry_date: string;
   description: string | null;
+  // Only 'manual_expense' entries currently support voiding (void_manual_expense,
+  // migration 053) — used to decide whether to show the void action/badge.
+  source_type: string;
+  status: string;
   lines: { account_code: string; account_name: string; debit: number; credit: number }[];
 }
 
@@ -292,7 +296,7 @@ export async function listJournalEntriesForMonth(month: string): Promise<Journal
   const { start: monthStart, end: monthEnd } = monthBounds(month);
   const { data: entries } = await admin
     .from("journal_entries")
-    .select("id, entry_date, description")
+    .select("id, entry_date, description, source_type, status")
     .gte("entry_date", monthStart)
     .lt("entry_date", monthEnd)
     .order("entry_date", { ascending: false })
@@ -317,6 +321,8 @@ export async function listJournalEntriesForMonth(month: string): Promise<Journal
     id: e.id,
     entry_date: e.entry_date,
     description: e.description,
+    source_type: e.source_type,
+    status: e.status,
     lines: linesByEntry.get(e.id) ?? [],
   }));
 }

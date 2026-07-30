@@ -12,10 +12,12 @@ import {
 } from "./data";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { PostToLedgerButton } from "./post-to-ledger-button";
 import { UnpostedTransactionsList } from "./unposted-transactions-list";
 import { RecordExpenseForm } from "./record-expense-form";
 import { MonthPicker } from "./month-picker";
+import { VoidExpenseButton } from "./void-expense-button";
 import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
@@ -57,6 +59,7 @@ export default async function FinancePage({
   ]);
   const debitPrefix = await t("finance.page.debit_prefix");
   const creditPrefix = await t("finance.page.credit_prefix");
+  const voidedBadgeLabel = await t("finance.page.voided_badge");
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">
@@ -153,9 +156,12 @@ export default async function FinancePage({
           {recentEntries.length === 0 && <p className="p-4 text-sm text-muted-foreground">{await t("finance.page.no_entries")}</p>}
           {recentEntries.map((e) => (
             <div key={e.id} className="px-4 py-3 text-sm">
-              <div className="flex justify-between">
-                <span>{e.description}</span>
-                <span className="text-muted-foreground tabular-nums">{new Date(e.entry_date).toLocaleDateString("zh-CN")}</span>
+              <div className="flex justify-between gap-4">
+                <span className={e.status === "voided" ? "text-muted-foreground line-through" : ""}>{e.description}</span>
+                <div className="flex items-center gap-2">
+                  {e.status === "voided" && <Badge variant="destructive">{voidedBadgeLabel}</Badge>}
+                  <span className="text-muted-foreground tabular-nums">{new Date(e.entry_date).toLocaleDateString("zh-CN")}</span>
+                </div>
               </div>
               {e.lines.map((l, i) => (
                 <div key={i} className="flex justify-between text-xs text-muted-foreground">
@@ -165,6 +171,11 @@ export default async function FinancePage({
                   </span>
                 </div>
               ))}
+              {e.source_type === "manual_expense" && e.status !== "voided" && (
+                <div className="mt-1 flex justify-end">
+                  <VoidExpenseButton journalEntryId={e.id} />
+                </div>
+              )}
             </div>
           ))}
         </div>

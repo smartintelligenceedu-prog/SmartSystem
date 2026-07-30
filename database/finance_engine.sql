@@ -482,3 +482,47 @@ create trigger trg_generate_institutional_vouchers
   after insert or update of status on orders
   for each row
   execute function generate_institutional_vouchers();
+
+-- ----------------------------------------------------------------------------
+-- Migration 053 — undoes a wrongly-recorded manual operating expense (see
+-- recordOperatingExpense in finance/actions.ts: posts straight to the
+-- ledger with no review queue and, until now, no way to fix a mistake).
+-- Same approach as void_deposit_payment above: posts the exact reverse of
+-- the original two journal_lines, then marks the original entry 'voided' —
+-- record kept, not deleted. Scoped to source_type = 'manual_expense' only.
+-- ----------------------------------------------------------------------------
+
+create or replace function void_manual_expense(p_journal_entry_id uuid, p_posted_by text default 'system')
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_entry journal_entries%rowtype;
+  v_line record;
+  v_new_entry_id uuid;
+begin
+  select * into v_entry from journal_entries where id = p_journal_entry_id for update;
+  if not found then
+    raise exception 'journal entry % not found', p_journal_entry_id;
+  end if;
+  if v_entry.source_type <> 'manual_expense' then
+    raise exception 'only manual expense entries can be voided this way';
+  end if;
+  if v_entry.status = 'voided' then
+    raise exception 'this entry has already been voided';
+  end if;
+
+  insert into journal_entries (entry_date, source_type, source_id, description, posted_by)
+  values (current_date, 'manual_expense', null, '作废开销 - ' || coalesce(v_entry.description, p_journal_entry_id::text), p_posted_by)
+  returning id into v_new_entry_id;
+
+  for v_line in select account_id, debit, credit from journal_lines where journal_entry_id = p_journal_entry_id loop
+    insert into journal_lines (journal_entry_id, account_id, debit, credit)
+    values (v_new_entry_id, v_line.account_id, v_line.credit, v_line.debit);
+  end loop;
+
+  update journal_entries set status = 'voided' where id = p_journal_entry_id;
+end;
+$$;

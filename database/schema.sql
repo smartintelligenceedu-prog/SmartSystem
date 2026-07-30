@@ -964,7 +964,8 @@ create table journal_entries (
   source_id uuid,
   description text,
   posted_by text not null default 'system',
-  posted_at timestamptz not null default now()
+  posted_at timestamptz not null default now(),
+  status text not null default 'posted' check (status in ('posted', 'voided'))
 );
 
 create table journal_lines (
