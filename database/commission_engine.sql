@@ -710,3 +710,74 @@ create trigger trg_generate_institutional_package_deposit_commission
 --       adjusted_by = <users.id>, adjusted_at = now(), adjustment_reason = <text>
 --   where id = <commission_records.id>;
 -- ----------------------------------------------------------------------------
+
+-- ----------------------------------------------------------------------------
+-- Migration 052 — sponsor tree maintenance. admin_reassign_analyst_sponsor()
+-- lets back office move any analyst under a different sponsor at any time
+-- (cycle-guarded). admin_set_analyst_suspend_status() replaces a plain
+-- status UPDATE: suspending an analyst auto re-parents their direct
+-- downlines to that analyst's own sponsor (skip-over), so sponsor_at_level()
+-- stops resolving new recruitment commission to a suspended account.
+-- Resuming does NOT auto-revert. Neither function touches existing
+-- commission_records — only sponsor_id going forward.
+-- ----------------------------------------------------------------------------
+
+create or replace function admin_reassign_analyst_sponsor(p_analyst_id uuid, p_new_sponsor_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_walk uuid;
+begin
+  if p_new_sponsor_id is not null then
+    if p_new_sponsor_id = p_analyst_id then
+      raise exception 'an analyst cannot be their own sponsor';
+    end if;
+    if not exists (select 1 from analysts where id = p_new_sponsor_id) then
+      raise exception 'new sponsor % not found', p_new_sponsor_id;
+    end if;
+    v_walk := p_new_sponsor_id;
+    while v_walk is not null loop
+      if v_walk = p_analyst_id then
+        raise exception 'cannot reassign: % is a descendant of %, this would create a cycle', p_new_sponsor_id, p_analyst_id;
+      end if;
+      select sponsor_id into v_walk from analysts where id = v_walk;
+    end loop;
+  end if;
+
+  update analysts set sponsor_id = p_new_sponsor_id, updated_at = now() where id = p_analyst_id;
+end;
+$$;
+
+create or replace function admin_set_analyst_suspend_status(p_analyst_id uuid, p_suspend boolean)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_current_status text;
+  v_own_sponsor uuid;
+begin
+  select status, sponsor_id into v_current_status, v_own_sponsor from analysts where id = p_analyst_id for update;
+  if not found then
+    raise exception 'analyst % not found', p_analyst_id;
+  end if;
+  if p_suspend and v_current_status <> 'approved' then
+    raise exception 'only an approved analyst can be suspended (current status: %)', v_current_status;
+  end if;
+  if not p_suspend and v_current_status <> 'suspended' then
+    raise exception 'analyst is not suspended (current status: %)', v_current_status;
+  end if;
+
+  update analysts
+  set status = case when p_suspend then 'suspended' else 'approved' end, updated_at = now()
+  where id = p_analyst_id;
+
+  if p_suspend then
+    update analysts set sponsor_id = v_own_sponsor, updated_at = now() where sponsor_id = p_analyst_id;
+  end if;
+end;
+$$;

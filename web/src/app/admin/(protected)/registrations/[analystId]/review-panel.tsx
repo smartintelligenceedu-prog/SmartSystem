@@ -18,6 +18,7 @@ import {
   adminApproveCertification,
   adminApproveRegistration,
   adminRejectRegistration,
+  adminReassignSponsor,
   adminSetAssignedLeader,
   adminSetSuspendStatus,
 } from "../actions";
@@ -79,6 +80,8 @@ export function ReviewPanel({
   const [rejectReason, setRejectReason] = useState("");
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [assignedLeaderId, setAssignedLeaderId] = useState(detail.assigned_leader_id ?? "");
+  const [sponsorId, setSponsorId] = useState(detail.sponsor_id ?? "");
+  const sponsorOptions = leaders.filter((l) => l.id !== detail.analyst_id);
 
   const run = (action: () => Promise<{ ok: boolean; message: string }>) => {
     startTransition(async () => {
@@ -175,6 +178,43 @@ export function ReviewPanel({
         </CardContent>
       </Card>
 
+      <Card>
+        <CardContent className="space-y-3 pt-6">
+          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+            {ct("registrations.detail.sponsor_heading")}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {ct("registrations.detail.field.sponsor")}
+            {detail.sponsor_name ?? ct("registrations.detail.none")}
+          </p>
+          <div className="flex gap-2">
+            <Select
+              items={sponsorOptions.map((s) => ({ value: s.id, label: s.name }))}
+              value={sponsorId}
+              onValueChange={(value) => setSponsorId(value ?? "")}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder={ct("registrations.detail.sponsor_placeholder")} />
+              </SelectTrigger>
+              <SelectContent>
+                {sponsorOptions.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              variant="secondary"
+              disabled={isPending}
+              onClick={() => run(() => adminReassignSponsor(detail.analyst_id, sponsorId || null))}
+            >
+              {ct("registrations.detail.save")}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {detail.status === "approved" && <LoginAccountCard detail={detail} />}
 
       {isAdmin && detail.status === "approved" && (
@@ -223,13 +263,16 @@ export function ReviewPanel({
           </>
         )}
         {detail.status === "approved" && (
-          <Button
-            variant="destructive"
-            disabled={isPending}
-            onClick={() => run(() => adminSetSuspendStatus(detail.analyst_id, true))}
-          >
-            {ct("registrations.detail.suspend")}
-          </Button>
+          <div className="space-y-1">
+            <Button
+              variant="destructive"
+              disabled={isPending}
+              onClick={() => run(() => adminSetSuspendStatus(detail.analyst_id, true))}
+            >
+              {ct("registrations.detail.suspend")}
+            </Button>
+            <p className="text-xs text-muted-foreground">{ct("registrations.detail.suspend_reparent_note")}</p>
+          </div>
         )}
         {detail.status === "suspended" && (
           <Button disabled={isPending} onClick={() => run(() => adminSetSuspendStatus(detail.analyst_id, false))}>

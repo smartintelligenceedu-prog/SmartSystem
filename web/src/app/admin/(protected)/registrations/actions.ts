@@ -289,6 +289,11 @@ export async function adminSetAssignedLeader(
   return { ok: true, message: await t("registrations.success.leader_updated") };
 }
 
+// Migration 052 — status flip + (when suspending) auto re-parenting of this
+// analyst's direct downlines now both happen atomically inside
+// admin_set_analyst_suspend_status(), so a suspended analyst's recruitment
+// chain never keeps silently resolving to them. See that function's header
+// comment in commission_engine.sql for why resuming does not auto-revert.
 export async function adminSetSuspendStatus(
   analystId: string,
   suspend: boolean
@@ -297,23 +302,33 @@ export async function adminSetSuspendStatus(
   if ("error" in auth) return { ok: false, message: auth.error };
 
   const admin = createAdminClient();
-  const { data: analyst } = await admin.from("analysts").select("status").eq("id", analystId).single();
-  if (!analyst) return { ok: false, message: await t("registrations.error.analyst_not_found") };
-  if (suspend && analyst.status !== "approved") {
-    return { ok: false, message: await t("registrations.error.only_approved_can_suspend") };
-  }
-  if (!suspend && analyst.status !== "suspended") {
-    return { ok: false, message: await t("registrations.error.not_suspended") };
-  }
-
-  const { error } = await admin
-    .from("analysts")
-    .update({ status: suspend ? "suspended" : "approved" })
-    .eq("id", analystId);
+  const { error } = await admin.rpc("admin_set_analyst_suspend_status", { p_analyst_id: analystId, p_suspend: suspend });
   if (error) return { ok: false, message: error.message };
 
   revalidatePath("/admin/registrations");
   return { ok: true, message: suspend ? await t("registrations.success.suspended") : await t("registrations.success.resumed") };
+}
+
+// Migration 052 — manual sponsor reassignment. analysts.sponsor_id was
+// previously write-once at registration with no edit path; this lets back
+// office move any analyst under a different sponsor at any time (e.g. to fix
+// a chain left pointing at a suspended account, or a data-entry mistake at
+// signup). null clears it back to a root/top-level analyst. Cycle detection
+// (refusing to attach someone under their own descendant) happens inside the
+// RPC, not here.
+export async function adminReassignSponsor(
+  analystId: string,
+  newSponsorId: string | null
+): Promise<{ ok: boolean; message: string }> {
+  const auth = await requireBackOfficeUserId();
+  if ("error" in auth) return { ok: false, message: auth.error };
+
+  const admin = createAdminClient();
+  const { error } = await admin.rpc("admin_reassign_analyst_sponsor", { p_analyst_id: analystId, p_new_sponsor_id: newSponsorId });
+  if (error) return { ok: false, message: `${await t("registrations.error.reassign_sponsor_failed_prefix")}${error.message}` };
+
+  revalidatePath("/admin/registrations");
+  return { ok: true, message: await t("registrations.success.sponsor_reassigned") };
 }
 
 const GRANTABLE_EXTRA_ROLES = ["leader", "pic"] as const;
