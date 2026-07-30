@@ -13,7 +13,6 @@ export function CopyLinkButton({ path, label }: { path: string; label: string })
       <Button
         type="button"
         size="sm"
-        variant="outline"
         onClick={async () => {
           const url = `${window.location.origin}${path}`;
           try {
