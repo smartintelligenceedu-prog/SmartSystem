@@ -96,9 +96,12 @@ export default async function CommissionPage({ searchParams }: { searchParams: P
               {await t("commission.page.subtitle_suffix")}
             </p>
           </div>
-          {hasAnyRole(context, ["admin", "finance"]) && (
-            <Button size="sm" variant="outline" render={<Link href="/admin/commission/rules">{await t("commission.page.rules_link")}</Link>} />
-          )}
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" render={<Link href="/admin/commission/summary">{await t("commission.summary.nav_link")}</Link>} />
+            {hasAnyRole(context, ["admin", "finance"]) && (
+              <Button size="sm" variant="outline" render={<Link href="/admin/commission/rules">{await t("commission.page.rules_link")}</Link>} />
+            )}
+          </div>
         </div>
         <form className="flex flex-wrap items-end gap-2">
           <div className="space-y-1">
