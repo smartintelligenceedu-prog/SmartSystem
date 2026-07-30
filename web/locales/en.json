@@ -1486,6 +1486,11 @@
   "copy_link.copied": "Copied",
 
   "dashboard.nav.label": "Dashboard",
+  "nav.group.business": "Business & CRM",
+  "nav.group.partnership": "Partnership & Referral",
+  "nav.group.team": "Team & Training",
+  "nav.group.finance": "Finance & Payroll",
+  "nav.group.system": "System Settings",
   "registrations.nav.label": "Registration Review",
   "settings.nav.label": "Settings",
 

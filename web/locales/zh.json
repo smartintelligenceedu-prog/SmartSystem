@@ -1486,6 +1486,11 @@
   "copy_link.copied": "已复制",
 
   "dashboard.nav.label": "Dashboard",
+  "nav.group.business": "业务与客户",
+  "nav.group.partnership": "渠道与推荐",
+  "nav.group.team": "团队与培训",
+  "nav.group.finance": "财务与结算",
+  "nav.group.system": "系统与配置",
   "registrations.nav.label": "注册审核",
   "settings.nav.label": "设定",
 
