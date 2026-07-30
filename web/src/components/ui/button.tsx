@@ -8,10 +8,11 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        // 3D elevated treatment: rests with a solid "thickness" shadow, lifts
-        // + glows on hover, settles back down on press. See btn-3d-blue spec.
+        // 3D elevated treatment: gradient fill, rests on a solid "thickness"
+        // shadow + outer glow, lifts and brightens on hover, settles back
+        // down (past rest) on press. See btn-3d-blue spec v2.
         default:
-          "bg-primary text-primary-foreground shadow-[0_2px_5px_rgba(0,0,0,0.1),0_3px_0_var(--button-3d-shadow),inset_0_1px_1px_rgba(255,255,255,0.2)] hover:not-aria-[haspopup]:-translate-y-0.5 hover:shadow-[0_8px_16px_var(--button-3d-glow),0_5px_0_var(--button-3d-shadow),inset_0_1px_2px_rgba(255,255,255,0.4)] active:not-aria-[haspopup]:translate-y-0 active:shadow-[0_3px_8px_var(--button-3d-glow),0_1px_0_var(--button-3d-shadow),inset_0_1px_1px_rgba(255,255,255,0.2)]",
+          "bg-[linear-gradient(180deg,#3a86ff_0%,#0056b3_100%)] text-primary-foreground shadow-[0_4px_0_var(--button-3d-shadow),0_8px_15px_rgba(0,86,179,0.4),inset_0_1px_1px_rgba(255,255,255,0.5)] hover:not-aria-[haspopup]:-translate-y-1 hover:shadow-[0_6px_0_var(--button-3d-shadow),0_12px_20px_rgba(0,86,179,0.5),inset_0_1px_1px_rgba(255,255,255,0.7)] active:not-aria-[haspopup]:translate-y-0.5 active:shadow-[0_2px_0_var(--button-3d-shadow),0_4px_8px_rgba(0,86,179,0.3)]",
         outline:
           "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground active:not-aria-[haspopup]:translate-y-px dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:

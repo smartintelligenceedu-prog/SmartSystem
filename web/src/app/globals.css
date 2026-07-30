@@ -50,7 +50,7 @@
 }
 
 :root {
-  --background: #f1f4f8;
+  --background: #f0f4f8;
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
@@ -83,9 +83,8 @@
   --sidebar-accent-foreground: #ffffff;
   --sidebar-border: rgba(255, 255, 255, 0.1);
   --sidebar-ring: #187fff;
-  /* 3D elevated primary button (btn-3d-blue spec) */
-  --button-3d-shadow: rgba(13, 33, 63, 0.4);
-  --button-3d-glow: rgba(24, 127, 255, 0.4);
+  /* 3D elevated primary button (btn-3d-blue spec, v2) */
+  --button-3d-shadow: #003f88;
 }
 
 .dark {
