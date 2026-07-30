@@ -113,7 +113,7 @@ export function Sidebar({ context }: { context: PortalUserContext }) {
     }`;
 
   return (
-    <aside className="flex w-56 shrink-0 flex-col overflow-y-auto border-r border-sidebar-border bg-[linear-gradient(180deg,#0d1b2a_0%,#1b263b_50%,#0d1b2a_100%)] px-4 py-5">
+    <aside className="sidebar-scrollbar sticky top-0 flex h-screen w-56 shrink-0 flex-col overflow-y-auto border-r border-sidebar-border bg-[linear-gradient(180deg,#0d1b2a_0%,#1b263b_50%,#0d1b2a_100%)] px-4 py-5">
       <div className="mb-6 rounded-lg bg-white p-2">
         <Logo />
       </div>
