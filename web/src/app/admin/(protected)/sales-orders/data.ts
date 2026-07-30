@@ -300,13 +300,43 @@ export async function listOwnCustomersForPicker(analystId: string, includeAll = 
 // For the per-item "assigned agent" picker on the new-order form — a
 // multi-person order can credit different agents to different family
 // members, not just the agent submitting the order.
-export async function listApprovedAgents(): Promise<{ id: string; name: string }[]> {
+//
+// includeAll (back office only) returns every approved analyst company-wide.
+// Everyone else is scoped to themselves plus their own full downline (walked
+// recursively via sponsor_id, same tree the Team page/commission system
+// already uses) — a regular analyst has no business seeing, let alone
+// crediting a sale to, an unrelated agent elsewhere in the company.
+export async function listApprovedAgents(analystId: string, includeAll: boolean): Promise<{ id: string; name: string }[]> {
   const admin = createAdminClient();
-  const { data: analysts } = await admin.from("analysts").select("id, party_id").eq("status", "approved");
+  const { data: analysts } = await admin.from("analysts").select("id, sponsor_id, party_id").eq("status", "approved");
   if (!analysts || analysts.length === 0) return [];
-  const { data: identities } = await admin.from("individuals").select("party_id, full_name").in("party_id", analysts.map((a) => a.party_id));
+
+  let scopedAnalysts = analysts;
+  if (!includeAll) {
+    const childrenByParent = new Map<string, string[]>();
+    for (const a of analysts) {
+      if (!a.sponsor_id) continue;
+      const list = childrenByParent.get(a.sponsor_id) ?? [];
+      list.push(a.id);
+      childrenByParent.set(a.sponsor_id, list);
+    }
+    const allowedIds = new Set<string>([analystId]);
+    const queue = [analystId];
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      for (const childId of childrenByParent.get(current) ?? []) {
+        if (allowedIds.has(childId)) continue;
+        allowedIds.add(childId);
+        queue.push(childId);
+      }
+    }
+    scopedAnalysts = analysts.filter((a) => allowedIds.has(a.id));
+  }
+
+  const { data: identities } =
+    await admin.from("individuals").select("party_id, full_name").in("party_id", scopedAnalysts.map((a) => a.party_id));
   const nameByParty = new Map((identities ?? []).map((i) => [i.party_id, i.full_name]));
-  return analysts.map((a) => ({ id: a.id, name: nameByParty.get(a.party_id) ?? "—" }));
+  return scopedAnalysts.map((a) => ({ id: a.id, name: nameByParty.get(a.party_id) ?? "—" }));
 }
 
 // Includes both voucher types — a resale voucher is always meant to be sold,

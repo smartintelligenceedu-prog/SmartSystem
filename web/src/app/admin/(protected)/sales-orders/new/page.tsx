@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getPortalUserContext } from "@/lib/auth/context";
-import { hasRole } from "@/lib/auth/roles";
+import { hasRole, isBackOfficeRole } from "@/lib/auth/roles";
 import { listOwnCustomersForPicker, listOwnRedeemableVouchers, listApprovedAgents, listActiveSalesItems } from "../data";
 import { NewSalesOrderForm } from "./new-sales-order-form";
 import { t } from "@/lib/i18n";
@@ -23,11 +23,14 @@ export default async function NewSalesOrderPage({
   // Admin sees every active customer here, not just ones they personally
   // own — every other analyst stays scoped to their own.
   const isAdmin = hasRole(context, "admin");
+  // Back office sees every approved agent in the "assigned agent" picker
+  // below; everyone else is scoped to themselves + their own downline.
+  const isBackOffice = isBackOfficeRole(context);
 
   const [customers, vouchers, agents, salesItems, params] = await Promise.all([
     listOwnCustomersForPicker(context.analystId, isAdmin),
     listOwnRedeemableVouchers(context.analystId),
-    listApprovedAgents(),
+    listApprovedAgents(context.analystId, isBackOffice),
     listActiveSalesItems(),
     searchParams,
   ]);

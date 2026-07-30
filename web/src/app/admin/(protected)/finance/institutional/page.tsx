@@ -48,7 +48,10 @@ export default async function InstitutionalOrdersPage() {
 
   const [orders, agents, institutions, packages, activePackageOptions] = await Promise.all([
     listInstitutionalOrders(isAgentViewer ? context.analystId! : undefined),
-    canManage ? listApprovedAgents() : Promise.resolve([]),
+    // includeAll: true — this list is only ever fetched for canManage
+    // (admin/finance) viewers, who should see every agent, not just their
+    // own downline. analystId is unused in that branch.
+    canManage ? listApprovedAgents(context.analystId ?? "", true) : Promise.resolve([]),
     canManage ? listInstitutionOptions() : Promise.resolve([]),
     canManage ? listPackages() : Promise.resolve([]),
     canManage ? listActivePackageOptions() : Promise.resolve([]),
