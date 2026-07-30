@@ -104,12 +104,16 @@ export function Sidebar({ context }: { context: PortalUserContext }) {
 
   const linkClassName = (href: string) =>
     `rounded-md px-2 py-1.5 text-sm ${
-      isActive(href) ? "bg-accent font-medium text-accent-foreground" : "text-muted-foreground hover:bg-accent/50"
+      isActive(href)
+        ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
+        : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
     }`;
 
   return (
-    <aside className="flex w-56 shrink-0 flex-col overflow-y-auto border-r px-4 py-5">
-      <Logo className="mb-6" />
+    <aside className="flex w-56 shrink-0 flex-col overflow-y-auto border-r border-sidebar-border bg-sidebar px-4 py-5">
+      <div className="mb-6 rounded-lg bg-white p-2">
+        <Logo />
+      </div>
       <nav className="flex flex-col gap-1">
         <Link href={dashboardItem.href} className={linkClassName(dashboardItem.href)}>
           {dashboardItem.label}
@@ -121,14 +125,14 @@ export function Sidebar({ context }: { context: PortalUserContext }) {
               <button
                 type="button"
                 onClick={() => toggleGroup(key)}
-                className="flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm font-medium text-muted-foreground hover:bg-accent/50"
+                className="flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
                 aria-expanded={isOpen}
               >
                 {ct(GROUP_LABEL_KEY[key])}
                 <ChevronDownIcon className={`size-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
               </button>
               {isOpen && (
-                <div className="ml-2 flex flex-col gap-1 border-l pl-2">
+                <div className="ml-2 flex flex-col gap-1 border-l border-sidebar-border pl-2">
                   {groupItems[key].map((item) => (
                     <Link key={item.href} href={item.href} className={linkClassName(item.href)}>
                       {item.label}

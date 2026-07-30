@@ -22,7 +22,7 @@ export async function Header({ context }: { context: PortalUserContext }) {
   ) as Record<PortalRole, string>;
 
   return (
-    <header className="flex items-center justify-between border-b px-6 py-3">
+    <header className="flex items-center justify-between border-b bg-header px-6 py-3">
       <div />
       <div className="flex items-center gap-3">
         {isBackOfficeRole(context) && <NotificationsBell />}
