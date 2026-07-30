@@ -61,14 +61,6 @@ async function buildCustomerFormSchema() {
   });
 }
 
-// "none" is the Select sentinel customer-form.tsx submits for "no
-// selection" (Base UI Select items can't use a real empty-string value) —
-// treated identically to the field being absent entirely.
-function valueOrNone(raw: FormDataEntryValue | null): string | undefined {
-  if (!raw || raw === "none") return undefined;
-  return raw as string;
-}
-
 async function parseCustomerForm(formData: FormData) {
   const customerFormSchema = await buildCustomerFormSchema();
   return customerFormSchema.safeParse({
@@ -79,8 +71,12 @@ async function parseCustomerForm(formData: FormData) {
     date_of_birth: formData.get("date_of_birth") || undefined,
     occupation: formData.get("occupation") || undefined,
     marital_status: formData.get("marital_status") || undefined,
-    acquired_via_introducer_id: valueOrNone(formData.get("acquired_via_introducer_id")),
-    acquired_via_campaign_id: valueOrNone(formData.get("acquired_via_campaign_id")),
+    // customer-form.tsx's Introducer/Campaign Selects use a `null`-value item
+    // for "None" (Base UI's own documented pattern for a clearable select) —
+    // its hidden input serializes that as an empty string on submit, which
+    // falls through to undefined here exactly like every other optional field.
+    acquired_via_introducer_id: formData.get("acquired_via_introducer_id") || undefined,
+    acquired_via_campaign_id: formData.get("acquired_via_campaign_id") || undefined,
     children_json: formData.get("children_json") || undefined,
     lead_id: formData.get("lead_id") || undefined,
   });

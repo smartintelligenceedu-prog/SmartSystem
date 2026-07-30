@@ -14,12 +14,14 @@ import { ct } from "@/lib/i18n-client";
 
 const initialState: CustomerFormState = { status: "idle" };
 
-// Base UI's Select needs a real (non-empty) item value to represent "no
-// selection" — once a real item is chosen there is no built-in way back to
-// truly empty through the UI otherwise, which is exactly the "forced to pick
-// one" bug this sentinel fixes. actions.ts treats this value the same as
-// nothing being selected.
-const NONE_VALUE = "none";
+// Base UI's own docs (react/components/select.md, "Placeholder values") spell
+// this out explicitly: a plain placeholder can't be cleared from the popup —
+// "If the select value should be clearable ..., use a `null` item rendered
+// in the list itself." That's the officially supported "None" pattern, not a
+// string sentinel — a null value's hidden input serializes as an empty
+// string on submit, which actions.ts already treats as "nothing selected"
+// like every other optional field on this form.
+const NONE_VALUE = null;
 
 interface ChildInput {
   full_name: string;
