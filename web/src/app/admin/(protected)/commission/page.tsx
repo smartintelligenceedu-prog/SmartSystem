@@ -81,6 +81,7 @@ export default async function CommissionPage({ searchParams }: { searchParams: P
     const customerPrefix = await t("commission.page.customer_prefix");
     const sourcePrefix = await t("commission.page.source_prefix");
     const directSponsorPrefix = await t("commission.page.direct_sponsor_prefix");
+    const institutionPrefix = await t("commission.page.institution_prefix");
     const priorSettlementPrefix = await t("commission.cell.prior_settlement_prefix");
     const priorSettlementSuffix = await t("commission.cell.prior_settlement_suffix");
     const flatAmountLabel = await t("commission.page.flat_amount");
@@ -178,6 +179,18 @@ export default async function CommissionPage({ searchParams }: { searchParams: P
                       <div className="mt-0.5 text-xs text-muted-foreground">
                         {directSponsorPrefix}
                         {r.direct_sponsor_name}
+                      </div>
+                    )}
+                    {r.institution_name && (
+                      <div className="mt-0.5 text-xs text-muted-foreground">
+                        {institutionPrefix}
+                        {r.institution_invoice_id ? (
+                          <Link href={`/admin/finance/institutional/invoices/${r.institution_invoice_id}`} className="text-primary underline">
+                            {r.institution_name}
+                          </Link>
+                        ) : (
+                          r.institution_name
+                        )}
                       </div>
                     )}
                   </TableCell>

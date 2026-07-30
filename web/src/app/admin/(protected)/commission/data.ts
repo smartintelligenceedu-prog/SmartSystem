@@ -41,6 +41,16 @@ export interface CommissionRow {
   // when that's someone other than the payee. See CommissionSource's field
   // comment in resolveCommissionSourceNames() for why this matters.
   direct_sponsor_name: string | null;
+  // Institutional bulk order_items have no customer_id (they're per free-typed
+  // description, not a real customers row — see finance/institutional), so
+  // customer_name above is always null for those. This fills the same "which
+  // transaction is this" need for that case: the institution's name plus a
+  // link straight to the invoice, so back office doesn't have to separately
+  // go hunting through Finance -> Institutional to find which order a given
+  // commission line came from. Null for anything not order_item-sourced from
+  // an institutional order.
+  institution_name: string | null;
+  institution_invoice_id: string | null;
 }
 
 const RECENT_LIMIT = 200;
@@ -210,7 +220,7 @@ export async function listAllCommissions(dateFrom?: string, dateTo?: string): Pr
   ];
   const [{ data: sourceItems }, { data: sourceRegOrders }] = await Promise.all([
     orderItemSourceIds.length > 0
-      ? admin.from("order_items").select("id, analyst_id, customer_id").in("id", orderItemSourceIds)
+      ? admin.from("order_items").select("id, order_id, analyst_id, customer_id").in("id", orderItemSourceIds)
       : Promise.resolve({ data: [] }),
     recruitmentOrderIds.length > 0
       ? admin.from("registration_orders").select("order_id, party_id, sponsor_id").in("order_id", recruitmentOrderIds)
@@ -222,6 +232,7 @@ export async function listAllCommissions(dateFrom?: string, dateTo?: string): Pr
   // analyst_report_fee row (always self-sourced, no useful "different
   // agent" to show) can still show which customer's report earned it.
   const itemCustomerByItemId = new Map((sourceItems ?? []).filter((i) => i.customer_id).map((i) => [i.id, i.customer_id as string]));
+  const orderIdByItemId = new Map((sourceItems ?? []).map((i) => [i.id, i.order_id as string]));
   const sourcePartyByOrderId = new Map((sourceRegOrders ?? []).map((o) => [o.order_id, o.party_id as string]));
   // The new recruit's own direct (level-1) sponsor — see the matching note
   // in resolveCommissionSourceNames() above.
@@ -230,6 +241,51 @@ export async function listAllCommissions(dateFrom?: string, dateTo?: string): Pr
   );
 
   const sourceAnalystIds = [...new Set([...sourceAnalystByItemId.values(), ...directSponsorByOrderId.values()])];
+
+  // Institutional bulk order_items carry no customer_id (see the
+  // institution_name/institution_invoice_id field comments on CommissionRow
+  // above) — resolve the institution name + a linkable invoice for those
+  // instead, so back office isn't left with nothing to identify the
+  // transaction by.
+  const sourceOrderIds = [...new Set(orderIdByItemId.values())];
+  const { data: sourceOrders } =
+    sourceOrderIds.length > 0
+      ? await admin.from("orders").select("id, institution_party_id").in("id", sourceOrderIds)
+      : { data: [] };
+  const institutionPartyByOrderId = new Map(
+    (sourceOrders ?? []).filter((o) => o.institution_party_id).map((o) => [o.id, o.institution_party_id as string])
+  );
+  const institutionPartyIds = [...new Set(institutionPartyByOrderId.values())];
+  const [{ data: institutions }, { data: sourceInvoices }] = await Promise.all([
+    institutionPartyIds.length > 0
+      ? admin.from("organizations").select("party_id, legal_name").in("party_id", institutionPartyIds)
+      : Promise.resolve({ data: [] }),
+    sourceOrderIds.length > 0
+      ? admin.from("invoices").select("id, order_id, status").in("order_id", sourceOrderIds).order("issued_at", { ascending: false })
+      : Promise.resolve({ data: [] }),
+  ]);
+  const institutionNameByParty = new Map((institutions ?? []).map((i) => [i.party_id, i.legal_name as string]));
+  const institutionNameByOrderId = new Map(
+    [...institutionPartyByOrderId.entries()]
+      .map(([orderId, partyId]) => [orderId, institutionNameByParty.get(partyId) ?? null] as const)
+      .filter((entry): entry is [string, string] => entry[1] !== null)
+  );
+  // Prefer a non-void invoice when an order has more than one (e.g. an
+  // earlier one was voided and re-issued, or a standard + final_settlement
+  // invoice are both currently issued); otherwise fall back to whatever
+  // exists. Rows already sorted most-recent-first above, so once a non-void
+  // entry is set for an order, only replace it if it was void (never let an
+  // older row displace an already-resolved non-void one).
+  const invoiceIdByOrderId = new Map<string, string>();
+  const invoiceStatusByOrderId = new Map<string, string>();
+  for (const inv of sourceInvoices ?? []) {
+    const orderId = inv.order_id as string;
+    const existingStatus = invoiceStatusByOrderId.get(orderId);
+    if (existingStatus === undefined || (existingStatus === "void" && inv.status !== "void")) {
+      invoiceIdByOrderId.set(orderId, inv.id as string);
+      invoiceStatusByOrderId.set(orderId, inv.status as string);
+    }
+  }
 
   const analystIds = [
     ...new Set([...records.filter((r) => r.analyst_id).map((r) => r.analyst_id as string), ...sourceAnalystIds]),
@@ -343,6 +399,10 @@ export async function listAllCommissions(dateFrom?: string, dateTo?: string): Pr
     if (!isIntroducer && sourceAnalystId && sourceAnalystId === r.analyst_id) sourceName = null;
     const payeeNameForCompare = (partyId && nameByParty.get(partyId)) ?? "—";
 
+    const sourceOrderId = r.source_transaction_type === "order_item" ? orderIdByItemId.get(r.source_transaction_id) : undefined;
+    const institutionName = sourceOrderId ? (institutionNameByOrderId.get(sourceOrderId) ?? null) : null;
+    const institutionInvoiceId = sourceOrderId ? (invoiceIdByOrderId.get(sourceOrderId) ?? null) : null;
+
     return {
       id: r.id,
       trigger_type: r.trigger_type,
@@ -359,6 +419,8 @@ export async function listAllCommissions(dateFrom?: string, dateTo?: string): Pr
       payee_name: payeeNameForCompare,
       source_name: sourceName,
       direct_sponsor_name: directSponsorName,
+      institution_name: institutionName,
+      institution_invoice_id: institutionInvoiceId,
       analyst_id: r.analyst_id,
       introducer_id: r.introducer_id,
       customer_name: customerName,

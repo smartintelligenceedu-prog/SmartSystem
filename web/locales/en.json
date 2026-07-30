@@ -416,6 +416,7 @@
   "commission.page.customer_prefix": "Customer: ",
   "commission.page.source_prefix": "Source: ",
   "commission.page.direct_sponsor_prefix": "Direct Sponsor: ",
+  "commission.page.institution_prefix": "Institution: ",
   "commission.page.date_from_label": "From",
   "commission.page.date_to_label": "To",
   "commission.page.date_filter_button": "Filter",
