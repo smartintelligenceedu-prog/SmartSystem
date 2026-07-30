@@ -64,7 +64,10 @@
   "customer.field.marital_status.widowed": "Widowed",
   "customer.field.marital_status.other": "Other",
   "customer.field.introducer": "Referring Introducer (optional)",
+  "customer.field.introducer_none": "None",
+  "customer.field.introducer_locked_hint": "This customer came in through that introducer's link — the attribution is locked and can't be changed.",
   "customer.field.campaign": "Source PIC Channel Campaign (optional)",
+  "customer.field.campaign_none": "None",
   "customer.field.optional_suffix": " (optional)",
 
   "customer.child.section_title": "Children",

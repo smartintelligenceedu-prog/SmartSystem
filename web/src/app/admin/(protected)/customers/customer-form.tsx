@@ -14,6 +14,13 @@ import { ct } from "@/lib/i18n-client";
 
 const initialState: CustomerFormState = { status: "idle" };
 
+// Base UI's Select needs a real (non-empty) item value to represent "no
+// selection" — once a real item is chosen there is no built-in way back to
+// truly empty through the UI otherwise, which is exactly the "forced to pick
+// one" bug this sentinel fixes. actions.ts treats this value the same as
+// nothing being selected.
+const NONE_VALUE = "none";
+
 interface ChildInput {
   full_name: string;
   gender: string;
@@ -69,6 +76,15 @@ export function CustomerForm({
   const action = mode === "edit" && customerId ? updateCustomer.bind(null, customerId) : createCustomer;
   const [state, formAction, isPending] = useActionState(action, initialState);
   const [children, setChildren] = useState<ChildInput[]>(initialValues?.children ?? []);
+  // Converting a lead into a customer carries over which introducer's link
+  // the lead actually came in through (see customers/new/page.tsx) — that
+  // attribution is locked here the same way register-form.tsx locks its own
+  // sponsor code when arriving via a referral link, so an agent can't
+  // accidentally overwrite real link attribution while editing other fields.
+  const introducerLocked = !!(leadId && initialValues?.acquired_via_introducer_id);
+  const lockedIntroducerName = introducerLocked
+    ? (introducers.find((i) => i.id === initialValues!.acquired_via_introducer_id)?.name ?? "—")
+    : null;
 
   useEffect(() => {
     if (state.status === "success") {
@@ -149,39 +165,50 @@ export function CustomerForm({
               <Label htmlFor="occupation">{ct("customer.field.occupation")}</Label>
               <Input id="occupation" name="occupation" defaultValue={initialValues?.occupation} />
             </div>
-            {introducers.length > 0 && (
+            {introducerLocked ? (
               <div className="space-y-2">
-                <Label htmlFor="acquired_via_introducer_id">{ct("customer.field.introducer")}</Label>
-                <Select
-                  name="acquired_via_introducer_id"
-                  items={introducers.map((i) => ({ value: i.id, label: i.name }))}
-                  defaultValue={initialValues?.acquired_via_introducer_id}
-                >
-                  <SelectTrigger id="acquired_via_introducer_id" className="w-full">
-                    <SelectValue placeholder="—" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {introducers.map((i) => (
-                      <SelectItem key={i.id} value={i.id}>
-                        {i.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>{ct("customer.field.introducer")}</Label>
+                <input type="hidden" name="acquired_via_introducer_id" value={initialValues!.acquired_via_introducer_id} />
+                <div className="rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground">{lockedIntroducerName}</div>
+                <p className="text-xs text-muted-foreground">{ct("customer.field.introducer_locked_hint")}</p>
               </div>
+            ) : (
+              introducers.length > 0 && (
+                <div className="space-y-2">
+                  <Label htmlFor="acquired_via_introducer_id">{ct("customer.field.introducer")}</Label>
+                  <Select
+                    name="acquired_via_introducer_id"
+                    items={[{ value: NONE_VALUE, label: ct("customer.field.introducer_none") }, ...introducers.map((i) => ({ value: i.id, label: i.name }))]}
+                    defaultValue={initialValues?.acquired_via_introducer_id || NONE_VALUE}
+                  >
+                    <SelectTrigger id="acquired_via_introducer_id" className="w-full">
+                      <SelectValue placeholder="—" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NONE_VALUE}>{ct("customer.field.introducer_none")}</SelectItem>
+                      {introducers.map((i) => (
+                        <SelectItem key={i.id} value={i.id}>
+                          {i.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )
             )}
             {campaigns.length > 0 && (
               <div className="space-y-2">
                 <Label htmlFor="acquired_via_campaign_id">{ct("customer.field.campaign")}</Label>
                 <Select
                   name="acquired_via_campaign_id"
-                  items={campaigns.map((c) => ({ value: c.id, label: c.name }))}
-                  defaultValue={initialValues?.acquired_via_campaign_id}
+                  items={[{ value: NONE_VALUE, label: ct("customer.field.campaign_none") }, ...campaigns.map((c) => ({ value: c.id, label: c.name }))]}
+                  defaultValue={initialValues?.acquired_via_campaign_id || NONE_VALUE}
                 >
                   <SelectTrigger id="acquired_via_campaign_id" className="w-full">
                     <SelectValue placeholder="—" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value={NONE_VALUE}>{ct("customer.field.campaign_none")}</SelectItem>
                     {campaigns.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
                         {c.name}

@@ -64,7 +64,10 @@
   "customer.field.marital_status.widowed": "丧偶",
   "customer.field.marital_status.other": "其他",
   "customer.field.introducer": "来源引荐人（选填）",
+  "customer.field.introducer_none": "无",
+  "customer.field.introducer_locked_hint": "此顾客是透过该引荐人的链接进来的，来源已锁定，不能更改。",
   "customer.field.campaign": "来源通路项目（选填）",
+  "customer.field.campaign_none": "无",
   "customer.field.optional_suffix": "（选填）",
 
   "customer.child.section_title": "孩子资料",
