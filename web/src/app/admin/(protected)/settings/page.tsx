@@ -32,7 +32,7 @@ export default async function SettingsPage() {
       <div className="rounded-lg border p-6">
         <h2 className="mb-4 text-base font-semibold">{t("settings.commission.title")}</h2>
         <p className="mb-4 text-xs text-muted-foreground">{t("settings.commission.description")}</p>
-        <div className="divide-y rounded-md border">
+        <div className="divide-y divide-slate-100 rounded-md border bg-card">
           {commissionRules.length === 0 && <p className="p-4 text-sm text-muted-foreground">{t("settings.commission.empty")}</p>}
           {commissionRules.map((rule) => (
             <RuleEditRow key={`${rule.trigger_type}-${rule.level_number}`} rule={rule} />

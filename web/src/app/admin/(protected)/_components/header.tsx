@@ -22,23 +22,23 @@ export async function Header({ context }: { context: PortalUserContext }) {
   ) as Record<PortalRole, string>;
 
   return (
-    <header className="flex items-center justify-between border-b border-white/10 bg-[linear-gradient(90deg,#0d1b2a_0%,#1b263b_50%,#0d1b2a_100%)] px-6 py-3">
+    <header className="flex items-center justify-between border-b bg-white px-6 py-3">
       <div />
       <div className="flex items-center gap-3">
         {isBackOfficeRole(context) && <NotificationsBell />}
         <div className="text-right">
-          <p className="text-sm font-medium leading-tight text-white">{context.fullName}</p>
-          <p className="text-xs leading-tight text-white/60">{context.email}</p>
+          <p className="text-sm font-medium leading-tight">{context.fullName}</p>
+          <p className="text-xs text-muted-foreground leading-tight">{context.email}</p>
         </div>
         <div className="flex gap-1">
           {context.roles.map((role) => (
-            <Badge key={role} variant="secondary" className="border-white/20 bg-white/10 text-white">
+            <Badge key={role} variant="secondary">
               {roleLabelByRole[role]}
             </Badge>
           ))}
         </div>
         <form action={signOut}>
-          <Button variant="ghost" size="sm" type="submit" className="text-white hover:bg-white/10 hover:text-white">
+          <Button variant="ghost" size="sm" type="submit">
             {await t("header.sign_out")}
           </Button>
         </form>

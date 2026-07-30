@@ -144,7 +144,7 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
         <Button size="sm" variant="ghost" render={<Link href="/admin/customers">{await t("customer.list.filter.reset")}</Link>} />
       </form>
 
-      <div className="overflow-x-auto rounded-md border">
+      <div className="overflow-x-auto rounded-md border bg-card">
         <Table>
           <TableHeader>
             <TableRow>

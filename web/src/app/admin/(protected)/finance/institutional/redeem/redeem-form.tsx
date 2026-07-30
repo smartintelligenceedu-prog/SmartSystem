@@ -76,7 +76,7 @@ export function RedeemForm() {
         </div>
 
         {results.length > 0 && (
-          <div className="divide-y rounded-md border">
+          <div className="divide-y divide-slate-100 rounded-md border bg-card">
             {results.map((r) => (
               <button
                 key={r.child_id}

@@ -24,7 +24,7 @@ const STATUS_LABEL_KEY: Record<AnalystStatus, Parameters<typeof t>[0]> = {
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <Card>
+    <Card className="border-l-[3px] border-l-[#0052CC] shadow-sm">
       <CardContent className="pt-6">
         <p className="text-xs text-muted-foreground">{label}</p>
         <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
@@ -166,7 +166,7 @@ export async function AgentSection({ analystId }: { analystId: string }) {
 
       <div>
         <h3 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{await t("dashboard.agent.followup.title")}</h3>
-        <div className="divide-y rounded-md border">
+        <div className="divide-y divide-slate-100 rounded-md border bg-card">
           {followUpChildren.length === 0 && <p className="p-4 text-sm text-muted-foreground">{await t("dashboard.agent.followup.empty")}</p>}
           {followUpChildren.map((c) => (
             <Link
@@ -207,7 +207,7 @@ export async function AgentSection({ analystId }: { analystId: string }) {
 
       <div>
         <h3 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{await t("dashboard.agent.notifications")}</h3>
-        <div className="divide-y rounded-md border">
+        <div className="divide-y divide-slate-100 rounded-md border bg-card">
           {notifications.length === 0 && <p className="p-4 text-sm text-muted-foreground">{await t("dashboard.agent.notifications.empty")}</p>}
           {notifications.map((n) => (
             <div key={n.label} className="px-4 py-3 text-sm">

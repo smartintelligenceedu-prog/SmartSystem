@@ -50,7 +50,7 @@ export function SalesOrdersSearch({ orders, isBackOffice }: { orders: SalesOrder
         placeholder={ct("sales_orders.list.search_placeholder")}
         className="max-w-xs"
       />
-      <div className="overflow-x-auto rounded-md border">
+      <div className="overflow-x-auto rounded-md border bg-card">
         <Table>
           <TableHeader>
             <TableRow>

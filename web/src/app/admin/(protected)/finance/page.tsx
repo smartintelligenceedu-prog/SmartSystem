@@ -28,7 +28,7 @@ function formatMYR(amount: number) {
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <Card>
+    <Card className="border-l-[3px] border-l-[#0052CC] shadow-sm">
       <CardContent className="pt-6">
         <p className="text-xs text-muted-foreground">{label}</p>
         <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
@@ -128,7 +128,7 @@ export default async function FinancePage({
       <div className="grid gap-6 md:grid-cols-2">
         <div>
           <h3 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">{await t("finance.page.revenue_accounts")}</h3>
-          <div className="divide-y rounded-md border">
+          <div className="divide-y divide-slate-100 rounded-md border bg-card">
             {pnl.revenue.map((a) => (
               <div key={a.code} className="flex justify-between px-3 py-2 text-sm">
                 <span className="text-muted-foreground">{a.code} {a.name}</span>
@@ -139,7 +139,7 @@ export default async function FinancePage({
         </div>
         <div>
           <h3 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">{await t("finance.page.expense_accounts")}</h3>
-          <div className="divide-y rounded-md border">
+          <div className="divide-y divide-slate-100 rounded-md border bg-card">
             {pnl.expense.map((a) => (
               <div key={a.code} className="flex justify-between px-3 py-2 text-sm">
                 <span className="text-muted-foreground">{a.code} {a.name}</span>
@@ -152,7 +152,7 @@ export default async function FinancePage({
 
       <div>
         <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{await t("finance.page.recent_entries")}</h2>
-        <div className="divide-y rounded-md border">
+        <div className="divide-y divide-slate-100 rounded-md border bg-card">
           {recentEntries.length === 0 && <p className="p-4 text-sm text-muted-foreground">{await t("finance.page.no_entries")}</p>}
           {recentEntries.map((e) => (
             <div key={e.id} className="px-4 py-3 text-sm">

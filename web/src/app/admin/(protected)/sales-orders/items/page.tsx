@@ -31,7 +31,7 @@ export default async function SalesItemsPage() {
 
       <div>
         <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{await t("sales_orders.items_page.existing_items")}</h2>
-        <div className="divide-y rounded-md border">
+        <div className="divide-y divide-slate-100 rounded-md border bg-card">
           {items.length === 0 && <p className="p-4 text-sm text-muted-foreground">{await t("sales_orders.items_page.empty")}</p>}
           {items.map((item) => (
             <ItemRow key={item.id} item={item} />

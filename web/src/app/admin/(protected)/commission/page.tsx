@@ -124,7 +124,7 @@ export default async function CommissionPage({ searchParams }: { searchParams: P
             <Button size="sm" variant="ghost" render={<Link href="/admin/commission">{await t("commission.page.date_filter_clear")}</Link>} />
           )}
         </form>
-        <div className="overflow-x-auto rounded-md border">
+        <div className="overflow-x-auto rounded-md border bg-card">
           <Table>
             <TableHeader>
               <TableRow>
@@ -277,7 +277,7 @@ export default async function CommissionPage({ searchParams }: { searchParams: P
           {formatMYR(total)}
         </p>
       </div>
-      <div className="divide-y rounded-md border">
+      <div className="divide-y divide-slate-100 rounded-md border bg-card">
         {rows.length === 0 && <p className="p-4 text-sm text-muted-foreground">{await t("commission.page.self_empty")}</p>}
         {rows.map((r) => (
           <div key={r.id} className="flex items-center justify-between px-4 py-3 text-sm">

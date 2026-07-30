@@ -83,7 +83,7 @@ async function getAdminStats() {
 
 function StatCard({ label, value, href }: { label: string; value: string; href?: string }) {
   const content = (
-    <Card>
+    <Card className="border-l-[3px] border-l-[#0052CC] shadow-sm">
       <CardContent className="pt-6">
         <p className="text-xs text-muted-foreground">{label}</p>
         <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
@@ -123,7 +123,7 @@ export async function AdminSection() {
 
       <div>
         <h3 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{await t("dashboard.admin.recent_activities")}</h3>
-        <div className="divide-y rounded-md border">
+        <div className="divide-y divide-slate-100 rounded-md border bg-card">
           {stats.recent.length === 0 && <p className="p-4 text-sm text-muted-foreground">{await t("dashboard.admin.empty")}</p>}
           {stats.recent.map((r) => (
             <Link

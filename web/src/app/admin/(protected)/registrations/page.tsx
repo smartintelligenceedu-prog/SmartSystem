@@ -117,7 +117,7 @@ export default async function RegistrationsListPage({
         )}
       </form>
 
-      <div className="mt-4 overflow-x-auto rounded-md border">
+      <div className="mt-4 overflow-x-auto rounded-md border bg-card">
         <Table>
           <TableHeader>
             <TableRow>

@@ -69,7 +69,7 @@ export default async function CertificationPage() {
       {attempts.length > 0 && (
         <div>
           <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{t("certification.attempts.title")}</h2>
-          <div className="divide-y rounded-md border">
+          <div className="divide-y divide-slate-100 rounded-md border bg-card">
             {attempts.map((a) => (
               <div key={a.id} className="flex items-center justify-between px-4 py-3 text-sm">
                 <span className="text-muted-foreground">{new Date(a.attempted_at).toLocaleString("zh-CN")}</span>

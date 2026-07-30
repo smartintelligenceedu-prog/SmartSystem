@@ -51,7 +51,7 @@ export function ReportEntrySection({
         <Card>
           <CardContent className="space-y-3 pt-6">
             <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{ct("tqc.form.pending_appointments_title")}</p>
-            <div className="divide-y rounded-md border">
+            <div className="divide-y divide-slate-100 rounded-md border bg-card">
               {pendingAppointments.map((a) => (
                 <button
                   key={a.appointment_id}

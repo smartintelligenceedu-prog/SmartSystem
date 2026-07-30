@@ -34,7 +34,7 @@ export default async function ReportsPage() {
         <p className="mt-1 text-sm text-muted-foreground">{t("reports.subtitle")}</p>
       </div>
 
-      <div className="overflow-x-auto rounded-md border">
+      <div className="overflow-x-auto rounded-md border bg-card">
         <Table>
           <TableHeader>
             <TableRow>

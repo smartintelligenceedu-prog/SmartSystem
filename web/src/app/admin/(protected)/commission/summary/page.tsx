@@ -80,7 +80,7 @@ export default async function CommissionSummaryPage({ searchParams }: { searchPa
             {formatMYR(analystCommissionTotal)}
           </p>
         </div>
-        <div className="overflow-x-auto rounded-md border">
+        <div className="overflow-x-auto rounded-md border bg-card">
           <Table>
             <TableHeader>
               <TableRow>
@@ -122,7 +122,7 @@ export default async function CommissionSummaryPage({ searchParams }: { searchPa
             {formatMYR(introducerCommissionTotal)}
           </p>
         </div>
-        <div className="overflow-x-auto rounded-md border">
+        <div className="overflow-x-auto rounded-md border bg-card">
           <Table>
             <TableHeader>
               <TableRow>

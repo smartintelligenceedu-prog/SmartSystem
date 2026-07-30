@@ -38,7 +38,7 @@ export default async function CertificationQuestionsPage() {
           <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">
             {t("certification.admin.question_set_label")} {set}
           </h2>
-          <div className="divide-y rounded-md border">
+          <div className="divide-y divide-slate-100 rounded-md border bg-card">
             {(set === 1 ? setOne : setTwo).length === 0 && (
               <p className="p-4 text-sm text-muted-foreground">{t("certification.admin.no_questions")}</p>
             )}

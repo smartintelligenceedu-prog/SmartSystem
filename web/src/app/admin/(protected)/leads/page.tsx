@@ -41,7 +41,7 @@ export default async function LeadsPage() {
         </p>
       </div>
 
-      <div className="overflow-x-auto rounded-md border">
+      <div className="overflow-x-auto rounded-md border bg-card">
         <Table>
           <TableHeader>
             <TableRow>

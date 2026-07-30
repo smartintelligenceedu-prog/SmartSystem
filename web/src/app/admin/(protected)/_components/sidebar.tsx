@@ -102,19 +102,18 @@ export function Sidebar({ context }: { context: PortalUserContext }) {
     });
   };
 
-  // Active item: highlighted blue fill + a left accent bar + a soft text
-  // glow, per spec. Inactive items keep a transparent 4px left border at
-  // the same width so nothing shifts horizontally when a link activates.
+  // Active item: solid brand-blue fill + white text, rounded-lg. Inactive
+  // items are steel blue-gray with a soft blue hover wash.
   const linkClassName = (href: string) =>
-    `rounded-md border-l-4 py-1.5 pr-2 pl-1.5 text-sm transition-colors ${
+    `rounded-lg px-2 py-1.5 text-sm transition-colors ${
       isActive(href)
-        ? "border-[#1890ff] bg-[rgba(24,144,255,0.25)] font-medium text-white [text-shadow:0_0_8px_rgba(24,144,255,0.6)]"
-        : "border-transparent text-sidebar-foreground/80 hover:bg-[rgba(24,144,255,0.12)] hover:text-white"
+        ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
+        : "text-sidebar-foreground hover:bg-[#0052CC]/10"
     }`;
 
   return (
-    <aside className="sidebar-scrollbar sticky top-0 flex h-screen w-56 shrink-0 flex-col overflow-y-auto border-r border-sidebar-border bg-[linear-gradient(180deg,#0d1b2a_0%,#1b263b_50%,#0d1b2a_100%)] px-4 py-5">
-      <div className="mb-6 rounded-lg bg-white p-2">
+    <aside className="sidebar-scrollbar sticky top-0 flex h-screen w-56 shrink-0 flex-col overflow-y-auto border-r border-sidebar-border bg-sidebar px-4 py-5">
+      <div className="mb-6">
         <Logo />
       </div>
       <nav className="flex flex-col gap-1">
@@ -128,7 +127,7 @@ export function Sidebar({ context }: { context: PortalUserContext }) {
               <button
                 type="button"
                 onClick={() => toggleGroup(key)}
-                className="flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm font-medium text-[#8d99ae] hover:text-white"
+                className="flex items-center justify-between rounded-lg px-2 py-1.5 text-left text-sm font-medium text-sidebar-foreground transition-colors hover:bg-[#0052CC]/10"
                 aria-expanded={isOpen}
               >
                 {ct(GROUP_LABEL_KEY[key])}

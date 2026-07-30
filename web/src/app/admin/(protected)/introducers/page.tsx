@@ -36,7 +36,7 @@ export default async function IntroducersPage() {
         <p className="mt-1 text-sm text-muted-foreground">{await t("introducers.page.subtitle")}</p>
       </div>
 
-      <div className="overflow-x-auto rounded-md border">
+      <div className="overflow-x-auto rounded-md border bg-card">
         <Table>
           <TableHeader>
             <TableRow>

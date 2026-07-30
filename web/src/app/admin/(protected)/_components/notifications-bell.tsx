@@ -20,7 +20,7 @@ export async function NotificationsBell() {
 
   return (
     <details className="relative">
-      <summary className="relative flex size-8 cursor-pointer list-none items-center justify-center rounded-md text-lg hover:bg-white/10 [&::-webkit-details-marker]:hidden">
+      <summary className="relative flex size-8 cursor-pointer list-none items-center justify-center rounded-md text-lg hover:bg-accent/50 [&::-webkit-details-marker]:hidden">
         🔔
         {total > 0 && (
           <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-destructive text-[10px] font-medium text-destructive-foreground">

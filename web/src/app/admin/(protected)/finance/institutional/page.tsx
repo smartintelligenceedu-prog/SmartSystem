@@ -69,7 +69,7 @@ export default async function InstitutionalOrdersPage() {
         )}
       </div>
 
-      <div className="overflow-x-auto rounded-md border">
+      <div className="overflow-x-auto rounded-md border bg-card">
         <Table>
           <TableHeader>
             <TableRow>
@@ -132,7 +132,7 @@ export default async function InstitutionalOrdersPage() {
       {canManage && (
         <div>
           <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{t("finance.institutional.package.section_title")}</h2>
-          <div className="mb-4 overflow-x-auto rounded-md border">
+          <div className="mb-4 overflow-x-auto rounded-md border bg-card">
             <Table>
               <TableHeader>
                 <TableRow>

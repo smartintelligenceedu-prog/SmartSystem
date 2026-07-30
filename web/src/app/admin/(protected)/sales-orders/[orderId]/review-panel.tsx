@@ -76,7 +76,7 @@ export function ReviewPanel({ detail }: { detail: SalesOrderDetail }) {
       <Card>
         <CardContent className="space-y-3 pt-6">
           <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{ct("sales_orders.review.customer_details")}</p>
-          <div className="divide-y rounded-md border">
+          <div className="divide-y divide-slate-100 rounded-md border bg-card">
             {detail.items.map((item) => (
               <div key={item.item_id} className="flex items-center justify-between px-3 py-2 text-sm">
                 <div>

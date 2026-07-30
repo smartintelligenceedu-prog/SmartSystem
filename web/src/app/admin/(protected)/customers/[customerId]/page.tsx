@@ -179,7 +179,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         {children.length === 0 ? (
           <p className="text-sm text-muted-foreground">{await t("customer.child.none")}</p>
         ) : (
-          <div className="divide-y rounded-md border">
+          <div className="divide-y divide-slate-100 rounded-md border bg-card">
             {children.map((c) => (
               <div key={c.id} className="flex items-center justify-between px-4 py-3 text-sm">
                 <div>
@@ -215,7 +215,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         {orders.length === 0 ? (
           <p className="text-sm text-muted-foreground">{await t("customer.detail.no_orders")}</p>
         ) : (
-          <div className="divide-y rounded-md border">
+          <div className="divide-y divide-slate-100 rounded-md border bg-card">
             {orders.map((o) => (
               <div key={o.order_id} className="flex items-center justify-between px-4 py-3 text-sm">
                 <div>
@@ -251,7 +251,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         {commissions.length === 0 ? (
           <p className="text-sm text-muted-foreground">{await t("customer.detail.no_commission")}</p>
         ) : (
-          <div className="divide-y rounded-md border">
+          <div className="divide-y divide-slate-100 rounded-md border bg-card">
             {commissions.map((c) => (
               <div key={c.id} className="flex items-center justify-between px-4 py-3 text-sm">
                 <span className="text-muted-foreground">{triggerLabelByType[c.trigger_type] ?? c.trigger_type}</span>
@@ -270,7 +270,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         {timeline.length === 0 ? (
           <p className="text-sm text-muted-foreground">{await t("customer.detail.no_timeline")}</p>
         ) : (
-          <div className="divide-y rounded-md border">
+          <div className="divide-y divide-slate-100 rounded-md border bg-card">
             {timeline.map((entry) => (
               <div key={entry.id} className="flex items-center justify-between px-4 py-3 text-sm">
                 <span>{timelineLabelByAction[entry.action]}</span>

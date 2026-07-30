@@ -49,22 +49,23 @@
 }
 
 :root {
-  --background: #f0f4f8;
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: #187fff;
+  /* Modern Ice Blue & Brand Navy design system. */
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #0052cc;
   --primary-foreground: #ffffff;
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  --muted-foreground: #64748b;
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
+  --border: #e2e8f0;
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
   --chart-1: oklch(0.87 0 0);
@@ -73,14 +74,14 @@
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
-  --sidebar: #0d213f;
-  --sidebar-foreground: #ffffff;
-  --sidebar-primary: #187fff;
+  --sidebar: #f0f4f8;
+  --sidebar-foreground: #4a5568;
+  --sidebar-primary: #0052cc;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: rgba(255, 255, 255, 0.1);
+  --sidebar-accent: #0052cc;
   --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: rgba(255, 255, 255, 0.1);
-  --sidebar-ring: #187fff;
+  --sidebar-border: #e2e8f0;
+  --sidebar-ring: #0052cc;
 }
 
 .dark {
@@ -137,16 +138,16 @@
 .btn-3d-glossy {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 55%),
-    linear-gradient(180deg, #40a9ff 0%, #1890ff 50%, #096dd9 100%);
+    linear-gradient(180deg, #1a63d8 0%, #0052cc 50%, #003d99 100%);
   box-shadow:
-    0 4px 0 #0050b3,
-    0 8px 16px rgba(24, 144, 255, 0.45),
+    0 4px 0 #002e73,
+    0 8px 16px rgba(0, 82, 204, 0.45),
     inset 0 1px 1px rgba(255, 255, 255, 0.5);
 }
 .btn-3d-glossy:hover {
   box-shadow:
-    0 6px 0 #0050b3,
-    0 14px 24px rgba(24, 144, 255, 0.55),
+    0 6px 0 #002e73,
+    0 14px 24px rgba(0, 82, 204, 0.55),
     inset 0 1px 1px rgba(255, 255, 255, 0.7);
 }
 .btn-3d-glossy:hover:not([aria-haspopup]) {
@@ -154,8 +155,8 @@
 }
 .btn-3d-glossy:active {
   box-shadow:
-    0 2px 0 #0050b3,
-    0 4px 10px rgba(24, 144, 255, 0.35),
+    0 2px 0 #002e73,
+    0 4px 10px rgba(0, 82, 204, 0.35),
     inset 0 1px 1px rgba(255, 255, 255, 0.3);
 }
 .btn-3d-glossy:active:not([aria-haspopup]) {
@@ -163,10 +164,11 @@
 }
 
 /* Thin, low-contrast scrollbar for the fixed sidebar's own internal scroll
-   (nav item list can outgrow the viewport on smaller screens). */
+   (nav item list can outgrow the viewport on smaller screens). Sidebar is
+   now light, so the thumb needs to be a dark tint instead of a light one. */
 .sidebar-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  scrollbar-color: rgba(15, 23, 42, 0.2) transparent;
 }
 .sidebar-scrollbar::-webkit-scrollbar {
   width: 6px;
@@ -175,6 +177,6 @@
   background: transparent;
 }
 .sidebar-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(15, 23, 42, 0.2);
   border-radius: 3px;
 }

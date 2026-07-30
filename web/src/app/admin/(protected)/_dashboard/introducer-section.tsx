@@ -10,7 +10,7 @@ function formatMYR(amount: number) {
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <Card>
+    <Card className="border-l-[3px] border-l-[#0052CC] shadow-sm">
       <CardContent className="pt-6">
         <p className="text-xs text-muted-foreground">{label}</p>
         <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
@@ -120,7 +120,7 @@ export async function IntroducerSection({ introducerId }: { introducerId: string
 
       <div>
         <h3 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{monthlyStatsTitle}</h3>
-        <div className="divide-y rounded-md border">
+        <div className="divide-y divide-slate-100 rounded-md border bg-card">
           {(!monthlyRows || monthlyRows.length === 0) && <p className="p-4 text-sm text-muted-foreground">{emptyMonthly}</p>}
           {monthlyRows?.map((m: { month: string; new_customers: number; bonus_total: number }) => (
             <div key={m.month} className="flex items-center justify-between px-4 py-3 text-sm">
@@ -134,7 +134,7 @@ export async function IntroducerSection({ introducerId }: { introducerId: string
 
       <div>
         <h3 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{bonusHistoryTitle}</h3>
-        <div className="divide-y rounded-md border">
+        <div className="divide-y divide-slate-100 rounded-md border bg-card">
           {(!history || history.length === 0) && <p className="p-4 text-sm text-muted-foreground">{emptyBonus}</p>}
           {history?.map((h) => (
             <div key={h.id} className="flex items-center justify-between px-4 py-3 text-sm">

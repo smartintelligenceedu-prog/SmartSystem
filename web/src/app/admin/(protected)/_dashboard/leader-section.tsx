@@ -10,7 +10,7 @@ function formatMYR(amount: number) {
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <Card>
+    <Card className="border-l-[3px] border-l-[#0052CC] shadow-sm">
       <CardContent className="pt-6">
         <p className="text-xs text-muted-foreground">{label}</p>
         <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>

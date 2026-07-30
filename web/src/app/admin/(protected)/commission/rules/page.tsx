@@ -21,7 +21,7 @@ export default async function CommissionRulesPage() {
         <p className="mt-1 text-sm text-muted-foreground">{await t("commission.rules.page.subtitle")}</p>
       </div>
 
-      <div className="divide-y rounded-md border">
+      <div className="divide-y divide-slate-100 rounded-md border bg-card">
         {rules.length === 0 && <p className="p-4 text-sm text-muted-foreground">{await t("commission.rules.page.empty")}</p>}
         {rules.map((rule) => (
           <RuleEditRow key={`${rule.trigger_type}-${rule.level_number}`} rule={rule} />
