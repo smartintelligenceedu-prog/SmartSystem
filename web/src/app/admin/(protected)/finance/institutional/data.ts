@@ -660,7 +660,15 @@ export async function getInvoiceDetail(invoiceId: string): Promise<InvoiceDetail
   let arBalance = 0;
   if (invoice.status === "issued") {
     if (invoice.invoice_type === "final_settlement") {
-      const { data: deposits } = await admin.from("payments").select("amount").eq("order_id", invoice.order_id).eq("payment_type", "deposit");
+      // Migration 051 — a voided deposit payment no longer counts toward
+      // this total (matches the same fix in handle_invoice_issued()/
+      // handle_payment_recorded()).
+      const { data: deposits } = await admin
+        .from("payments")
+        .select("amount")
+        .eq("order_id", invoice.order_id)
+        .eq("payment_type", "deposit")
+        .neq("status", "voided");
       const depositTotal = (deposits ?? []).reduce((s, d) => s + Number(d.amount), 0);
       arBalance = Number(invoice.amount) - depositTotal;
     } else {

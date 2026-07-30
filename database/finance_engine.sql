@@ -76,7 +76,9 @@ begin
   select id into v_revenue_account from chart_of_accounts where code = '4100';
 
   if new.invoice_type = 'standard' then
-    if exists (select 1 from payments where order_id = new.order_id and payment_type = 'deposit') then
+    -- Migration 051 — a voided deposit no longer forces "use a final
+    -- settlement invoice instead".
+    if exists (select 1 from payments where order_id = new.order_id and payment_type = 'deposit' and status <> 'voided') then
       raise exception 'this order already has a deposit — use a final settlement invoice instead';
     end if;
 
@@ -89,7 +91,8 @@ begin
       (v_entry_id, v_deferred_account, 0, new.amount);
 
   elsif new.invoice_type = 'final_settlement' then
-    select coalesce(sum(amount), 0) into v_deposit_total from payments where order_id = new.order_id and payment_type = 'deposit';
+    -- Migration 051 — voided deposits no longer count toward this total.
+    select coalesce(sum(amount), 0) into v_deposit_total from payments where order_id = new.order_id and payment_type = 'deposit' and status <> 'voided';
     if v_deposit_total <= 0 then
       raise exception 'this order has no deposit — use a standard invoice instead';
     end if;
@@ -173,7 +176,9 @@ begin
   select id into v_revenue_account from chart_of_accounts where code = '4100';
 
   if new.payment_type = 'deposit' then
-    if exists (select 1 from invoices where order_id = new.order_id and invoice_type = 'standard') then
+    -- Migration 051 — a voided standard invoice no longer blocks recording
+    -- a deposit, same spirit as migration 047's equivalent fix.
+    if exists (select 1 from invoices where order_id = new.order_id and invoice_type = 'standard' and status <> 'void') then
       raise exception 'this order already has a standard invoice — deposits are not applicable';
     end if;
 
@@ -225,7 +230,8 @@ begin
       raise exception 'no outstanding final settlement invoice found for this order';
     end if;
 
-    select coalesce(sum(amount), 0) into v_deposit_total from payments where order_id = new.order_id and payment_type = 'deposit';
+    -- Migration 051 — voided deposits no longer count toward this total.
+    select coalesce(sum(amount), 0) into v_deposit_total from payments where order_id = new.order_id and payment_type = 'deposit' and status <> 'voided';
     v_remaining := v_invoice.amount - v_deposit_total;
     if new.amount <> v_remaining then
       raise exception 'payment amount must equal the remaining balance (%)', v_remaining;
