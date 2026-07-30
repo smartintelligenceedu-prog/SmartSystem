@@ -116,6 +116,7 @@
   "customer.status.inactive": "Archived",
 
   "upload.error.required_prefix": "Please upload ",
+  "upload.compressing": "Processing image…",
   "upload.error.too_large_suffix": " is too large — please keep it under 8MB",
   "upload.error.invalid_type_suffix": " only accepts JPG / PNG / WEBP / HEIC / PDF",
 
@@ -191,6 +192,7 @@
   "sales_orders.form.select_voucher_placeholder": "Please choose a voucher",
   "sales_orders.form.instant_redeem_hint": "A voucher redemption order takes effect immediately — no back-office review needed.",
   "sales_orders.form.processing": "Processing…",
+  "sales_orders.form.error_file_too_large": "The uploaded payment screenshot is still too large — please pick a smaller photo and try again.",
   "sales_orders.form.submit": "Create Order",
   "sales_orders.item.discount_label_suffix": " (discount)",
   "sales_orders.list.search_placeholder": "Search customer name…",
@@ -1603,6 +1605,7 @@
   "register.form.agree_checkbox_note": " (please click the link above first)",
   "register.form.submit": "Submit Registration",
   "register.form.submitting": "Processing…",
+  "register.form.error_files_too_large": "The uploaded photos are still too large combined — please pick a smaller photo and try again.",
 
   "register.error.full_name_required": "Please enter your name",
   "register.error.nickname_required": "Please enter a nickname",

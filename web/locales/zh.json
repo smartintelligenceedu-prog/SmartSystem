@@ -116,6 +116,7 @@
   "customer.status.inactive": "已封存",
 
   "upload.error.required_prefix": "请上传",
+  "upload.compressing": "正在处理图片…",
   "upload.error.too_large_suffix": "档案过大，请控制在 8MB 以内",
   "upload.error.invalid_type_suffix": "只接受 JPG / PNG / WEBP / HEIC / PDF 格式",
 
@@ -191,6 +192,7 @@
   "sales_orders.form.select_voucher_placeholder": "请选择检测券",
   "sales_orders.form.instant_redeem_hint": "兑换检测券的订单会立即生效，不需要后台审核。",
   "sales_orders.form.processing": "处理中…",
+  "sales_orders.form.error_file_too_large": "上传的缴费截图还是太大，请重新选择照片再试一次（或换一张较小的照片）。",
   "sales_orders.form.submit": "建立订单",
   "sales_orders.item.discount_label_suffix": "（折扣）",
   "sales_orders.list.search_placeholder": "搜寻顾客姓名…",
@@ -1603,6 +1605,7 @@
   "register.form.agree_checkbox_note": "（请先点击上方链接）",
   "register.form.submit": "提交注册",
   "register.form.submitting": "处理中…",
+  "register.form.error_files_too_large": "上传的照片总大小还是太大，请重新选择照片再试一次（或换一张较小的照片）。",
 
   "register.error.full_name_required": "请输入姓名",
   "register.error.nickname_required": "请输入昵称",

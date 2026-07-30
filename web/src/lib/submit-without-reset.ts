@@ -22,3 +22,18 @@ export function submitWithoutReset(dispatch: (formData: FormData) => void) {
     });
   };
 }
+
+// Vercel's platform-level request body cap (~4.5MB) cuts the connection
+// before a Server Action's own code — and thus its own graceful validation —
+// ever runs, surfacing as a raw browser connection error instead of a normal
+// in-app message. compress-image.ts's client-side recompression is the
+// primary defense; this is the last-resort backstop for the rare case where
+// compression didn't help enough (a PDF, a decode failure that fell back to
+// the original file, etc.) — catching it here means a friendly message
+// instead of the same crash the compression was meant to prevent.
+export function totalFileSize(formData: FormData, fieldNames: string[]): number {
+  return fieldNames.reduce((sum, name) => {
+    const value = formData.get(name);
+    return sum + (value instanceof File ? value.size : 0);
+  }, 0);
+}

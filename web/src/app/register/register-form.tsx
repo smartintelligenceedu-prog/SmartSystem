@@ -17,9 +17,14 @@ import { Separator } from "@/components/ui/separator";
 import { submitRegistration, type RegistrationState } from "./actions";
 import type { RegistrationKit } from "@/lib/types/registration";
 import { ct } from "@/lib/i18n-client";
-import { submitWithoutReset } from "@/lib/submit-without-reset";
+import { submitWithoutReset, totalFileSize } from "@/lib/submit-without-reset";
+import { CompressedFileInput } from "@/components/compressed-file-input";
 
 const initialState: RegistrationState = { status: "idle" };
+
+// Backstop for Vercel's platform-level request body cap (~4.5MB) — see
+// submit-without-reset.ts's totalFileSize() doc comment.
+const MAX_COMBINED_UPLOAD_BYTES = 4 * 1024 * 1024;
 
 function formatMYR(amount: number) {
   return new Intl.NumberFormat("ms-MY", { style: "currency", currency: "MYR" }).format(amount);
@@ -42,6 +47,7 @@ export function RegisterForm({
   // hidden field so submitRegistration() can re-check it rather than trust
   // client state alone.
   const [linkOpened, setLinkOpened] = useState(false);
+  const [fileSizeError, setFileSizeError] = useState<string | null>(null);
 
   useEffect(() => {
     if (state.status === "success") {
@@ -49,10 +55,21 @@ export function RegisterForm({
     }
   }, [state, router]);
 
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    const formData = new FormData(e.currentTarget);
+    if (totalFileSize(formData, ["ic_document", "payment_screenshot"]) > MAX_COMBINED_UPLOAD_BYTES) {
+      e.preventDefault();
+      setFileSizeError(ct("register.form.error_files_too_large"));
+      return;
+    }
+    setFileSizeError(null);
+    submitWithoutReset(formAction)(e);
+  }
+
   return (
     <Card>
       <CardContent className="pt-6">
-        <form onSubmit={submitWithoutReset(formAction)} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
           <section className="space-y-5">
             <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{ct("register.form.personal_info_heading")}</p>
 
@@ -84,7 +101,12 @@ export function RegisterForm({
 
             <div className="space-y-2">
               <Label htmlFor="ic_document">{ct("register.form.ic_document_label")}</Label>
-              <Input id="ic_document" name="ic_document" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,.pdf" required />
+              <CompressedFileInput
+                id="ic_document"
+                name="ic_document"
+                accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,.pdf"
+                required
+              />
             </div>
           </section>
 
@@ -163,10 +185,9 @@ export function RegisterForm({
 
             <div className="space-y-2">
               <Label htmlFor="payment_screenshot">{ct("register.form.payment_screenshot_label")}</Label>
-              <Input
+              <CompressedFileInput
                 id="payment_screenshot"
                 name="payment_screenshot"
-                type="file"
                 accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,.pdf"
                 required
               />
@@ -211,6 +232,11 @@ export function RegisterForm({
             </>
           )}
 
+          {fileSizeError && (
+            <p className="text-sm text-destructive" role="alert">
+              {fileSizeError}
+            </p>
+          )}
           {state.status === "error" && (
             <p className="text-sm text-destructive" role="alert">
               {state.message}

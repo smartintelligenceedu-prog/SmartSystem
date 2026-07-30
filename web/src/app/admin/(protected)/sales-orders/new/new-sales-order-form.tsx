@@ -9,11 +9,16 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { createSalesOrder, type CreateSalesOrderState } from "../actions";
-import { submitWithoutReset } from "@/lib/submit-without-reset";
+import { submitWithoutReset, totalFileSize } from "@/lib/submit-without-reset";
 import type { SalesItemRow } from "../data";
 import { ct } from "@/lib/i18n-client";
+import { CompressedFileInput } from "@/components/compressed-file-input";
 
 const initialState: CreateSalesOrderState = { status: "idle" };
+
+// Backstop for Vercel's platform-level request body cap (~4.5MB) — see
+// submit-without-reset.ts's totalFileSize() doc comment.
+const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 
 interface ItemLine {
   item_id: string;
@@ -57,12 +62,24 @@ export function NewSalesOrderForm({
   // redeem_voucher mode keeps the original single-person fields.
   const [voucherCustomerId, setVoucherCustomerId] = useState("");
   const [voucherAmount, setVoucherAmount] = useState("");
+  const [fileSizeError, setFileSizeError] = useState<string | null>(null);
 
   useEffect(() => {
     if (state.status === "success") {
       router.push("/admin/sales-orders");
     }
   }, [state, router]);
+
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    const formData = new FormData(e.currentTarget);
+    if (totalFileSize(formData, ["payment_screenshot"]) > MAX_UPLOAD_BYTES) {
+      e.preventDefault();
+      setFileSizeError(ct("sales_orders.form.error_file_too_large"));
+      return;
+    }
+    setFileSizeError(null);
+    submitWithoutReset(formAction)(e);
+  }
 
   function addMember() {
     setMembers((prev) => [...prev, { customer_id: "", analyst_id: ownAnalystId, lines: [emptyLine()] }]);
@@ -112,7 +129,7 @@ export function NewSalesOrderForm({
   return (
     <Card>
       <CardContent className="pt-6">
-        <form onSubmit={submitWithoutReset(formAction)} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <input type="hidden" name="mode" value={mode} />
 
           <div className="space-y-2">
@@ -252,7 +269,12 @@ export function NewSalesOrderForm({
 
               <div className="space-y-2">
                 <Label htmlFor="payment_screenshot">{ct("sales_orders.form.upload_payment_screenshot_label")}</Label>
-                <Input id="payment_screenshot" name="payment_screenshot" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,.pdf" required />
+                <CompressedFileInput
+                  id="payment_screenshot"
+                  name="payment_screenshot"
+                  accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,.pdf"
+                  required
+                />
                 <p className="text-xs text-muted-foreground">{ct("sales_orders.form.pending_review_hint")}</p>
               </div>
             </>
@@ -318,6 +340,11 @@ export function NewSalesOrderForm({
             </>
           )}
 
+          {fileSizeError && (
+            <p className="text-sm text-destructive" role="alert">
+              {fileSizeError}
+            </p>
+          )}
           {state.status === "error" && (
             <p className="text-sm text-destructive" role="alert">
               {state.message}
