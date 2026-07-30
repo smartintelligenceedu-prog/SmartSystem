@@ -83,8 +83,6 @@
   --sidebar-accent-foreground: #ffffff;
   --sidebar-border: rgba(255, 255, 255, 0.1);
   --sidebar-ring: #187fff;
-  /* 3D elevated primary button (btn-3d-blue spec, v2) */
-  --button-3d-shadow: #003f88;
 }
 
 .dark {
@@ -131,6 +129,39 @@
   html {
     @apply font-sans;
   }
+}
+
+/* Glossy 3D primary button: a soft white sheen layered over a vivid blue
+   fill, thick "physical" bottom shadow, lifts + brightens on hover, presses
+   past rest on click. Kept as a plain class (not Tailwind arbitrary values)
+   since the sheen needs a second background layer, which doesn't fit
+   cleanly in a bracketed utility string. */
+.btn-3d-glossy {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 55%),
+    linear-gradient(180deg, #40a9ff 0%, #1890ff 50%, #096dd9 100%);
+  box-shadow:
+    0 4px 0 #0050b3,
+    0 8px 16px rgba(24, 144, 255, 0.45),
+    inset 0 1px 1px rgba(255, 255, 255, 0.5);
+}
+.btn-3d-glossy:hover {
+  box-shadow:
+    0 6px 0 #0050b3,
+    0 14px 24px rgba(24, 144, 255, 0.55),
+    inset 0 1px 1px rgba(255, 255, 255, 0.7);
+}
+.btn-3d-glossy:hover:not([aria-haspopup]) {
+  transform: translateY(-4px);
+}
+.btn-3d-glossy:active {
+  box-shadow:
+    0 2px 0 #0050b3,
+    0 4px 10px rgba(24, 144, 255, 0.35),
+    inset 0 1px 1px rgba(255, 255, 255, 0.3);
+}
+.btn-3d-glossy:active:not([aria-haspopup]) {
+  transform: translateY(2px);
 }
 
 /* Thin, low-contrast scrollbar for the fixed sidebar's own internal scroll
