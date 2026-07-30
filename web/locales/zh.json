@@ -1507,9 +1507,7 @@
   "dashboard.leader.stat.override_summary": "Override Summary（我的佣金）",
   "dashboard.leader.stat.pending_team_approval": "Pending Team Approval",
   "dashboard.leader.note": "团队汇总只显示数字，不显示团队成员各自的顾客名单明细——这是刻意的设计，避免上线看到下线经营的顾客资料。",
-  "dashboard.leader.team_performance": "Team Performance",
-  "dashboard.leader.empty_members": "目前没有团队成员",
-  "dashboard.leader.customer_count_suffix": " 位顾客",
+  "dashboard.leader.view_team_link": "查看团队详情",
 
   "dashboard.introducer.title": "引荐概况（Introducer）",
   "dashboard.introducer.referral_code_prefix": "我的推荐码：",

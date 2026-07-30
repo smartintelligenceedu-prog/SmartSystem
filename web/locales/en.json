@@ -1507,9 +1507,7 @@
   "dashboard.leader.stat.override_summary": "Override Summary (My Commission)",
   "dashboard.leader.stat.pending_team_approval": "Pending Team Approval",
   "dashboard.leader.note": "Team summaries only show aggregate numbers, not each member's individual customer list — this is intentional, so an upline can't see the customers a downline is managing.",
-  "dashboard.leader.team_performance": "Team Performance",
-  "dashboard.leader.empty_members": "No team members yet",
-  "dashboard.leader.customer_count_suffix": " customers",
+  "dashboard.leader.view_team_link": "View Team Details",
 
   "dashboard.introducer.title": "Introducer Overview",
   "dashboard.introducer.referral_code_prefix": "My Referral Code: ",
