@@ -1514,7 +1514,7 @@
   "dashboard.admin.stat.pending_registration": "Pending Registration",
   "dashboard.admin.stat.pending_payment_verification": "Pending Payment Verification",
   "dashboard.admin.stat.todays_commission": "Today's Commission",
-  "dashboard.admin.stat.todays_override": "Today's Override",
+  "dashboard.admin.stat.todays_override": "Today's Recruitment Bonus",
   "dashboard.admin.stat.monthly_expenses": "Monthly Commission Payout",
   "dashboard.admin.stat.net_profit": "Net Profit",
   "dashboard.admin.net_profit_note": "Net Profit is currently a simplified estimate of \"Monthly Sales − Commission Expenses\" and hasn't yet been wired to a formal general ledger (Chart of Accounts). Once the Finance module posts to the ledger automatically, this will be replaced with real accounting figures. \"Monthly Profit\" and Net Profit refer to the same number, avoiding a duplicate display of the same amount on the dashboard.",

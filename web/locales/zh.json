@@ -1514,7 +1514,7 @@
   "dashboard.admin.stat.pending_registration": "Pending Registration",
   "dashboard.admin.stat.pending_payment_verification": "Pending Payment Verification",
   "dashboard.admin.stat.todays_commission": "Today's Commission",
-  "dashboard.admin.stat.todays_override": "Today's Override",
+  "dashboard.admin.stat.todays_override": "今日招募奖金",
   "dashboard.admin.stat.monthly_expenses": "本月佣金支出",
   "dashboard.admin.stat.net_profit": "Net Profit",
   "dashboard.admin.net_profit_note": "Net Profit 目前是「Monthly Sales − 佣金支出」的简化估算，还没有接上正式总帐（Chart of Accounts）过帐，等财务模组做总帐自动过帐后会换成真实做帐数字。「Monthly Profit」跟 Net Profit 是同一个数字，避免看板上重复显示同一笔钱两次。",
