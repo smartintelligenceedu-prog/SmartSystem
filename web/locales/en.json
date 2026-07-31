@@ -1840,8 +1840,14 @@
   "voucher_portal.error.upload_failed_prefix": "Upload failed: ",
   "voucher_portal.error.save_failed_prefix": "Failed to save: ",
   "voucher_portal.error.not_found": "Voucher not found",
+  "voucher_portal.error.already_redeemed": "You've already redeemed this voucher",
   "voucher_portal.success.created": "Voucher created",
   "voucher_portal.success.updated": "Voucher updated",
   "voucher_portal.success.deleted": "Voucher deleted",
-  "voucher_portal.success.status_updated": "Status updated"
+  "voucher_portal.success.status_updated": "Status updated",
+  "voucher_portal.success.redeemed": "Redeemed successfully",
+  "voucher_portal.detail.back_link": "← Back to Voucher Portal",
+  "voucher_portal.detail.redeem_button": "Redeem This Voucher",
+  "voucher_portal.detail.confirm_redeem": "Redeem this voucher? Each account can only redeem once, and this cannot be undone.",
+  "voucher_portal.detail.redeemed_at_prefix": "Redeemed at: "
 }

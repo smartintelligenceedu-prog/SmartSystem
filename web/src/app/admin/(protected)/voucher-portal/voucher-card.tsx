@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -80,21 +81,27 @@ export function VoucherCard({ voucher, canManage }: { voucher: MarketingVoucherR
     );
   }
 
-  return (
-    <div className="flex flex-col overflow-hidden rounded-lg border bg-card">
+  const imageAndTitle = (
+    <>
       <div className="aspect-video max-h-56 w-full overflow-hidden bg-muted">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={voucher.image_url} alt={voucher.title} className="h-full w-full object-cover" />
       </div>
-      <div className="flex flex-1 flex-col gap-2 p-3">
-        <div className="flex items-start justify-between gap-2">
-          <p className="font-medium">{voucher.title}</p>
-          {canManage && (
-            <Badge variant={voucher.is_active ? "secondary" : "outline"}>
-              {voucher.is_active ? ct("voucher_portal.status.active") : ct("voucher_portal.status.inactive")}
-            </Badge>
-          )}
-        </div>
+      <div className="flex items-start justify-between gap-2 px-3 pt-3">
+        <p className="font-medium">{voucher.title}</p>
+        {canManage && (
+          <Badge variant={voucher.is_active ? "secondary" : "outline"}>
+            {voucher.is_active ? ct("voucher_portal.status.active") : ct("voucher_portal.status.inactive")}
+          </Badge>
+        )}
+      </div>
+    </>
+  );
+
+  return (
+    <div className="flex flex-col overflow-hidden rounded-lg border bg-card">
+      {canManage ? imageAndTitle : <Link href={`/admin/voucher-portal/${voucher.id}`}>{imageAndTitle}</Link>}
+      <div className="flex flex-1 flex-col gap-2 p-3 pt-2">
         {voucher.terms && <p className="whitespace-pre-line text-xs text-muted-foreground">{voucher.terms}</p>}
         {canManage && (
           <div className="mt-auto flex flex-wrap gap-2">

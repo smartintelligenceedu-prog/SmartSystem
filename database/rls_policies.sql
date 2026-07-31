@@ -752,3 +752,18 @@ create policy "back office manages marketing vouchers" on marketing_vouchers for
 
 create policy "authenticated reads active marketing vouchers" on marketing_vouchers for select
   using (is_active = true or is_back_office());
+
+-- ----------------------------------------------------------------------------
+-- Migration 057 — marketing_voucher_redemptions. Introducer can read/insert
+-- their own redemption; back office reads all (to see who redeemed what).
+-- No update/delete policy — append-only, matching this app's other
+-- audit-style tables.
+-- ----------------------------------------------------------------------------
+
+alter table marketing_voucher_redemptions enable row level security;
+
+create policy "introducer reads own voucher redemptions" on marketing_voucher_redemptions for select
+  using (introducer_id = current_introducer_id() or is_back_office());
+
+create policy "introducer inserts own voucher redemption" on marketing_voucher_redemptions for insert
+  with check (introducer_id = current_introducer_id());

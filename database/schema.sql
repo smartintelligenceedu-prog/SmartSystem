@@ -1191,6 +1191,19 @@ create table marketing_vouchers (
 
 create index idx_marketing_vouchers_active_sort on marketing_vouchers (is_active, sort_order);
 
+-- Migration 057 — one redemption per introducer per voucher (unique
+-- constraint enforces this at the DB level). Append-only, no automatic
+-- discount/commission trigger — a plain marker.
+create table marketing_voucher_redemptions (
+  id uuid primary key default gen_random_uuid(),
+  voucher_id uuid not null references marketing_vouchers(id),
+  introducer_id uuid not null references introducers(id),
+  redeemed_at timestamptz not null default now(),
+  unique (voucher_id, introducer_id)
+);
+
+create index idx_marketing_voucher_redemptions_introducer on marketing_voucher_redemptions (introducer_id);
+
 -- ============================================================================
 -- 14. STORAGE — private document buckets for the registration module, plus
 -- the public voucher-images bucket (promotional material, no PII, so a

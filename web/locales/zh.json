@@ -1840,8 +1840,14 @@
   "voucher_portal.error.upload_failed_prefix": "上传失败：",
   "voucher_portal.error.save_failed_prefix": "保存失败：",
   "voucher_portal.error.not_found": "找不到此优惠券",
+  "voucher_portal.error.already_redeemed": "这张优惠券你已经兑换过了",
   "voucher_portal.success.created": "优惠券已新增",
   "voucher_portal.success.updated": "优惠券已更新",
   "voucher_portal.success.deleted": "优惠券已删除",
-  "voucher_portal.success.status_updated": "状态已更新"
+  "voucher_portal.success.status_updated": "状态已更新",
+  "voucher_portal.success.redeemed": "兑换成功",
+  "voucher_portal.detail.back_link": "← 返回优惠券商城",
+  "voucher_portal.detail.redeem_button": "兑换此优惠券",
+  "voucher_portal.detail.confirm_redeem": "确定要兑换这张优惠券吗？每个帐号只能兑换一次，确认后无法复原。",
+  "voucher_portal.detail.redeemed_at_prefix": "已于以下时间兑换："
 }

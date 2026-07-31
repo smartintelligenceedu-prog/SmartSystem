@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getPortalUserContext } from "@/lib/auth/context";
 import { validateVoucherImageFile, uploadVoucherImage, deleteVoucherImage } from "@/lib/storage";
 import { t } from "@/lib/i18n";
 
@@ -133,4 +134,31 @@ export async function setMarketingVoucherActive(id: string, isActive: boolean): 
 
   revalidatePath("/admin/voucher-portal");
   return { ok: true, message: await t("voucher_portal.success.status_updated") };
+}
+
+// Introducer-only action (not back office — there's no "back office's own
+// redemption" concept). One redemption per introducer per voucher, enforced
+// by the unique(voucher_id, introducer_id) constraint (migration 057) — the
+// insert's unique_violation is treated as "already redeemed" rather than a
+// hard error, since a double-click racing this same check is exactly the
+// scenario that constraint exists for.
+export async function redeemMarketingVoucher(voucherId: string): Promise<{ ok: boolean; message: string }> {
+  const context = await getPortalUserContext();
+  if (!context) return { ok: false, message: await t("voucher_portal.error.not_signed_in") };
+  if (!context.introducerId) return { ok: false, message: await t("voucher_portal.error.no_permission") };
+
+  const admin = createAdminClient();
+  const { data: voucher } = await admin.from("marketing_vouchers").select("id, is_active").eq("id", voucherId).maybeSingle();
+  if (!voucher || !voucher.is_active) return { ok: false, message: await t("voucher_portal.error.not_found") };
+
+  const { error } = await admin
+    .from("marketing_voucher_redemptions")
+    .insert({ voucher_id: voucherId, introducer_id: context.introducerId });
+  if (error) {
+    if (error.code === "23505") return { ok: false, message: await t("voucher_portal.error.already_redeemed") };
+    return { ok: false, message: `${await t("voucher_portal.error.save_failed_prefix")}${error.message}` };
+  }
+
+  revalidatePath(`/admin/voucher-portal/${voucherId}`);
+  return { ok: true, message: await t("voucher_portal.success.redeemed") };
 }
