@@ -41,9 +41,7 @@ export default async function AdminProtectedLayout({ children }: { children: Rea
         <Sidebar context={context} />
       </div>
       <div className="flex flex-1 flex-col">
-        <div className="print:hidden">
-          <Header context={context} />
-        </div>
+        <Header context={context} />
         <main className="flex-1 px-6 py-8 print:p-0">{children}</main>
       </div>
     </div>
