@@ -119,6 +119,11 @@ export async function submitCertificationExam(_prev: ExamResultState, formData: 
 // outside any request, and throws every time this module is loaded to
 // dispatch any Server Action in this file (see the same note in
 // register/actions.ts's buildRegistrationSchema()).
+// English fields are optional — an admin can save a question in Chinese only
+// and add the translation later, so these fall back to empty string rather
+// than failing validation (see createCertificationQuestion/
+// updateCertificationQuestion, which only build choices_en when ALL four
+// English choices were actually filled in, otherwise store null).
 async function buildQuestionSchema() {
   return z.object({
     question_set: z.coerce.number().int().min(1).max(2),
@@ -128,7 +133,27 @@ async function buildQuestionSchema() {
     choice_2: z.string().trim().min(1, await t("certification.admin.error.choice_required")),
     choice_3: z.string().trim().min(1, await t("certification.admin.error.choice_required")),
     correct_choice_index: z.coerce.number().int().min(0).max(3),
+    question_text_en: z.string().trim().optional().default(""),
+    choice_en_0: z.string().trim().optional().default(""),
+    choice_en_1: z.string().trim().optional().default(""),
+    choice_en_2: z.string().trim().optional().default(""),
+    choice_en_3: z.string().trim().optional().default(""),
   });
+}
+
+function buildEnglishFields(input: {
+  question_text_en: string;
+  choice_en_0: string;
+  choice_en_1: string;
+  choice_en_2: string;
+  choice_en_3: string;
+}): { question_text_en: string | null; choices_en: string[] | null } {
+  const enChoices = [input.choice_en_0, input.choice_en_1, input.choice_en_2, input.choice_en_3];
+  const hasAllChoices = enChoices.every((c) => c.length > 0);
+  return {
+    question_text_en: input.question_text_en.length > 0 ? input.question_text_en : null,
+    choices_en: hasAllChoices ? enChoices : null,
+  };
 }
 
 export type QuestionFormState = { status: "idle" } | { status: "error"; message: string } | { status: "success" };
@@ -146,6 +171,11 @@ export async function createCertificationQuestion(_prev: QuestionFormState, form
     choice_2: formData.get("choice_2"),
     choice_3: formData.get("choice_3"),
     correct_choice_index: formData.get("correct_choice_index"),
+    question_text_en: formData.get("question_text_en"),
+    choice_en_0: formData.get("choice_en_0"),
+    choice_en_1: formData.get("choice_en_1"),
+    choice_en_2: formData.get("choice_en_2"),
+    choice_en_3: formData.get("choice_en_3"),
   });
   if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message ?? await t("certification.admin.error.invalid_form") };
   const input = parsed.data;
@@ -156,6 +186,7 @@ export async function createCertificationQuestion(_prev: QuestionFormState, form
     question_text: input.question_text,
     choices: [input.choice_0, input.choice_1, input.choice_2, input.choice_3],
     correct_choice_index: input.correct_choice_index,
+    ...buildEnglishFields(input),
   });
   if (error) return { status: "error", message: `${await t("certification.admin.error.save_failed")}${error.message}` };
 
@@ -176,6 +207,11 @@ export async function updateCertificationQuestion(questionId: string, _prev: Que
     choice_2: formData.get("choice_2"),
     choice_3: formData.get("choice_3"),
     correct_choice_index: formData.get("correct_choice_index"),
+    question_text_en: formData.get("question_text_en"),
+    choice_en_0: formData.get("choice_en_0"),
+    choice_en_1: formData.get("choice_en_1"),
+    choice_en_2: formData.get("choice_en_2"),
+    choice_en_3: formData.get("choice_en_3"),
   });
   if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message ?? await t("certification.admin.error.invalid_form") };
   const input = parsed.data;
@@ -188,6 +224,7 @@ export async function updateCertificationQuestion(questionId: string, _prev: Que
       question_text: input.question_text,
       choices: [input.choice_0, input.choice_1, input.choice_2, input.choice_3],
       correct_choice_index: input.correct_choice_index,
+      ...buildEnglishFields(input),
     })
     .eq("id", questionId);
   if (error) return { status: "error", message: `${await t("certification.admin.error.save_failed")}${error.message}` };

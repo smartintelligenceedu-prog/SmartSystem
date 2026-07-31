@@ -60,6 +60,19 @@ export function CreateQuestionForm() {
             ))}
           </div>
 
+          <div className="space-y-1 border-t pt-4">
+            <Label htmlFor="question_text_en">{ct("certification.admin.form.question_text_en_label")}</Label>
+            <p className="text-xs text-muted-foreground">{ct("certification.admin.form.english_hint")}</p>
+            <Input id="question_text_en" name="question_text_en" />
+          </div>
+
+          <div className="space-y-1">
+            <Label>{ct("certification.admin.form.choices_en_label")}</Label>
+            {[0, 1, 2, 3].map((i) => (
+              <Input key={i} name={`choice_en_${i}`} placeholder={`${ct("certification.admin.form.choice_placeholder_prefix")} ${i + 1}`} />
+            ))}
+          </div>
+
           {state.status === "error" && (
             <p className="text-sm text-destructive" role="alert">
               {state.message}

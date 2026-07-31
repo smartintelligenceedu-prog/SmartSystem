@@ -448,7 +448,9 @@ create table certification_questions (
   correct_choice_index smallint not null,
   is_active boolean not null default true,
   sort_order integer not null default 0,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  question_text_en text, -- migration 059: optional English translation, falls back to question_text
+  choices_en jsonb -- migration 059: optional English translation, falls back to choices
 );
 create index idx_certification_questions_set on certification_questions(question_set, is_active);
 

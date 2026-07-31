@@ -61,6 +61,19 @@ export function QuestionRow({ question }: { question: CertificationQuestionRow }
               <Input name={`choice_${i}`} defaultValue={question.choices[i] ?? ""} required />
             </div>
           ))}
+
+          <div className="space-y-2 border-t pt-3">
+            <p className="text-xs font-medium text-muted-foreground">{ct("certification.admin.form.question_text_en_label")}</p>
+            <Input name="question_text_en" defaultValue={question.question_text_en ?? ""} />
+            {[0, 1, 2, 3].map((i) => (
+              <Input
+                key={i}
+                name={`choice_en_${i}`}
+                defaultValue={question.choices_en?.[i] ?? ""}
+                placeholder={`${ct("certification.admin.form.choice_placeholder_prefix")} ${i + 1}`}
+              />
+            ))}
+          </div>
           {state.status === "error" && (
             <p className="text-xs text-destructive" role="alert">
               {state.message}
@@ -87,6 +100,11 @@ export function QuestionRow({ question }: { question: CertificationQuestionRow }
           {!question.is_active && (
             <Badge variant="outline" className="ml-2 text-[10px] text-muted-foreground">
               {ct("certification.admin.inactive_badge")}
+            </Badge>
+          )}
+          {question.question_text_en && question.choices_en && (
+            <Badge variant="secondary" className="ml-2 text-[10px]">
+              EN
             </Badge>
           )}
         </p>

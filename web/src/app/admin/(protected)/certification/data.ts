@@ -1,11 +1,14 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getServerLocale } from "@/lib/i18n";
 
 export interface CertificationQuestionRow {
   id: string;
   question_set: 1 | 2;
   question_text: string;
   choices: string[];
+  question_text_en: string | null;
+  choices_en: string[] | null;
   correct_choice_index: number;
   is_active: boolean;
   sort_order: number;
@@ -18,7 +21,7 @@ export async function listCertificationQuestions(): Promise<CertificationQuestio
   const admin = createAdminClient();
   const { data } = await admin
     .from("certification_questions")
-    .select("id, question_set, question_text, choices, correct_choice_index, is_active, sort_order")
+    .select("id, question_set, question_text, choices, question_text_en, choices_en, correct_choice_index, is_active, sort_order")
     .order("question_set", { ascending: true })
     .order("sort_order", { ascending: true });
   return (data ?? []) as CertificationQuestionRow[];
@@ -40,17 +43,28 @@ export interface ExamQuestion {
 // answer before returning — grading re-fetches the full row (with the
 // answer) server-side in submitCertificationExam, so the answer key is
 // never present in anything sent to the browser.
+//
+// Locale-aware: returns question_text_en/choices_en when the viewer's locale
+// is 'en' and a translation exists, falling back to the Chinese fields
+// otherwise (same fallback philosophy as t()/ct() — an untranslated row
+// never renders empty).
 export async function getExamQuestions(): Promise<{ questionSet: 1 | 2; questions: ExamQuestion[] } | null> {
   const admin = createAdminClient();
+  const locale = await getServerLocale();
   const questionSet: 1 | 2 = Math.random() < 0.5 ? 1 : 2;
   const { data } = await admin
     .from("certification_questions")
-    .select("id, question_text, choices")
+    .select("id, question_text, choices, question_text_en, choices_en")
     .eq("question_set", questionSet)
     .eq("is_active", true)
     .order("sort_order", { ascending: true });
   if (!data || data.length === 0) return null;
-  return { questionSet, questions: data as ExamQuestion[] };
+  const questions = data.map((row) => ({
+    id: row.id,
+    question_text: locale === "en" && row.question_text_en ? row.question_text_en : row.question_text,
+    choices: locale === "en" && row.choices_en && row.choices_en.length > 0 ? row.choices_en : row.choices,
+  }));
+  return { questionSet, questions };
 }
 
 export type CertificationIneligibleReason = "not_approved" | "already_certified" | "no_questions";
