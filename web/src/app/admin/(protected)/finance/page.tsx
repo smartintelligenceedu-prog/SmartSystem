@@ -18,6 +18,7 @@ import { UnpostedTransactionsList } from "./unposted-transactions-list";
 import { RecordExpenseForm } from "./record-expense-form";
 import { MonthPicker } from "./month-picker";
 import { VoidExpenseButton } from "./void-expense-button";
+import { EditExpenseDescription } from "./edit-expense-description";
 import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
@@ -157,7 +158,15 @@ export default async function FinancePage({
           {recentEntries.map((e) => (
             <div key={e.id} className="px-4 py-3 text-sm">
               <div className="flex justify-between gap-4">
-                <span className={e.status === "voided" ? "text-muted-foreground line-through" : ""}>{e.description}</span>
+                {["manual_expense", "manual_expense_void"].includes(e.source_type) ? (
+                  <EditExpenseDescription
+                    journalEntryId={e.id}
+                    description={e.description ?? ""}
+                    strikethrough={e.status === "voided"}
+                  />
+                ) : (
+                  <span className={e.status === "voided" ? "text-muted-foreground line-through" : ""}>{e.description}</span>
+                )}
                 <div className="flex items-center gap-2">
                   {e.status === "voided" && <Badge variant="destructive">{voidedBadgeLabel}</Badge>}
                   <span className="text-muted-foreground tabular-nums">{new Date(e.entry_date).toLocaleDateString("zh-CN")}</span>

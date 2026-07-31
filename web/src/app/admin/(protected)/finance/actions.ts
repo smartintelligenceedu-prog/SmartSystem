@@ -127,6 +127,33 @@ export async function voidOperatingExpense(journalEntryId: string): Promise<{ ok
   return { ok: true, message: await t("finance.success.expense_voided") };
 }
 
+// Editing a posted entry's amount/accounts would break the ledger's
+// audit trail (reports would silently stop matching what was actually
+// posted at the time) — that's why fixing a wrong amount goes through
+// voidOperatingExpense above instead. The description is just a label
+// though, doesn't touch any journal_lines amount, so it's safe to edit
+// directly. Scoped to manual_expense / manual_expense_void (migration 054)
+// only — every other source_type's description stays as posted.
+export async function updateExpenseDescription(journalEntryId: string, description: string): Promise<{ ok: boolean; message: string }> {
+  const auth = await requireBackOfficeUserId();
+  if ("error" in auth) return { ok: false, message: auth.error };
+
+  const trimmed = description.trim();
+  if (!trimmed) return { ok: false, message: await t("finance.error.description_required") };
+
+  const admin = createAdminClient();
+  const { data: entry } = await admin.from("journal_entries").select("source_type").eq("id", journalEntryId).maybeSingle();
+  if (!entry || !["manual_expense", "manual_expense_void"].includes(entry.source_type)) {
+    return { ok: false, message: await t("finance.error.description_not_editable") };
+  }
+
+  const { error } = await admin.from("journal_entries").update({ description: trimmed }).eq("id", journalEntryId);
+  if (error) return { ok: false, message: `${await t("finance.error.record_failed_prefix")}${error.message}` };
+
+  revalidatePath("/admin/finance");
+  return { ok: true, message: await t("finance.success.description_updated") };
+}
+
 /**
  * Manual/periodic posting (the user's explicit choice over automatic
  * per-transaction posting): back office reviews the unposted count/list on
