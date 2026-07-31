@@ -43,6 +43,9 @@ export default async function EditCustomerPage({ params }: { params: Promise<{ c
           date_of_birth: detail.date_of_birth ?? "",
           occupation: detail.occupation ?? "",
           marital_status: detail.marital_status ?? "",
+          spouse_full_name: detail.spouse_full_name ?? "",
+          spouse_phone: detail.spouse_phone ?? "",
+          spouse_date_of_birth: detail.spouse_date_of_birth ?? "",
           acquired_via_introducer_id: detail.acquired_via_introducer_id ?? "",
           acquired_via_campaign_id: detail.acquired_via_campaign_id ?? "",
           children: children.map((c) => ({

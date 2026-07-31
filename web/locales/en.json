@@ -63,6 +63,10 @@
   "customer.field.marital_status.divorced": "Divorced",
   "customer.field.marital_status.widowed": "Widowed",
   "customer.field.marital_status.other": "Other",
+  "customer.spouse.section_title": "Spouse Information (optional)",
+  "customer.spouse.full_name": "Spouse's Name",
+  "customer.spouse.phone": "Spouse's Phone",
+  "customer.spouse.date_of_birth": "Spouse's Date of Birth",
   "customer.field.introducer": "Referring Introducer (optional)",
   "customer.field.introducer_none": "None",
   "customer.field.introducer_locked_hint": "This customer came in through that introducer's link — the attribution is locked and can't be changed.",
@@ -79,6 +83,7 @@
   "customer.child.age": "Age",
   "customer.child.age_unknown": "Unknown",
   "customer.child.add_button": "Add Child",
+  "customer.child.card_title_prefix": "Child",
   "customer.child.remove_button": "Remove",
   "customer.child.none": "No children registered yet",
 

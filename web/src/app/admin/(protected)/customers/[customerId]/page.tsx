@@ -144,6 +144,13 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
               label={await t("customer.field.marital_status")}
               value={detail.marital_status ? await t(`customer.field.marital_status.${detail.marital_status}` as Parameters<typeof t>[0]) : ""}
             />
+            {(detail.spouse_full_name || detail.spouse_phone || detail.spouse_date_of_birth) && (
+              <>
+                <Field label={await t("customer.spouse.full_name")} value={detail.spouse_full_name ?? ""} />
+                <Field label={await t("customer.spouse.phone")} value={detail.spouse_phone ?? ""} />
+                <Field label={await t("customer.spouse.date_of_birth")} value={formatDate(detail.spouse_date_of_birth)} />
+              </>
+            )}
             <Field label={await t("customer.list.column.agent")} value={detail.owner_name} />
             <Field label={await t("customer.list.column.introducer")} value={detail.introducer_name ?? ""} />
           </CardContent>

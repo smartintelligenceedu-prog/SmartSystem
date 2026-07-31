@@ -63,6 +63,10 @@
   "customer.field.marital_status.divorced": "离婚",
   "customer.field.marital_status.widowed": "丧偶",
   "customer.field.marital_status.other": "其他",
+  "customer.spouse.section_title": "配偶资料（选填）",
+  "customer.spouse.full_name": "配偶姓名",
+  "customer.spouse.phone": "配偶电话",
+  "customer.spouse.date_of_birth": "配偶出生日期",
   "customer.field.introducer": "来源引荐人（选填）",
   "customer.field.introducer_none": "无",
   "customer.field.introducer_locked_hint": "此顾客是透过该引荐人的链接进来的，来源已锁定，不能更改。",
@@ -79,6 +83,7 @@
   "customer.child.age": "年龄",
   "customer.child.age_unknown": "未知",
   "customer.child.add_button": "新增孩子",
+  "customer.child.card_title_prefix": "孩子",
   "customer.child.remove_button": "移除",
   "customer.child.none": "尚未登记孩子资料",
 

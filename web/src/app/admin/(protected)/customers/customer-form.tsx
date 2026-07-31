@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { XIcon } from "lucide-react";
 import { createCustomer, updateCustomer, type CustomerFormState } from "./actions";
 import { ct } from "@/lib/i18n-client";
 import { submitWithoutReset } from "@/lib/submit-without-reset";
@@ -55,6 +56,9 @@ export interface CustomerFormInitialValues {
   date_of_birth?: string;
   occupation?: string;
   marital_status?: string;
+  spouse_full_name?: string;
+  spouse_phone?: string;
+  spouse_date_of_birth?: string;
   acquired_via_introducer_id?: string;
   acquired_via_campaign_id?: string;
   children?: ChildInput[];
@@ -168,6 +172,25 @@ export function CustomerForm({
               <Label htmlFor="occupation">{ct("customer.field.occupation")}</Label>
               <Input id="occupation" name="occupation" defaultValue={initialValues?.occupation} />
             </div>
+
+            <div className="space-y-3 rounded-md border p-3">
+              <p className="text-xs font-medium text-muted-foreground">{ct("customer.spouse.section_title")}</p>
+              <div className="space-y-2">
+                <Label htmlFor="spouse_full_name">{ct("customer.spouse.full_name")}</Label>
+                <Input id="spouse_full_name" name="spouse_full_name" defaultValue={initialValues?.spouse_full_name} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="spouse_phone">{ct("customer.spouse.phone")}</Label>
+                  <Input id="spouse_phone" name="spouse_phone" type="tel" defaultValue={initialValues?.spouse_phone} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="spouse_date_of_birth">{ct("customer.spouse.date_of_birth")}</Label>
+                  <Input id="spouse_date_of_birth" name="spouse_date_of_birth" type="date" defaultValue={initialValues?.spouse_date_of_birth} />
+                </div>
+              </div>
+            </div>
+
             {introducerLocked ? (
               <div className="space-y-2">
                 <Label>{ct("customer.field.introducer")}</Label>
@@ -235,6 +258,20 @@ export function CustomerForm({
             {children.length === 0 && <p className="text-sm text-muted-foreground">{ct("customer.child.none")}</p>}
             {children.map((child, index) => (
               <div key={index} className="space-y-3 rounded-md border p-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    {ct("customer.child.card_title_prefix")} {index + 1}
+                  </p>
+                  <Button
+                    type="button"
+                    size="icon-sm"
+                    variant="destructive"
+                    aria-label={`${ct("customer.child.remove_button")} ${index + 1}`}
+                    onClick={() => removeChild(index)}
+                  >
+                    <XIcon />
+                  </Button>
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs">{ct("customer.child.full_name")}</Label>
@@ -274,9 +311,6 @@ export function CustomerForm({
                   <Label className="text-xs">{ct("customer.child.remark")}</Label>
                   <Textarea value={child.remark} onChange={(e) => updateChild(index, "remark", e.target.value)} />
                 </div>
-                <Button type="button" size="sm" variant="ghost" onClick={() => removeChild(index)}>
-                  {ct("customer.child.remove_button")}
-                </Button>
               </div>
             ))}
           </section>

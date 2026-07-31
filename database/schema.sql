@@ -261,6 +261,11 @@ create table customers (
   status text not null default 'active' check (status in ('active', 'inactive')), -- "Archive" in the UI sets this to 'inactive'
   occupation text,
   marital_status text check (marital_status is null or marital_status in ('single', 'married', 'divorced', 'widowed', 'other')),
+  -- Migration 061 — single spouse record (name/phone/DOB only); not a
+  -- repeatable list like customer_children since there's at most one.
+  spouse_full_name text,
+  spouse_phone text,
+  spouse_date_of_birth date,
   -- Migration 028 — CRM tags for when the customer THEMSELVES is the TQC
   -- assessment subject (not just their children). Mirrors
   -- customer_children.tags; derive_child_tags_one_page() writes to whichever

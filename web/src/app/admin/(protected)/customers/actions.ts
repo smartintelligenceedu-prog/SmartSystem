@@ -54,6 +54,9 @@ async function buildCustomerFormSchema() {
     date_of_birth: z.string().optional().or(z.literal("")),
     occupation: z.string().trim().optional().or(z.literal("")),
     marital_status: z.enum(["single", "married", "divorced", "widowed", "other"]).optional().or(z.literal("")),
+    spouse_full_name: z.string().trim().optional().or(z.literal("")),
+    spouse_phone: z.string().trim().optional().or(z.literal("")),
+    spouse_date_of_birth: z.string().optional().or(z.literal("")),
     acquired_via_introducer_id: z.string().uuid().optional().or(z.literal("")),
     acquired_via_campaign_id: z.string().uuid().optional().or(z.literal("")),
     children_json: z.string().optional().or(z.literal("")),
@@ -71,6 +74,9 @@ async function parseCustomerForm(formData: FormData) {
     date_of_birth: formData.get("date_of_birth") || undefined,
     occupation: formData.get("occupation") || undefined,
     marital_status: formData.get("marital_status") || undefined,
+    spouse_full_name: formData.get("spouse_full_name") || undefined,
+    spouse_phone: formData.get("spouse_phone") || undefined,
+    spouse_date_of_birth: formData.get("spouse_date_of_birth") || undefined,
     // customer-form.tsx's Introducer/Campaign Selects use a `null`-value item
     // for "None" (Base UI's own documented pattern for a clearable select) —
     // its hidden input serializes that as an empty string on submit, which
@@ -166,6 +172,9 @@ export async function createCustomer(_prev: CustomerFormState, formData: FormDat
       acquired_via_campaign_id: input.acquired_via_campaign_id || null,
       occupation: input.occupation || null,
       marital_status: input.marital_status || null,
+      spouse_full_name: input.spouse_full_name || null,
+      spouse_phone: input.spouse_phone || null,
+      spouse_date_of_birth: input.spouse_date_of_birth || null,
       status: "active",
     })
     .select("id")
@@ -231,6 +240,9 @@ export async function updateCustomer(customerId: string, _prev: CustomerFormStat
       acquired_via_campaign_id: input.acquired_via_campaign_id || null,
       occupation: input.occupation || null,
       marital_status: input.marital_status || null,
+      spouse_full_name: input.spouse_full_name || null,
+      spouse_phone: input.spouse_phone || null,
+      spouse_date_of_birth: input.spouse_date_of_birth || null,
     })
     .eq("id", customerId);
   if (customerError) return { status: "error", message: customerError.message };
