@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { t } from "@/lib/i18n";
-import { COMPANY_INFO_SETTINGS_KEY } from "./data";
+import { COMPANY_INFO_SETTINGS_KEY, REPORT_COST_SETTINGS_KEY } from "./data";
 
 async function requireBackOfficeUserId(): Promise<{ userId: string } | { error: string }> {
   const supabase = await createServerSupabaseClient();
@@ -68,6 +68,38 @@ export async function updateCompanyInfo(_prev: UpdateCompanyInfoState, formData:
   const admin = createAdminClient();
   const { error } = await admin.from("settings").upsert({
     key: COMPANY_INFO_SETTINGS_KEY,
+    value: parsed.data,
+    updated_by: auth.userId,
+  });
+  if (error) return { status: "error", message: `${await t("settings.error.save_failed")}${error.message}` };
+
+  revalidatePath("/admin/settings");
+  return { status: "success" };
+}
+
+async function buildReportCostSchema() {
+  return z.object({
+    standardCost: z.coerce.number().min(0, await t("settings.error.invalid_amount")),
+    upgradeCost: z.coerce.number().min(0, await t("settings.error.invalid_amount")),
+  });
+}
+
+export type UpdateReportCostState = { status: "idle" } | { status: "error"; message: string } | { status: "success" };
+
+export async function updateReportCostSettings(_prev: UpdateReportCostState, formData: FormData): Promise<UpdateReportCostState> {
+  const auth = await requireBackOfficeUserId();
+  if ("error" in auth) return { status: "error", message: auth.error };
+
+  const reportCostSchema = await buildReportCostSchema();
+  const parsed = reportCostSchema.safeParse({
+    standardCost: formData.get("standardCost"),
+    upgradeCost: formData.get("upgradeCost"),
+  });
+  if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message ?? await t("settings.error.invalid_form") };
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("settings").upsert({
+    key: REPORT_COST_SETTINGS_KEY,
     value: parsed.data,
     updated_by: auth.userId,
   });

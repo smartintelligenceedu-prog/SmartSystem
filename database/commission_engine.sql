@@ -430,12 +430,14 @@ create trigger trg_calculate_commissions
 --      not stacking with, the pic_channel commission that no longer fires
 --      at sale time for these items — see calculate_commissions_for_order()
 --      above).
---   2. The report's hard cost (RM25 standard / RM125 upgrade) is posted
---      immediately to the ledger (debit 5600 报告制作成本 expense, credit
---      2100 应计报告成本 liability) — auto-posted rather than going through
---      the manual/periodic postToLedger() batch flow that orders and
---      commission_records use, per explicit user instruction that report
---      cost should hit the P&L the moment the report is delivered.
+--   2. The report's hard cost (default RM25 standard / RM125 upgrade,
+--      configurable at /admin/settings since migration 060 — see
+--      settings.report_cost) is posted immediately to the ledger (debit
+--      5600 报告制作成本 expense, credit 2100 应计报告成本 liability) —
+--      auto-posted rather than going through the manual/periodic
+--      postToLedger() batch flow that orders and commission_records use,
+--      per explicit user instruction that report cost should hit the P&L
+--      the moment the report is delivered.
 --
 -- security definer: chart_of_accounts/journal_entries/journal_lines and
 -- commission_rules are all back-office-only RLS — same reasoning as
@@ -456,6 +458,8 @@ declare
   v_leader_id uuid;
   v_rule record;
   v_cost numeric;
+  v_standard_cost numeric;
+  v_upgrade_cost numeric;
   v_expense_account uuid;
   v_liability_account uuid;
   v_entry_id uuid;
@@ -534,9 +538,20 @@ begin
     end if;
   end if;
 
-  -- ---- 3. Report cost (COGS), auto-posted immediately ----
+  -- ---- 3. Report cost (COGS), auto-posted immediately. Migration 060:
+  -- standard/upgrade cost now read from settings.report_cost (editable at
+  -- /admin/settings) instead of being hardcoded — falls back to the
+  -- original RM25/RM125 if the settings row is ever missing. ----
   if new.report_tier is not null then
-    v_cost := case new.report_tier when 'standard' then 25.00 when 'upgrade' then 125.00 else 0 end;
+    select (value->>'standardCost')::numeric, (value->>'upgradeCost')::numeric
+      into v_standard_cost, v_upgrade_cost
+    from settings where key = 'report_cost';
+
+    v_cost := case new.report_tier
+      when 'standard' then coalesce(v_standard_cost, 25.00)
+      when 'upgrade' then coalesce(v_upgrade_cost, 125.00)
+      else 0
+    end;
     select id into v_expense_account from chart_of_accounts where code = '5600';
     select id into v_liability_account from chart_of_accounts where code = '2100';
     if v_cost > 0 and v_expense_account is not null and v_liability_account is not null then

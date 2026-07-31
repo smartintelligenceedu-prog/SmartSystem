@@ -27,6 +27,11 @@ async function getAdminStats() {
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  // journal_entries.entry_date is a plain date column (set via current_date
+  // in calculate_report_override_commission()), so it needs a plain
+  // "YYYY-MM-01" bound rather than the timestamptz monthStart used for
+  // orders/commission_records above.
+  const monthStartDateOnly = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
 
   const [
     totalAgent,
@@ -36,6 +41,7 @@ async function getAdminStats() {
     monthSales,
     todayCommission,
     monthCommission,
+    monthReportCostEntries,
     recent,
   ] = await Promise.all([
     admin.from("analysts").select("id", { count: "exact", head: true }).eq("status", "approved"),
@@ -45,8 +51,21 @@ async function getAdminStats() {
     admin.from("orders").select("total_amount").eq("status", "paid").gte("created_at", monthStart),
     admin.from("commission_records").select("commission_amount, trigger_type").gte("calculated_at", todayStart),
     admin.from("commission_records").select("commission_amount, trigger_type").gte("calculated_at", monthStart),
+    admin.from("journal_entries").select("id").eq("source_type", "report_delivery").gte("entry_date", monthStartDateOnly),
     admin.from("analysts").select("id, status, created_at, party_id").order("created_at", { ascending: false }).limit(5),
   ]);
+
+  // Real amounts actually posted to the ledger (5600 报告制作成本) this
+  // month, one debit line per report — see calculate_report_override_commission()
+  // (migration 060 made the per-tier cost configurable, but this reads the
+  // amount that was actually booked at delivery time, so a later settings
+  // change never rewrites history).
+  const reportCostEntryIds = (monthReportCostEntries.data ?? []).map((e) => e.id);
+  const { data: monthReportCostLines } =
+    reportCostEntryIds.length > 0
+      ? await admin.from("journal_lines").select("debit").in("journal_entry_id", reportCostEntryIds)
+      : { data: [] };
+  const monthReportCost = (monthReportCostLines ?? []).reduce((total, l) => total + Number(l.debit ?? 0), 0);
 
   const recentPartyIds = (recent.data ?? []).map((r) => r.party_id);
   const { data: identities } = await admin
@@ -71,7 +90,8 @@ async function getAdminStats() {
     todayCommission: todayCommissionOnly,
     todayOverride,
     monthExpenses,
-    netProfit: monthSalesTotal - monthExpenses,
+    monthReportCost,
+    netProfit: monthSalesTotal - monthExpenses - monthReportCost,
     recent: (recent.data ?? []).map((r) => ({
       id: r.id,
       status: r.status as AnalystStatus,
