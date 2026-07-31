@@ -50,19 +50,17 @@ export function RegisterIntroducerForm({ analystReferralCode }: { analystReferra
         <Label htmlFor="sponsor_referral_code">{ct("register_introducer.form.sponsor_code_label")}</Label>
         <Input id="sponsor_referral_code" name="sponsor_referral_code" placeholder={ct("register_introducer.form.sponsor_code_placeholder")} />
       </div>
-      <div className="grid grid-cols-3 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="bank_name">{ct("register_introducer.form.bank_name_label")}</Label>
-          <Input id="bank_name" name="bank_name" />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="bank_account_name">{ct("register_introducer.form.bank_account_name_label")}</Label>
-          <Input id="bank_account_name" name="bank_account_name" />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="bank_account_no">{ct("register_introducer.form.bank_account_no_label")}</Label>
-          <Input id="bank_account_no" name="bank_account_no" />
-        </div>
+      <div className="space-y-2">
+        <Label htmlFor="bank_name">{ct("register_introducer.form.bank_name_label")}</Label>
+        <Input id="bank_name" name="bank_name" />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="bank_account_name">{ct("register_introducer.form.bank_account_name_label")}</Label>
+        <Input id="bank_account_name" name="bank_account_name" />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="bank_account_no">{ct("register_introducer.form.bank_account_no_label")}</Label>
+        <Input id="bank_account_no" name="bank_account_no" />
       </div>
 
       {state.status === "error" && (
