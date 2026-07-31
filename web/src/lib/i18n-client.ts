@@ -14,9 +14,9 @@ import { LOCALE_COOKIE, type TranslationKey, type Locale } from "./i18n-shared";
  * locale correctly on next load.
  */
 export function getClientLocale(): Locale {
-  if (typeof document === "undefined") return "zh";
+  if (typeof document === "undefined") return "en";
   const match = document.cookie.match(new RegExp(`(?:^|; )${LOCALE_COOKIE}=([^;]*)`));
-  return match && decodeURIComponent(match[1]) === "en" ? "en" : "zh";
+  return match && decodeURIComponent(match[1]) === "zh" ? "zh" : "en";
 }
 
 export function ct(key: TranslationKey): string {
