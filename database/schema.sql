@@ -1182,6 +1182,7 @@ create table marketing_vouchers (
   id uuid primary key default gen_random_uuid(),
   title text not null,
   image_path text not null,
+  terms text,
   is_active boolean not null default true,
   sort_order integer not null default 0,
   created_by uuid references users(id),

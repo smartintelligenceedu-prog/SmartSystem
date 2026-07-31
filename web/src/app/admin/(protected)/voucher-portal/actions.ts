@@ -40,11 +40,18 @@ export async function createMarketingVoucher(_prev: VoucherFormState, formData: 
     return { status: "error", message: `${await t("voucher_portal.error.upload_failed_prefix")}${uploadError ?? ""}` };
   }
 
+  const terms = String(formData.get("terms") ?? "").trim();
+
   const admin = createAdminClient();
   const { error } = await admin.from("marketing_vouchers").insert({
     title,
     image_path: path,
+    terms: terms || null,
     created_by: auth.userId,
+    // Stays hidden from the introducer gallery (is_active is only ever read,
+    // never inserted, elsewhere) until back office explicitly clicks 上架 —
+    // lets a voucher be prepared/reviewed before it goes live.
+    is_active: false,
   });
   if (error) {
     await deleteVoucherImage(path);
@@ -62,6 +69,7 @@ export async function updateMarketingVoucher(_prev: VoucherFormState, formData: 
   const id = String(formData.get("id") ?? "");
   const title = String(formData.get("title") ?? "").trim();
   if (!title) return { status: "error", message: await t("voucher_portal.error.title_required") };
+  const terms = String(formData.get("terms") ?? "").trim();
 
   const admin = createAdminClient();
   const { data: existing } = await admin.from("marketing_vouchers").select("image_path").eq("id", id).maybeSingle();
@@ -82,7 +90,7 @@ export async function updateMarketingVoucher(_prev: VoucherFormState, formData: 
 
   const { error } = await admin
     .from("marketing_vouchers")
-    .update({ title, ...(newPath ? { image_path: newPath } : {}) })
+    .update({ title, terms: terms || null, ...(newPath ? { image_path: newPath } : {}) })
     .eq("id", id);
   if (error) {
     if (newPath) await deleteVoucherImage(newPath);

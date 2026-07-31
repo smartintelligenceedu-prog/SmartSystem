@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { submitWithoutReset } from "@/lib/submit-without-reset";
@@ -35,6 +36,11 @@ export function CreateVoucherForm() {
         <Label>{ct("voucher_portal.form.image_label")}</Label>
         <VoucherImageDropzone name="image" required />
       </div>
+      <div className="space-y-1">
+        <Label htmlFor="voucher-terms">{ct("voucher_portal.form.terms_label")}</Label>
+        <Textarea id="voucher-terms" name="terms" placeholder={ct("voucher_portal.form.terms_placeholder")} rows={4} />
+      </div>
+      <p className="text-xs text-muted-foreground">{ct("voucher_portal.form.draft_hint")}</p>
       {state.status === "error" && <p className="text-sm text-destructive">{state.message}</p>}
       <Button type="submit">{ct("voucher_portal.page.create_button")}</Button>
     </form>

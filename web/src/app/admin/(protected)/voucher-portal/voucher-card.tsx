@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { submitWithoutReset } from "@/lib/submit-without-reset";
 import { ct } from "@/lib/i18n-client";
@@ -62,6 +63,10 @@ export function VoucherCard({ voucher, canManage }: { voucher: MarketingVoucherR
           <Label>{ct("voucher_portal.form.image_label")}</Label>
           <VoucherImageDropzone name="image" initialPreviewUrl={voucher.image_url} />
         </div>
+        <div className="space-y-1">
+          <Label htmlFor={`voucher-terms-${voucher.id}`}>{ct("voucher_portal.form.terms_label")}</Label>
+          <Textarea id={`voucher-terms-${voucher.id}`} name="terms" defaultValue={voucher.terms ?? ""} rows={4} />
+        </div>
         {state.status === "error" && <p className="text-sm text-destructive">{state.message}</p>}
         <div className="flex gap-2">
           <Button type="submit" size="sm">
@@ -90,6 +95,7 @@ export function VoucherCard({ voucher, canManage }: { voucher: MarketingVoucherR
             </Badge>
           )}
         </div>
+        {voucher.terms && <p className="whitespace-pre-line text-xs text-muted-foreground">{voucher.terms}</p>}
         {canManage && (
           <div className="mt-auto flex flex-wrap gap-2">
             <Button size="xs" variant="outline" onClick={() => setIsEditing(true)}>
