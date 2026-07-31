@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Combobox, ComboboxInputGroup, ComboboxInput, ComboboxButtonGroup, ComboboxClear, ComboboxTrigger, ComboboxContent, ComboboxItem } from "@/components/ui/combobox";
 import { createSalesOrder, type CreateSalesOrderState } from "../actions";
 import { submitWithoutReset, totalFileSize } from "@/lib/submit-without-reset";
 import type { SalesItemRow } from "../data";
@@ -120,6 +121,11 @@ export function NewSalesOrderForm({
   }
 
   const agentOptions = agents.length > 0 ? agents : [{ id: ownAnalystId, name: ownAnalystName }];
+  // Combobox (unlike Select) filters as the analyst types, since this list
+  // can grow into the hundreds — a plain scrolling dropdown stops being
+  // usable well before then.
+  const customerOptions = customers.map((c) => ({ value: c.id, label: c.name }));
+  const isCustomerOptionEqual = (a: { value: string }, b: { value: string }) => a.value === b.value;
   const discountSuffix = ct("sales_orders.item.discount_label_suffix");
   const itemOptions = salesItems.map((si) => ({
     value: si.id,
@@ -175,22 +181,27 @@ export function NewSalesOrderForm({
                   <div key={index} className="space-y-2 rounded-md border p-3">
                     <div className="space-y-1">
                       <Label className="text-xs">{ct("sales_orders.form.customer_label")}</Label>
-                      <Select
-                        items={customers.map((c) => ({ value: c.id, label: c.name }))}
-                        value={member.customer_id}
-                        onValueChange={(v) => updateMember(index, "customer_id", v ?? "")}
+                      <Combobox
+                        items={customerOptions}
+                        value={customerOptions.find((o) => o.value === member.customer_id) ?? null}
+                        onValueChange={(o) => updateMember(index, "customer_id", o?.value ?? "")}
+                        isItemEqualToValue={isCustomerOptionEqual}
                       >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={ct("sales_orders.form.select_customer_placeholder")} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {customers.map((c) => (
-                            <SelectItem key={c.id} value={c.id}>
-                              {c.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        <ComboboxInputGroup>
+                          <ComboboxInput placeholder={ct("sales_orders.form.select_customer_placeholder")} />
+                          <ComboboxButtonGroup>
+                            <ComboboxClear aria-label={ct("sales_orders.form.clear_selection")} />
+                            <ComboboxTrigger aria-label={ct("sales_orders.form.open_customer_list")} />
+                          </ComboboxButtonGroup>
+                        </ComboboxInputGroup>
+                        <ComboboxContent emptyMessage={ct("sales_orders.form.no_customer_match")}>
+                          {(item: { value: string; label: string }) => (
+                            <ComboboxItem key={item.value} value={item}>
+                              {item.label}
+                            </ComboboxItem>
+                          )}
+                        </ComboboxContent>
+                      </Combobox>
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">{ct("sales_orders.form.assigned_analyst_label")}</Label>
@@ -282,26 +293,29 @@ export function NewSalesOrderForm({
             <>
               <div className="space-y-2">
                 <Label htmlFor="customer_id">{ct("sales_orders.form.customer_label")}</Label>
-                {/* Base UI's Select.Value shows the raw value unless Root gets an
-                    `items` map — see the same note in register-form.tsx. */}
-                <Select
+                <Combobox
                   name="customer_id"
-                  items={customers.map((c) => ({ value: c.id, label: c.name }))}
-                  value={voucherCustomerId}
-                  onValueChange={(v) => setVoucherCustomerId(v ?? "")}
+                  items={customerOptions}
+                  value={customerOptions.find((o) => o.value === voucherCustomerId) ?? null}
+                  onValueChange={(o) => setVoucherCustomerId(o?.value ?? "")}
+                  isItemEqualToValue={isCustomerOptionEqual}
                   required
                 >
-                  <SelectTrigger id="customer_id" className="w-full">
-                    <SelectValue placeholder={ct("sales_orders.form.select_customer_placeholder")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {customers.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <ComboboxInputGroup>
+                    <ComboboxInput id="customer_id" placeholder={ct("sales_orders.form.select_customer_placeholder")} />
+                    <ComboboxButtonGroup>
+                      <ComboboxClear aria-label={ct("sales_orders.form.clear_selection")} />
+                      <ComboboxTrigger aria-label={ct("sales_orders.form.open_customer_list")} />
+                    </ComboboxButtonGroup>
+                  </ComboboxInputGroup>
+                  <ComboboxContent emptyMessage={ct("sales_orders.form.no_customer_match")}>
+                    {(item: { value: string; label: string }) => (
+                      <ComboboxItem key={item.value} value={item}>
+                        {item.label}
+                      </ComboboxItem>
+                    )}
+                  </ComboboxContent>
+                </Combobox>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="amount">{ct("sales_orders.form.paid_amount_label")}</Label>
