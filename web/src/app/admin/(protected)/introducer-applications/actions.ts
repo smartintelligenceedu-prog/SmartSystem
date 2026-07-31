@@ -1,10 +1,17 @@
 "use server";
 
-import { randomUUID } from "crypto";
+import { randomUUID, randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendEmail } from "@/lib/notifications";
 import { t } from "@/lib/i18n";
+
+// base64url avoids +/= (URL/display-unsafe) — same generator as
+// registrations/actions.ts's adminCreateAnalystLogin.
+function generatePassword(): string {
+  return randomBytes(9).toString("base64url");
+}
 
 /**
  * Same pattern as every other admin Server Action in this codebase: re-check
@@ -90,9 +97,60 @@ export async function approveIntroducerApplication(applicationId: string): Promi
     return { ok: false, message: `${await t("introducer_applications.error.update_status_failed_prefix")}${updateError.message}` };
   }
 
+  // Auto-create the login and email the initial password right away, same
+  // as adminCreateAnalystLogin does for analysts — the applicant asked to be
+  // able to log in the moment they're approved, not wait for a separate
+  // manual "Create Login" click on the Introducer Management page. A
+  // failure here (e.g. this email already has a Supabase Auth user from
+  // some other role) doesn't undo the approval — the introducer row already
+  // exists and works; back office can still create the login manually from
+  // /admin/introducers, same fallback path as before this change.
+  const password = generatePassword();
+  const { data: authUser, error: authError } = await admin.auth.admin.createUser({
+    email: application.email,
+    password,
+    email_confirm: true,
+  });
+  if (authError || !authUser.user) {
+    revalidatePath("/admin/introducer-applications");
+    revalidatePath("/admin/introducers");
+    return {
+      ok: true,
+      message: `${await t("introducer_applications.success.approved")}${await t("introducer_applications.warning.login_failed_prefix")}${authError?.message ?? (await t("introducer_applications.error.unknown"))}`,
+    };
+  }
+
+  const { data: userRow, error: userError } = await admin
+    .from("users")
+    .insert({ party_id: party.id, auth_user_id: authUser.user.id })
+    .select("id")
+    .single();
+  if (userError) {
+    revalidatePath("/admin/introducer-applications");
+    revalidatePath("/admin/introducers");
+    return {
+      ok: true,
+      message: `${await t("introducer_applications.success.approved")}${await t("introducer_applications.warning.login_failed_prefix")}${userError.message}`,
+    };
+  }
+
+  const { data: role } = await admin.from("roles").select("id").eq("name", "introducer").single();
+  if (role) {
+    await admin.from("user_roles").insert({ user_id: userRow.id, role_id: role.id, granted_by: auth.userId });
+  }
+
+  await sendEmail({
+    to: [application.email],
+    subject: `你的后台账号已开通 - ${application.full_name}`,
+    html: `<p>${application.full_name} 你好，</p><p>你的 Smart Intelligence Edu 引荐人账号已经开通：</p><p>登入邮箱：${application.email}<br/>初始密码：<strong>${password}</strong></p><p>登入网址：https://mytqc.com.my/admin/login，登入后可在「我的帐户」页面自行更改密码。</p>`,
+  });
+
   revalidatePath("/admin/introducer-applications");
   revalidatePath("/admin/introducers");
-  return { ok: true, message: await t("introducer_applications.success.approved") };
+  return {
+    ok: true,
+    message: `${await t("introducer_applications.success.approved")}${await t("introducer_applications.success.login_email_sent_suffix")}`,
+  };
 }
 
 export async function rejectIntroducerApplication(applicationId: string, reason: string): Promise<{ ok: boolean; message: string }> {
