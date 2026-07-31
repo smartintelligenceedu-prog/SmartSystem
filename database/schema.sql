@@ -1173,8 +1173,27 @@ create table settings (
   updated_at timestamptz not null default now()
 );
 
+-- Migration 055 — image-based promotional voucher/media library ("Voucher
+-- Portal"), unrelated to detection_vouchers/institutional_vouchers (those
+-- are text/numeric redemption credits with no imagery). Back office
+-- uploads a voucher card (title + image); introducers (and anyone else
+-- logged in) browse the active ones. No redemption/tracking logic.
+create table marketing_vouchers (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  image_path text not null,
+  is_active boolean not null default true,
+  sort_order integer not null default 0,
+  created_by uuid references users(id),
+  created_at timestamptz not null default now()
+);
+
+create index idx_marketing_vouchers_active_sort on marketing_vouchers (is_active, sort_order);
+
 -- ============================================================================
--- 14. STORAGE — private document buckets for the registration module
+-- 14. STORAGE — private document buckets for the registration module, plus
+-- the public voucher-images bucket (promotional material, no PII, so a
+-- plain public URL is used instead of the private + signed-URL pattern).
 -- All uploads/reads go through the service-role client server-side, so no
 -- storage.objects policies are needed (service role bypasses storage RLS
 -- the same way it bypasses table RLS).
@@ -1183,7 +1202,8 @@ create table settings (
 insert into storage.buckets (id, name, public)
 values
   ('ic-documents', 'ic-documents', false),
-  ('payment-screenshots', 'payment-screenshots', false)
+  ('payment-screenshots', 'payment-screenshots', false),
+  ('voucher-images', 'voucher-images', true)
 on conflict (id) do nothing;
 
 -- ============================================================================

@@ -737,3 +737,18 @@ $$;
 
 revoke all on function introducer_monthly_summary(uuid) from public;
 grant execute on function introducer_monthly_summary(uuid) to authenticated;
+
+-- ----------------------------------------------------------------------------
+-- Migration 055 — marketing_vouchers (image-based promotional voucher
+-- gallery, "Voucher Portal"). Back office manages; any authenticated user
+-- reads active ones (back office also sees inactive ones for management).
+-- ----------------------------------------------------------------------------
+
+alter table marketing_vouchers enable row level security;
+
+create policy "back office manages marketing vouchers" on marketing_vouchers for all
+  using (is_back_office())
+  with check (is_back_office());
+
+create policy "authenticated reads active marketing vouchers" on marketing_vouchers for select
+  using (is_active = true or is_back_office());

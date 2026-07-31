@@ -14,6 +14,57 @@ const ALLOWED_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "heic", "heif", "pdf"]
 
 export type UploadBucket = "ic-documents" | "payment-screenshots";
 
+// Voucher card images (Voucher Portal) — a distinct, wider allowlist than
+// registration documents (gif/svg make sense for promotional graphics but
+// not for an IC photo or payment screenshot), a smaller size cap (5MB, per
+// the feature's own spec), and a public bucket rather than private +
+// signed URL (no PII, meant to be freely viewable).
+const VOUCHER_MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // 5MB
+const VOUCHER_ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/svg+xml", "application/pdf"];
+const VOUCHER_ALLOWED_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "gif", "svg", "pdf"];
+
+export async function validateVoucherImageFile(file: File | null, required: boolean): Promise<string | null> {
+  if (!file || file.size === 0) {
+    return required ? await t("voucher_portal.error.image_required") : null;
+  }
+  if (file.size > VOUCHER_MAX_UPLOAD_BYTES) {
+    return await t("voucher_portal.error.file_too_large");
+  }
+  const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+  if (!VOUCHER_ALLOWED_TYPES.includes(file.type) && !VOUCHER_ALLOWED_EXTENSIONS.includes(extension)) {
+    return await t("voucher_portal.error.invalid_file_type");
+  }
+  return null;
+}
+
+/** Uploads to the public voucher-images bucket and returns the storage path. */
+export async function uploadVoucherImage(file: File): Promise<{ path: string | null; error: string | null }> {
+  const admin = createAdminClient();
+  const extension = file.name.split(".").pop() ?? "bin";
+  const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
+
+  const { error } = await admin.storage.from("voucher-images").upload(path, await file.arrayBuffer(), {
+    contentType: file.type,
+    upsert: false,
+  });
+
+  if (error) {
+    return { path: null, error: error.message };
+  }
+  return { path, error: null };
+}
+
+/** Public bucket — direct URL, no signing needed. */
+export function getPublicVoucherImageUrl(path: string): string {
+  const admin = createAdminClient();
+  return admin.storage.from("voucher-images").getPublicUrl(path).data.publicUrl;
+}
+
+export async function deleteVoucherImage(path: string): Promise<void> {
+  const admin = createAdminClient();
+  await admin.storage.from("voucher-images").remove([path]);
+}
+
 // `label` is a caller-supplied, already-translated noun (e.g. "payment
 // screenshot") — this function only owns the surrounding sentence.
 export async function validateUploadFile(file: File | null, label: string, required: boolean): Promise<string | null> {

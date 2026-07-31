@@ -58,6 +58,7 @@ export function Sidebar({ context }: { context: PortalUserContext }) {
       ...(isBackOffice ? [{ href: "/admin/introducers", label: ct("introducers.page.title") }] : []),
       ...(isBackOffice ? [{ href: "/admin/introducer-applications", label: ct("introducer_applications.page.title") }] : []),
       ...(isFinance ? [{ href: "/admin/pic-campaigns", label: ct("pic_campaigns.nav.label") }] : []),
+      ...(isBackOffice || context.introducerId ? [{ href: "/admin/voucher-portal", label: ct("voucher_portal.nav.label") }] : []),
     ],
     team: [
       ...(isLeader ? [{ href: "/admin/team", label: ct("team.page.title") }] : []),
