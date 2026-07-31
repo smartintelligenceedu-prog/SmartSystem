@@ -36,9 +36,16 @@ export async function LeaderSection({ analystId }: { analystId: string }) {
     pending_team_count: 0,
   };
 
-  // My Override Summary is the leader's own commission_records — a plain
-  // self-scope read, already covered by the commission_records RLS policy.
-  const { data: myCommission } = await supabase.from("commission_records").select("commission_amount").eq("analyst_id", analystId);
+  // "Commission this Month" is the leader's own commission_records for the
+  // current calendar month — a plain self-scope read, already covered by the
+  // commission_records RLS policy.
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const { data: myCommission } = await supabase
+    .from("commission_records")
+    .select("commission_amount")
+    .eq("analyst_id", analystId)
+    .gte("calculated_at", monthStart);
   const overrideSummary = (myCommission ?? []).reduce((total, r) => total + Number(r.commission_amount), 0);
 
   return (

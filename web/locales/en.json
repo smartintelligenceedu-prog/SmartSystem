@@ -1535,10 +1535,10 @@
   "dashboard.admin.empty": "No data yet",
 
   "dashboard.leader.title": "Team Management (Leader)",
-  "dashboard.leader.stat.team_summary": "Team Summary (Headcount)",
+  "dashboard.leader.stat.team_summary": "Team Member (Direct Sponsor)",
   "dashboard.leader.stat.team_sales": "Team Sales",
   "dashboard.leader.stat.team_commission": "Team Commission",
-  "dashboard.leader.stat.override_summary": "Override Summary (My Commission)",
+  "dashboard.leader.stat.override_summary": "Commission this Month",
   "dashboard.leader.stat.pending_team_approval": "Pending Team Approval",
   "dashboard.leader.note": "Team summaries only show aggregate numbers, not each member's individual customer list — this is intentional, so an upline can't see the customers a downline is managing.",
   "dashboard.leader.view_team_link": "View Team Details",

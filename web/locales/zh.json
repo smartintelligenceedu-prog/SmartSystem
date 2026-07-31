@@ -1535,10 +1535,10 @@
   "dashboard.admin.empty": "暂无资料",
 
   "dashboard.leader.title": "团队管理（Leader）",
-  "dashboard.leader.stat.team_summary": "Team Summary（团队人数）",
+  "dashboard.leader.stat.team_summary": "团队人数（直属下线）",
   "dashboard.leader.stat.team_sales": "Team Sales",
   "dashboard.leader.stat.team_commission": "Team Commission",
-  "dashboard.leader.stat.override_summary": "Override Summary（我的佣金）",
+  "dashboard.leader.stat.override_summary": "本月佣金",
   "dashboard.leader.stat.pending_team_approval": "Pending Team Approval",
   "dashboard.leader.note": "团队汇总只显示数字，不显示团队成员各自的顾客名单明细——这是刻意的设计，避免上线看到下线经营的顾客资料。",
   "dashboard.leader.view_team_link": "查看团队详情",
