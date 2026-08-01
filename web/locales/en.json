@@ -666,6 +666,10 @@
   "finance.report_summary.total_cost": "Report Cost This Month",
 
   "finance.institutional.nav_link": "Institutional Orders / Invoices",
+  "finance.page.print_report_button": "Print P&L Report",
+  "finance.pnl_print.title": "Profit & Loss Statement",
+  "finance.pnl_print.net_profit": "Net Profit",
+  "finance.pnl_print.generated_note": "Report generated on: ",
   "finance.institutional.title": "Institutional Orders / Invoices",
   "finance.institutional.list.item_count_suffix": " (+{count} items)",
   "finance.institutional.subtitle": "For B2B / institutional bulk orders: invoice-first billing or deposit-then-settlement, kept separate from regular consumer Sales Orders.",

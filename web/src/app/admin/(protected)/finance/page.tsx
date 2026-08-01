@@ -71,7 +71,14 @@ export default async function FinancePage({
           <h1 className="text-xl font-semibold">{await t("finance.page.title")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{await t("finance.page.subtitle")}</p>
         </div>
-        <Button size="sm" variant="secondary" render={<Link href="/admin/finance/institutional">{await t("finance.institutional.nav_link")}</Link>} />
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            render={<Link href={`/admin/finance/print?from=${fromMonth}&to=${toMonth}`}>{await t("finance.page.print_report_button")}</Link>}
+          />
+          <Button size="sm" variant="secondary" render={<Link href="/admin/finance/institutional">{await t("finance.institutional.nav_link")}</Link>} />
+        </div>
       </div>
 
       <DateRangePicker from={fromMonth} to={toMonth} />

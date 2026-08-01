@@ -666,6 +666,10 @@
   "finance.report_summary.total_cost": "本月报告成本",
 
   "finance.institutional.nav_link": "机构订单 / 发票",
+  "finance.page.print_report_button": "打印损益报表",
+  "finance.pnl_print.title": "损益表",
+  "finance.pnl_print.net_profit": "净利润",
+  "finance.pnl_print.generated_note": "报表生成日期：",
   "finance.institutional.title": "机构订单 / 发票",
   "finance.institutional.list.item_count_suffix": " 等{count}项",
   "finance.institutional.subtitle": "B2B / 机构大单专用：先开票后付款、或先收定金后结算，与一般顾客销售订单分开处理。",
