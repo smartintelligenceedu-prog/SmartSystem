@@ -34,6 +34,7 @@ export interface CampaignRow {
   pic_analyst_report_fee_amount: number | null;
   institution_party_id: string | null;
   institution_name: string | null;
+  free_report_total_cost: number;
   created_at: string;
 }
 
@@ -61,6 +62,14 @@ export async function listCampaigns(): Promise<CampaignRow[]> {
     institutionPartyIds.length > 0 ? await admin.from("organizations").select("party_id, legal_name").in("party_id", institutionPartyIds) : { data: [] };
   const institutionNameByParty = new Map((orgs ?? []).map((o) => [o.party_id, o.legal_name]));
 
+  // Free-report cost is a small enough table to just sum in app code rather
+  // than a group-by RPC — see listFreeReportGrants() below for the detail log.
+  const { data: freeReports } = await admin.from("channel_campaign_free_reports").select("campaign_id, cost").in("campaign_id", campaigns.map((c) => c.id));
+  const freeReportCostByCampaign = new Map<string, number>();
+  for (const r of freeReports ?? []) {
+    freeReportCostByCampaign.set(r.campaign_id, (freeReportCostByCampaign.get(r.campaign_id) ?? 0) + Number(r.cost));
+  }
+
   return campaigns.map((c) => ({
     id: c.id,
     name: c.name,
@@ -73,6 +82,42 @@ export async function listCampaigns(): Promise<CampaignRow[]> {
     pic_analyst_report_fee_amount: c.pic_analyst_report_fee_amount === null ? null : Number(c.pic_analyst_report_fee_amount),
     institution_party_id: c.institution_party_id,
     institution_name: c.institution_party_id ? (institutionNameByParty.get(c.institution_party_id) ?? null) : null,
+    free_report_total_cost: freeReportCostByCampaign.get(c.id) ?? 0,
     created_at: c.created_at,
+  }));
+}
+
+export interface FreeReportGrantRow {
+  id: string;
+  campaign_id: string;
+  campaign_name: string;
+  recipient_name: string;
+  report_tier: string;
+  cost: number;
+  notes: string | null;
+  created_at: string;
+}
+
+export async function listFreeReportGrants(): Promise<FreeReportGrantRow[]> {
+  const admin = createAdminClient();
+  const { data: grants } = await admin
+    .from("channel_campaign_free_reports")
+    .select("id, campaign_id, recipient_name, report_tier, cost, notes, created_at")
+    .order("created_at", { ascending: false });
+  if (!grants || grants.length === 0) return [];
+
+  const campaignIds = [...new Set(grants.map((g) => g.campaign_id))];
+  const { data: campaigns } = await admin.from("channel_campaigns").select("id, name").in("id", campaignIds);
+  const nameByCampaign = new Map((campaigns ?? []).map((c) => [c.id, c.name]));
+
+  return grants.map((g) => ({
+    id: g.id,
+    campaign_id: g.campaign_id,
+    campaign_name: nameByCampaign.get(g.campaign_id) ?? "—",
+    recipient_name: g.recipient_name,
+    report_tier: g.report_tier,
+    cost: Number(g.cost),
+    notes: g.notes,
+    created_at: g.created_at,
   }));
 }

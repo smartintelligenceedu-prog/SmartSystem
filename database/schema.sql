@@ -233,6 +233,27 @@ create table channel_campaigns (
 create index idx_channel_campaigns_pic on channel_campaigns(pic_analyst_id);
 create index idx_channel_campaigns_institution on channel_campaigns(institution_party_id);
 
+-- Migration 067 — free/complimentary diagnostic report given away by a PIC
+-- during an institutional sales visit. Deliberately NOT modeled as an
+-- orders/order_items row: it carries a real report-production cost but must
+-- never touch revenue recognition, AR, or the commission engine, all of
+-- which key off orders. A direct-entry expense record (same posting style as
+-- manual_expense in finance/actions.ts) keeps it fully isolated from those
+-- triggers while still giving PIC/institution attribution via campaign_id
+-- and a real ledger trail via journal_entry_id.
+create table channel_campaign_free_reports (
+  id uuid primary key default gen_random_uuid(),
+  campaign_id uuid not null references channel_campaigns(id),
+  recipient_name text not null,
+  report_tier text not null check (report_tier in ('standard', 'upgrade')),
+  cost numeric(12,2) not null,
+  notes text,
+  posted_by uuid references users(id),
+  journal_entry_id uuid references journal_entries(id),
+  created_at timestamptz not null default now()
+);
+create index idx_channel_campaign_free_reports_campaign on channel_campaign_free_reports(campaign_id);
+
 -- ============================================================================
 -- 4. CRM
 -- ============================================================================

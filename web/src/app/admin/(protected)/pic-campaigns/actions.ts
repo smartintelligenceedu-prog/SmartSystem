@@ -163,3 +163,95 @@ export async function updateCampaignInstitution(
   revalidatePath("/admin/pic-campaigns");
   return { status: "success" };
 }
+
+async function buildFreeReportGrantSchema() {
+  return z.object({
+    campaign_id: z.string().uuid(await t("pic_campaigns.error.campaign_required")),
+    recipient_name: z.string().trim().min(1, await t("pic_campaigns.error.recipient_required")),
+    report_tier: z.enum(["standard", "upgrade"]),
+    notes: z.string().trim().optional(),
+  });
+}
+
+export type RecordFreeReportGrantState = { status: "idle" } | { status: "error"; message: string } | { status: "success" };
+
+// Deliberately posts straight to the ledger with no separate review queue —
+// same direct-entry shape as recordOperatingExpense() in finance/actions.ts
+// — but to 6200 (Marketing Expense) instead of 5600, and denormalizing
+// campaign_id onto its own row instead of an orders/order_items row, so it
+// never touches revenue recognition or the commission engine (see the
+// migration 067 header comment for why). Restricted to back office the same
+// way as every other write in this module — see requireBackOfficeUserId().
+export async function recordFreeReportGrant(
+  _prev: RecordFreeReportGrantState,
+  formData: FormData
+): Promise<RecordFreeReportGrantState> {
+  const auth = await requireBackOfficeUserId();
+  if ("error" in auth) return { status: "error", message: auth.error };
+
+  const schema = await buildFreeReportGrantSchema();
+  const parsed = schema.safeParse({
+    campaign_id: formData.get("campaign_id"),
+    recipient_name: formData.get("recipient_name"),
+    report_tier: formData.get("report_tier"),
+    notes: formData.get("notes") || undefined,
+  });
+  if (!parsed.success) {
+    return { status: "error", message: parsed.error.issues[0]?.message ?? (await t("pic_campaigns.error.invalid_form")) };
+  }
+  const input = parsed.data;
+
+  const admin = createAdminClient();
+
+  const { data: campaign } = await admin.from("channel_campaigns").select("id, name").eq("id", input.campaign_id).maybeSingle();
+  if (!campaign) return { status: "error", message: await t("pic_campaigns.error.campaign_required") };
+
+  const { data: costSetting } = await admin.from("settings").select("value").eq("key", "report_cost").maybeSingle();
+  const standardCost = Number((costSetting?.value as Record<string, unknown> | null)?.standardCost ?? 25);
+  const upgradeCost = Number((costSetting?.value as Record<string, unknown> | null)?.upgradeCost ?? 125);
+  const cost = input.report_tier === "upgrade" ? upgradeCost : standardCost;
+
+  const { data: accounts } = await admin.from("chart_of_accounts").select("id, code").in("code", ["6200", "2100"]);
+  const accountIdByCode = new Map((accounts ?? []).map((a) => [a.code, a.id]));
+  const expenseAccountId = accountIdByCode.get("6200");
+  const liabilityAccountId = accountIdByCode.get("2100");
+  if (!expenseAccountId || !liabilityAccountId) {
+    return { status: "error", message: await t("finance.error.missing_accounts") };
+  }
+
+  const { data: entry, error: entryError } = await admin
+    .from("journal_entries")
+    .insert({
+      entry_date: new Date().toISOString().slice(0, 10),
+      source_type: "free_report_grant",
+      source_id: null,
+      description: `${await t("pic_campaigns.free_reports.ledger_description_prefix")}${campaign.name} - ${input.recipient_name}`,
+      posted_by: auth.userId,
+    })
+    .select("id")
+    .single();
+  if (entryError || !entry) {
+    return { status: "error", message: `${await t("pic_campaigns.error.create_failed")}${entryError?.message ?? (await t("finance.error.unknown_error"))}` };
+  }
+
+  const { error: linesError } = await admin.from("journal_lines").insert([
+    { journal_entry_id: entry.id, account_id: expenseAccountId, debit: cost, credit: 0 },
+    { journal_entry_id: entry.id, account_id: liabilityAccountId, debit: 0, credit: cost },
+  ]);
+  if (linesError) return { status: "error", message: `${await t("pic_campaigns.error.create_failed")}${linesError.message}` };
+
+  const { error: grantError } = await admin.from("channel_campaign_free_reports").insert({
+    campaign_id: input.campaign_id,
+    recipient_name: input.recipient_name,
+    report_tier: input.report_tier,
+    cost,
+    notes: input.notes || null,
+    posted_by: auth.userId,
+    journal_entry_id: entry.id,
+  });
+  if (grantError) return { status: "error", message: `${await t("pic_campaigns.error.create_failed")}${grantError.message}` };
+
+  revalidatePath("/admin/pic-campaigns");
+  revalidatePath("/admin/finance");
+  return { status: "success" };
+}

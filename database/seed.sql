@@ -77,3 +77,11 @@ insert into chart_of_accounts (code, name, account_type) values
   ('2200', '递延收入 (Deferred Revenue)', 'liability'),
   ('2300', '客户定金 (Customer Deposits Received)', 'liability')
 on conflict (code) do nothing;
+
+-- Free/complimentary diagnostic reports given away by a PIC during an
+-- institutional sales visit (migration 067) — a real report-production cost
+-- with zero revenue, kept out of 5600 so it doesn't mix into paying
+-- customers' COGS.
+insert into chart_of_accounts (code, name, account_type) values
+  ('6200', 'Marketing Expense - Free Diagnostic Reports', 'expense')
+on conflict (code) do nothing;

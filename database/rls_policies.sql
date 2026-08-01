@@ -479,6 +479,13 @@ create policy "pic or back office manages campaign" on channel_campaigns for upd
 create policy "back office creates campaigns" on channel_campaigns for insert
   with check (is_back_office());
 
+-- channel_campaign_free_reports: back office only, both ways — this is a
+-- direct-entry expense record (see the table comment in schema.sql), never
+-- self-served by the PIC themselves.
+alter table channel_campaign_free_reports enable row level security;
+create policy "back office only" on channel_campaign_free_reports for all
+  using (is_back_office()) with check (is_back_office());
+
 -- leads: assigned analyst only, back office sees all.
 alter table leads enable row level security;
 create policy "analyst reads assigned leads, back office reads all" on leads for select
