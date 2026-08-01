@@ -23,6 +23,10 @@ export type InstitutionalOrderState =
 export interface InstitutionalOrderRow {
   order_id: string;
   description: string;
+  // Institution legal name, or a registered individual customer's name
+  // (migration-free — orders.customer_id already existed, just unused for
+  // billing_mode='invoice' orders until now). Never both on the same order.
+  billed_to_name: string;
   total_amount: number;
   analyst_name: string | null;
   created_at: string;
@@ -69,13 +73,17 @@ export async function listInstitutionalOrders(scopedToAnalystId?: string): Promi
 
   const { data: orders } = await admin
     .from("orders")
-    .select("id, total_amount, status, created_at, invoice_requested_at, institutional_package_id, deposit_for_package_id, package_deposit_applied")
+    .select(
+      "id, total_amount, status, created_at, invoice_requested_at, institutional_package_id, deposit_for_package_id, package_deposit_applied, institution_party_id, customer_id"
+    )
     .eq("billing_mode", "invoice")
     .order("created_at", { ascending: false });
   if (!orders || orders.length === 0) return [];
 
   const orderIds = orders.map((o) => o.id);
   const packageIds = [...new Set(orders.filter((o) => o.institutional_package_id).map((o) => o.institutional_package_id as string))];
+  const institutionPartyIds = [...new Set(orders.filter((o) => o.institution_party_id).map((o) => o.institution_party_id as string))];
+  const billedCustomerIds = [...new Set(orders.filter((o) => o.customer_id).map((o) => o.customer_id as string))];
 
   const [{ data: items }, { data: invoices }, { data: payments }, { data: vouchers }, { data: packages }] = await Promise.all([
     admin.from("order_items").select("order_id, description, analyst_id").in("order_id", orderIds),
@@ -111,7 +119,15 @@ export async function listInstitutionalOrders(scopedToAnalystId?: string): Promi
   const analystIds = [...new Set((items ?? []).map((it) => it.analyst_id).filter((id): id is string => !!id))];
   const { data: analysts } = analystIds.length > 0 ? await admin.from("analysts").select("id, party_id").in("id", analystIds) : { data: [] };
   const analystPartyById = new Map((analysts ?? []).map((a) => [a.id, a.party_id]));
-  const partyIds = [...new Set([...analystPartyById.values()])];
+
+  const [{ data: institutionOrgs }, { data: billedCustomers }] = await Promise.all([
+    institutionPartyIds.length > 0 ? admin.from("organizations").select("party_id, legal_name").in("party_id", institutionPartyIds) : Promise.resolve({ data: [] }),
+    billedCustomerIds.length > 0 ? admin.from("customers").select("id, party_id").in("id", billedCustomerIds) : Promise.resolve({ data: [] }),
+  ]);
+  const institutionNameByParty = new Map((institutionOrgs ?? []).map((o) => [o.party_id, o.legal_name]));
+  const customerPartyById = new Map((billedCustomers ?? []).map((c) => [c.id, c.party_id]));
+
+  const partyIds = [...new Set([...analystPartyById.values(), ...customerPartyById.values()])];
   const { data: identities } = partyIds.length > 0 ? await admin.from("individuals").select("party_id, full_name").in("party_id", partyIds) : { data: [] };
   const nameByParty = new Map((identities ?? []).map((i) => [i.party_id, i.full_name]));
 
@@ -184,9 +200,16 @@ export async function listInstitutionalOrders(scopedToAnalystId?: string): Promi
           ? (orderItems[0]?.description ?? "—")
           : `${stripNameSuffix(orderItems[0].description)}${itemCountSuffixTemplate.replace("{count}", String(orderItems.length))}`;
 
+      const billedToName = o.institution_party_id
+        ? (institutionNameByParty.get(o.institution_party_id) ?? "—")
+        : o.customer_id
+          ? ((customerPartyById.get(o.customer_id) && nameByParty.get(customerPartyById.get(o.customer_id)!)) ?? "—")
+          : "—";
+
       return {
         order_id: o.id,
         description,
+        billed_to_name: billedToName,
         total_amount: Number(o.total_amount),
         analyst_name: (analystParty && nameByParty.get(analystParty)) ?? null,
         created_at: o.created_at,
@@ -497,24 +520,59 @@ function groupLineItems(items: { description: string | null; quantity: number; u
   return grouped;
 }
 
-async function getBillingEntity(admin: ReturnType<typeof createAdminClient>, institutionPartyId: string | null): Promise<BillingEntity | null> {
-  if (!institutionPartyId) return null;
-  const [{ data: org }, { data: address }] = await Promise.all([
-    admin.from("organizations").select("legal_name, registration_no, phone, email").eq("party_id", institutionPartyId).maybeSingle(),
-    admin.from("addresses").select("line1, line2, city, state, postcode").eq("party_id", institutionPartyId).eq("is_primary", true).maybeSingle(),
-  ]);
-  if (!org) return null;
-  return {
-    legal_name: org.legal_name,
-    ssm_number: org.registration_no,
-    phone: org.phone,
-    email: org.email,
-    address_line1: address?.line1 ?? null,
-    address_line2: address?.line2 ?? null,
-    city: address?.city ?? null,
-    state: address?.state ?? null,
-    postcode: address?.postcode ?? null,
-  };
+// An invoice-mode order is billed to EITHER a formal institution
+// (institution_party_id) OR a real registered individual customer
+// (customer_id) — never both (see createInstitutionalOrder's schema refine).
+// Both resolve to the same BillingEntity shape so the print pages
+// (invoices/[id], payments/[id]) never need to know which one they got —
+// ssm_number/address are simply null for an individual, which the print
+// templates already render conditionally.
+async function getBillingEntity(
+  admin: ReturnType<typeof createAdminClient>,
+  institutionPartyId: string | null,
+  customerId: string | null
+): Promise<BillingEntity | null> {
+  if (institutionPartyId) {
+    const [{ data: org }, { data: address }] = await Promise.all([
+      admin.from("organizations").select("legal_name, registration_no, phone, email").eq("party_id", institutionPartyId).maybeSingle(),
+      admin.from("addresses").select("line1, line2, city, state, postcode").eq("party_id", institutionPartyId).eq("is_primary", true).maybeSingle(),
+    ]);
+    if (!org) return null;
+    return {
+      legal_name: org.legal_name,
+      ssm_number: org.registration_no,
+      phone: org.phone,
+      email: org.email,
+      address_line1: address?.line1 ?? null,
+      address_line2: address?.line2 ?? null,
+      city: address?.city ?? null,
+      state: address?.state ?? null,
+      postcode: address?.postcode ?? null,
+    };
+  }
+
+  if (customerId) {
+    const { data: customer } = await admin.from("customers").select("party_id").eq("id", customerId).maybeSingle();
+    if (!customer) return null;
+    const [{ data: identity }, { data: address }] = await Promise.all([
+      admin.from("individuals").select("full_name, phone, email").eq("party_id", customer.party_id).maybeSingle(),
+      admin.from("addresses").select("line1, line2, city, state, postcode").eq("party_id", customer.party_id).eq("is_primary", true).maybeSingle(),
+    ]);
+    if (!identity) return null;
+    return {
+      legal_name: identity.full_name,
+      ssm_number: null,
+      phone: identity.phone,
+      email: identity.email,
+      address_line1: address?.line1 ?? null,
+      address_line2: address?.line2 ?? null,
+      city: address?.city ?? null,
+      state: address?.state ?? null,
+      postcode: address?.postcode ?? null,
+    };
+  }
+
+  return null;
 }
 
 // Same "归属分析师" set on the order_items row at order creation — shown on
@@ -653,7 +711,7 @@ export async function getInvoiceDetail(invoiceId: string): Promise<InvoiceDetail
   if (!invoice) return null;
 
   const [{ data: order }, { data: items }] = await Promise.all([
-    admin.from("orders").select("institution_party_id, package_deposit_applied").eq("id", invoice.order_id).maybeSingle(),
+    admin.from("orders").select("institution_party_id, customer_id, package_deposit_applied").eq("id", invoice.order_id).maybeSingle(),
     admin.from("order_items").select("description, quantity, unit_price, subtotal").eq("order_id", invoice.order_id),
   ]);
 
@@ -689,7 +747,7 @@ export async function getInvoiceDetail(invoiceId: string): Promise<InvoiceDetail
     ar_balance: arBalance,
     issued_at: invoice.issued_at,
     order_id: invoice.order_id,
-    billing_entity: await getBillingEntity(admin, order?.institution_party_id ?? null),
+    billing_entity: await getBillingEntity(admin, order?.institution_party_id ?? null, order?.customer_id ?? null),
     responsible_analyst_id: responsibleAnalyst.id,
     responsible_analyst_name: responsibleAnalyst.name,
     line_items: groupLineItems(items ?? []),
@@ -731,7 +789,7 @@ export async function getPaymentDetail(paymentId: string): Promise<PaymentDetail
   if (!payment) return null;
 
   const [{ data: order }, { data: items }, { data: receipt }] = await Promise.all([
-    admin.from("orders").select("institution_party_id, package_deposit_applied").eq("id", payment.order_id).maybeSingle(),
+    admin.from("orders").select("institution_party_id, customer_id, package_deposit_applied").eq("id", payment.order_id).maybeSingle(),
     admin.from("order_items").select("description, quantity, unit_price, subtotal").eq("order_id", payment.order_id),
     admin.from("receipts").select("receipt_no").eq("payment_id", payment.id).maybeSingle(),
   ]);
@@ -747,7 +805,7 @@ export async function getPaymentDetail(paymentId: string): Promise<PaymentDetail
     paid_at: payment.paid_at,
     reference_no: payment.reference_no,
     order_id: payment.order_id,
-    billing_entity: await getBillingEntity(admin, order?.institution_party_id ?? null),
+    billing_entity: await getBillingEntity(admin, order?.institution_party_id ?? null, order?.customer_id ?? null),
     responsible_analyst_id: responsibleAnalyst.id,
     responsible_analyst_name: responsibleAnalyst.name,
     line_items: groupLineItems(items ?? []),

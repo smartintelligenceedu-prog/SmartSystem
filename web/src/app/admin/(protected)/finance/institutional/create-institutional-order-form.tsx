@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Combobox, ComboboxInputGroup, ComboboxInput, ComboboxButtonGroup, ComboboxClear, ComboboxTrigger, ComboboxContent, ComboboxItem } from "@/components/ui/combobox";
 import { ct } from "@/lib/i18n-client";
 import { createInstitutionalOrder, type CreateInstitutionalOrderState } from "./actions";
 import { submitWithoutReset } from "@/lib/submit-without-reset";
@@ -31,13 +32,23 @@ export function CreateInstitutionalOrderForm({
   agents,
   institutions,
   packages,
+  customers,
 }: {
   agents: { id: string; name: string }[];
   institutions: InstitutionOption[];
   packages: PackageOption[];
+  customers: { id: string; name: string }[];
 }) {
   const [state, formAction, isPending] = useActionState(createInstitutionalOrder, initialState);
   const formRef = useRef<HTMLFormElement>(null);
+  // Who this order is billed to — a formal institution (schools/companies,
+  // the original use case) or a real registered individual customer paying
+  // their own deposit/final invoice (Business & CRM). Mutually exclusive —
+  // see createInstitutionalOrder's schema refine.
+  const [billingPartyType, setBillingPartyType] = useState<"institution" | "customer">("institution");
+  const [customerId, setCustomerId] = useState<string | null>(null);
+  const customerOptions = customers.map((c) => ({ value: c.id, label: c.name }));
+  const isCustomerOptionEqual = (a: { value: string }, b: { value: string }) => a.value === b.value;
   // Reusing an already-billed institution (from a prior order OR a PIC
   // channel campaign, migration 043) skips retyping SSM/address; "new"
   // keeps today's freeform entry. Defaults to "new" when there's simply
@@ -77,6 +88,7 @@ export function CreateInstitutionalOrderForm({
     if (state.status === "success") {
       formRef.current?.reset();
       setInstitutionPartyId(null);
+      setCustomerId(null);
       setPackageId(NO_PACKAGE);
       setRows([emptyRow()]);
       setUnitPrice("");
@@ -261,6 +273,60 @@ export function CreateInstitutionalOrderForm({
                 <Button
                   type="button"
                   size="sm"
+                  variant={billingPartyType === "institution" ? "default" : "outline"}
+                  onClick={() => setBillingPartyType("institution")}
+                  disabled={isPending}
+                >
+                  {ct("finance.institutional.new_order.billing_party_institution")}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={billingPartyType === "customer" ? "default" : "outline"}
+                  onClick={() => setBillingPartyType("customer")}
+                  disabled={isPending}
+                >
+                  {ct("finance.institutional.new_order.billing_party_customer")}
+                </Button>
+              </div>
+            </div>
+
+            {billingPartyType === "customer" ? (
+              <div className="space-y-2">
+                <Label htmlFor="customer_select">{ct("finance.institutional.new_order.customer_select_label")}</Label>
+                {customers.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">{ct("finance.institutional.new_order.no_customers")}</p>
+                ) : (
+                  <Combobox
+                    items={customerOptions}
+                    value={customerOptions.find((o) => o.value === customerId) ?? null}
+                    onValueChange={(o) => setCustomerId(o?.value ?? null)}
+                    isItemEqualToValue={isCustomerOptionEqual}
+                  >
+                    <ComboboxInputGroup>
+                      <ComboboxInput id="customer_select" placeholder={ct("finance.institutional.new_order.select_customer_placeholder")} />
+                      <ComboboxButtonGroup>
+                        <ComboboxClear aria-label={ct("finance.institutional.new_order.clear_selection")} />
+                        <ComboboxTrigger aria-label={ct("finance.institutional.new_order.open_customer_list")} />
+                      </ComboboxButtonGroup>
+                    </ComboboxInputGroup>
+                    <ComboboxContent emptyMessage={ct("finance.institutional.new_order.no_customer_match")}>
+                      {(item: { value: string; label: string }) => (
+                        <ComboboxItem key={item.value} value={item}>
+                          {item.label}
+                        </ComboboxItem>
+                      )}
+                    </ComboboxContent>
+                  </Combobox>
+                )}
+                <input type="hidden" name="customer_id" value={customerId ?? ""} />
+              </div>
+            ) : (
+              <>
+              <div className="mb-3 flex justify-end gap-2">
+                <Button
+                  type="button"
+                  size="sm"
                   variant={mode === "existing" ? "default" : "outline"}
                   onClick={() => setMode("existing")}
                   disabled={isPending}
@@ -271,9 +337,8 @@ export function CreateInstitutionalOrderForm({
                   {ct("finance.institutional.new_order.institution_mode_new")}
                 </Button>
               </div>
-            </div>
 
-            {mode === "existing" ? (
+              {mode === "existing" ? (
               institutions.length === 0 ? (
                 <p className="text-sm text-muted-foreground">{ct("finance.institutional.new_order.no_institutions")}</p>
               ) : (
@@ -342,6 +407,8 @@ export function CreateInstitutionalOrderForm({
                 </div>
               </div>
             )}
+              </>
+            )}
           </div>
           )}
 
@@ -354,7 +421,11 @@ export function CreateInstitutionalOrderForm({
 
           <Button
             type="submit"
-            disabled={isPending || (packageId === NO_PACKAGE && mode === "existing" && !institutionPartyId)}
+            disabled={
+              isPending ||
+              (packageId === NO_PACKAGE &&
+                (billingPartyType === "customer" ? !customerId : mode === "existing" && !institutionPartyId))
+            }
           >
             {ct("finance.institutional.new_order.submit")}
           </Button>

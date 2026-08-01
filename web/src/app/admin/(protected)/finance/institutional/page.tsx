@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { getPortalUserContext } from "@/lib/auth/context";
 import { hasAnyRole, hasRole } from "@/lib/auth/roles";
 import { listInstitutionalOrders, listInstitutionOptions, listPackages, listActivePackageOptions, type InstitutionalOrderState } from "./data";
-import { listApprovedAgents } from "../../sales-orders/data";
+import { listApprovedAgents, listOwnCustomersForPicker } from "../../sales-orders/data";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -50,7 +50,7 @@ export default async function InstitutionalOrdersPage() {
   const isAgentViewer = !canManage && !!context.analystId && hasRole(context, "pic");
   if (!canManage && !isAgentViewer) redirect("/admin");
 
-  const [orders, agents, institutions, packages, activePackageOptions] = await Promise.all([
+  const [orders, agents, institutions, packages, activePackageOptions, customers] = await Promise.all([
     listInstitutionalOrders(isAgentViewer ? context.analystId! : undefined),
     // includeAll: true — this list is only ever fetched for canManage
     // (admin/finance) viewers, who should see every agent, not just their
@@ -59,6 +59,10 @@ export default async function InstitutionalOrdersPage() {
     canManage ? listInstitutionOptions() : Promise.resolve([]),
     canManage ? listPackages() : Promise.resolve([]),
     canManage ? listActivePackageOptions() : Promise.resolve([]),
+    // includeAll: true — back office billing an individual customer's
+    // deposit/invoice isn't scoped to one analyst's own downline, same
+    // reasoning as the agents list above.
+    canManage ? listOwnCustomersForPicker("", true) : Promise.resolve([]),
   ]);
 
   return (
@@ -78,6 +82,7 @@ export default async function InstitutionalOrdersPage() {
           <TableHeader>
             <TableRow>
               <TableHead>{t("finance.institutional.column.description")}</TableHead>
+              <TableHead>{t("finance.institutional.column.billed_to")}</TableHead>
               <TableHead>{t("finance.institutional.column.amount")}</TableHead>
               <TableHead>{t("finance.institutional.column.analyst")}</TableHead>
               <TableHead>{t("finance.institutional.column.invoice_no")}</TableHead>
@@ -90,7 +95,7 @@ export default async function InstitutionalOrdersPage() {
           <TableBody>
             {orders.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="text-center text-muted-foreground">
+                <TableCell colSpan={9} className="text-center text-muted-foreground">
                   {t("finance.institutional.empty")}
                 </TableCell>
               </TableRow>
@@ -101,6 +106,7 @@ export default async function InstitutionalOrdersPage() {
                   {o.description}
                   {o.package_name && <div className="text-xs text-muted-foreground">{o.package_name}</div>}
                 </TableCell>
+                <TableCell className="text-muted-foreground">{o.billed_to_name}</TableCell>
                 <TableCell className="tabular-nums">{formatMYR(o.total_amount)}</TableCell>
                 <TableCell className="text-muted-foreground">{o.analyst_name ?? "—"}</TableCell>
                 <TableCell className="font-mono text-xs text-muted-foreground">{o.invoice_no ?? "—"}</TableCell>
@@ -203,7 +209,7 @@ export default async function InstitutionalOrdersPage() {
       {canManage && (
         <div>
           <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">{t("finance.institutional.new_order.title")}</h2>
-          <CreateInstitutionalOrderForm agents={agents} institutions={institutions} packages={activePackageOptions} />
+          <CreateInstitutionalOrderForm agents={agents} institutions={institutions} packages={activePackageOptions} customers={customers} />
         </div>
       )}
     </div>

@@ -49,11 +49,18 @@ async function buildCreateOrderSchema() {
       billing_state: z.string().trim().optional(),
       billing_postcode: z.string().trim().optional(),
       institution_phone: z.string().trim().optional(),
+      // OR a real registered customer (Business & CRM), mutually exclusive
+      // with every institution field above — an individual paying their own
+      // deposit/final invoice, not a formal institution. orders.customer_id
+      // already existed on the schema (used by the consumer sales-order
+      // flow); this is the first invoice-mode path to populate it.
+      customer_id: z.string().uuid().optional().or(z.literal("")),
     })
     .refine(
       (v) =>
         !!v.institutional_package_id ||
         !!v.institution_party_id ||
+        !!v.customer_id ||
         (v.institution_name && v.institution_name.length >= 2 && v.billing_address_line1),
       {
         message: institutionRequiredMessage,
@@ -370,6 +377,7 @@ export async function createInstitutionalOrder(
     billing_state: formData.get("billing_state") || undefined,
     billing_postcode: formData.get("billing_postcode") || undefined,
     institution_phone: formData.get("institution_phone") || undefined,
+    customer_id: formData.get("customer_id") || undefined,
   });
   if (!parsed.success) {
     return { status: "error", message: parsed.error.issues[0]?.message ?? (await t("finance.institutional.error.invalid_form")) };
@@ -388,11 +396,17 @@ export async function createInstitutionalOrder(
 
   const admin = createAdminClient();
 
-  // When a package is chosen, its own institution is authoritative — never
-  // trust a client-submitted institution_party_id/institution_name for this
-  // batch, since the package itself already fixes which institution it is.
-  let institutionPartyId: string;
+  // Three mutually-exclusive ways to resolve who this order is billed to:
+  // a package's fixed institution, an existing/new institution, or (new)
+  // a real registered customer — see buildCreateOrderSchema's refine for
+  // why exactly one of these is guaranteed to be set.
+  let institutionPartyId: string | null = null;
+  let customerId: string | null = null;
   if (input.institutional_package_id) {
+    // When a package is chosen, its own institution is authoritative — never
+    // trust a client-submitted institution_party_id/institution_name for
+    // this batch, since the package itself already fixes which institution
+    // it is.
     const { data: pkg } = await admin
       .from("institutional_packages")
       .select("institution_party_id")
@@ -400,6 +414,13 @@ export async function createInstitutionalOrder(
       .maybeSingle();
     if (!pkg) return { status: "error", message: await t("finance.institutional.error.institution_name_required") };
     institutionPartyId = pkg.institution_party_id;
+  } else if (input.customer_id) {
+    // An individual paying their own deposit/final invoice — must already be
+    // a real, active customer (Business & CRM), not typed freeform, so this
+    // order genuinely attributes back to their existing record.
+    const { data: customer } = await admin.from("customers").select("id").eq("id", input.customer_id).eq("status", "active").maybeSingle();
+    if (!customer) return { status: "error", message: await t("finance.institutional.error.customer_not_found") };
+    customerId = customer.id;
   } else {
     const resolved = await resolveInstitutionPartyId(input);
     if ("error" in resolved) return { status: "error", message: resolved.error };
@@ -416,6 +437,7 @@ export async function createInstitutionalOrder(
       billing_mode: "invoice",
       total_amount: totalAmount,
       institution_party_id: institutionPartyId,
+      customer_id: customerId,
       institutional_package_id: input.institutional_package_id || null,
     })
     .select("id")
@@ -431,6 +453,12 @@ export async function createInstitutionalOrder(
       quantity: 1,
       subtotal: input.unit_price,
       analyst_id: studentAnalystIds[i] || null,
+      // Attributing the line item back to the paying customer (matches the
+      // consumer sales-order flow's own order_items.customer_id use) is what
+      // makes this order actually show up under their CRM history — an
+      // institutional order never sets this, since its "students" are just
+      // description text, not real customer records.
+      customer_id: customerId,
     }))
   );
   if (itemError) return { status: "error", message: `${await t("finance.institutional.error.create_item_failed_prefix")}${itemError.message}` };
