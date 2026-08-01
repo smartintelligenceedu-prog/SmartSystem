@@ -49,6 +49,7 @@ export function Sidebar({ context }: { context: PortalUserContext }) {
         ? [{ href: "/admin/customers", label: isBackOffice ? ct("customer.nav.label_back_office") : ct("customer.nav.label") }]
         : []),
       ...(hasAnalyst || isBackOffice ? [{ href: "/admin/leads", label: ct("leads.nav.label") }] : []),
+      ...(context.introducerId ? [{ href: "/admin/leads/new", label: ct("leads.submit.nav.label") }] : []),
       ...(hasAnalyst || isBackOffice ? [{ href: "/admin/sales-orders", label: ct("sales_orders.page.title") }] : []),
       ...(hasAnalyst ? [{ href: "/admin/vouchers", label: ct("vouchers.nav.label") }] : []),
       ...(hasAnalyst ? [{ href: "/admin/reports", label: ct("reports.title.self") }] : isBackOffice ? [{ href: "/admin/reports", label: ct("reports.title.back_office") }] : []),
