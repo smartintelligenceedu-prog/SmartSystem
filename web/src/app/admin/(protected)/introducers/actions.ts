@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { randomUUID, randomBytes } from "crypto";
+import { randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -90,13 +90,10 @@ export async function adminCreateIntroducer(
     phone: input.phone,
   });
 
-  // introducers.referral_code has no DB default (unlike analysts.referral_code) — generate one here.
-  const referralCode = randomUUID().replace(/-/g, "");
-
+  // referral_code has a DB default (short "IN-0001" style, migration 062) — no need to generate one here.
   const { error: introducerError } = await admin.from("introducers").insert({
     party_id: party.id,
     sponsor_id: input.sponsor_id || null,
-    referral_code: referralCode,
     bank_name: input.bank_name ?? null,
     bank_account_name: input.bank_account_name ?? null,
     bank_account_no: input.bank_account_no ?? null,

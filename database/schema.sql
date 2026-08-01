@@ -157,6 +157,8 @@ create index idx_analysts_sponsor_id on analysts(sponsor_id);
 create index idx_analysts_party_id on analysts(party_id);
 create index idx_analysts_assigned_leader_id on analysts(assigned_leader_id);
 
+create sequence introducer_referral_code_seq; -- backs the "IN-0001" style referral_code default below (migration 062)
+
 create table introducers (
   -- NOT part of the analyst hierarchy: a pure external referral channel (e.g. a clinic contact).
   -- No training, no rank — just identity + payout details. Introducers CAN
@@ -166,7 +168,7 @@ create table introducers (
   id uuid primary key default gen_random_uuid(),
   party_id uuid not null references parties(id),
   sponsor_id uuid references introducers(id),
-  referral_code text not null unique,
+  referral_code text not null unique default ('IN-' || lpad(nextval('introducer_referral_code_seq')::text, 4, '0')), -- shareable code, short "IN-0001" style since migration 062
   bank_name text,
   bank_account_name text,
   bank_account_no text,

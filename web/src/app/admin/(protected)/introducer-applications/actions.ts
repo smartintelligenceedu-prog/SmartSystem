@@ -1,6 +1,6 @@
 "use server";
 
-import { randomUUID, randomBytes } from "crypto";
+import { randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -61,14 +61,12 @@ export async function approveIntroducerApplication(applicationId: string): Promi
     phone: application.phone,
   });
 
-  const referralCode = randomUUID().replace(/-/g, "");
-
+  // referral_code has a DB default (short "IN-0001" style, migration 062) — no need to generate one here.
   const { data: introducer, error: introducerError } = await admin
     .from("introducers")
     .insert({
       party_id: party.id,
       sponsor_id: application.sponsor_id,
-      referral_code: referralCode,
       bank_name: application.bank_name,
       bank_account_name: application.bank_account_name,
       bank_account_no: application.bank_account_no,
