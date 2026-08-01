@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { signOut } from "../../login/actions";
 import { NotificationsBell } from "./notifications-bell";
+import { NotificationsAutoRefresh } from "./notifications-auto-refresh";
 import type { PortalUserContext } from "@/lib/auth/context";
 import { isBackOfficeRole, type PortalRole } from "@/lib/auth/roles";
 import { t, type TranslationKey } from "@/lib/i18n";
@@ -25,7 +26,12 @@ export async function Header({ context }: { context: PortalUserContext }) {
     <header className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-6 py-3 print:hidden">
       <div />
       <div className="flex items-center gap-3">
-        {isBackOfficeRole(context) && <NotificationsBell />}
+        {isBackOfficeRole(context) && (
+          <>
+            <NotificationsAutoRefresh />
+            <NotificationsBell />
+          </>
+        )}
         <div className="text-right">
           <p className="text-sm font-medium leading-tight">{context.fullName}</p>
           <p className="text-xs text-muted-foreground leading-tight">{context.email}</p>
