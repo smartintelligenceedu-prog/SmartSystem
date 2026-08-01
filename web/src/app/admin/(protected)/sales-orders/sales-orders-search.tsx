@@ -14,6 +14,17 @@ function formatMYR(amount: number) {
   return new Intl.NumberFormat("ms-MY", { style: "currency", currency: "MYR" }).format(amount);
 }
 
+// Plain "YYYY-MM-DD" in the viewer's local time (matching <input type="date">'s
+// value format) — not toISOString(), which is UTC and can shift the date
+// across a timezone boundary near midnight.
+function toLocalDateString(iso: string): string {
+  const d = new Date(iso);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 const ORDER_STATUS_KEY = {
   pending: "order.status.pending",
   paid: "order.status.paid",
@@ -36,20 +47,51 @@ const ITEM_TYPE_KEY = {
 // an order they're part of alongside others.
 export function SalesOrdersSearch({ orders, isBackOffice }: { orders: SalesOrderRow[]; isBackOffice: boolean }) {
   const [query, setQuery] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const q = query.trim().toLowerCase();
-  const filtered = q ? orders.filter((o) => o.customer_names.some((n) => n.toLowerCase().includes(q))) : orders;
+  const filtered = orders.filter((o) => {
+    if (q && !o.customer_names.some((n) => n.toLowerCase().includes(q))) return false;
+    const orderDate = toLocalDateString(o.created_at);
+    if (dateFrom && orderDate < dateFrom) return false;
+    if (dateTo && orderDate > dateTo) return false;
+    return true;
+  });
   const itemTypeLabel = (type: string) => (type in ITEM_TYPE_KEY ? ct(ITEM_TYPE_KEY[type as keyof typeof ITEM_TYPE_KEY]) : type);
   const orderStatusLabel = (status: string) => (status in ORDER_STATUS_KEY ? ct(ORDER_STATUS_KEY[status as keyof typeof ORDER_STATUS_KEY]) : status);
 
   return (
     <div className="space-y-3">
-      <Input
-        type="text"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder={ct("sales_orders.list.search_placeholder")}
-        className="max-w-xs"
-      />
+      <div className="flex flex-wrap items-end gap-3">
+        <Input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={ct("sales_orders.list.search_placeholder")}
+          className="max-w-xs"
+        />
+        <div className="space-y-1">
+          <label className="block text-xs text-muted-foreground">{ct("sales_orders.list.date_from_label")}</label>
+          <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-40" />
+        </div>
+        <div className="space-y-1">
+          <label className="block text-xs text-muted-foreground">{ct("sales_orders.list.date_to_label")}</label>
+          <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-40" />
+        </div>
+        {(dateFrom || dateTo) && (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              setDateFrom("");
+              setDateTo("");
+            }}
+          >
+            {ct("sales_orders.list.clear_dates")}
+          </Button>
+        )}
+      </div>
       <div className="overflow-x-auto rounded-md border bg-card">
         <Table>
           <TableHeader>
