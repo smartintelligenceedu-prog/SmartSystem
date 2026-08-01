@@ -209,14 +209,18 @@ export async function adminUpdateIntroducerInfo(
 }
 
 /**
- * Generates a fresh password for an introducer who already has a login and
- * emails it to them — same pattern as adminResetAnalystPassword in
- * registrations/actions.ts. Back office never sees or sets the password
- * itself, other than as an on-screen fallback if the email fails to send.
+ * Resets the password for an introducer who already has a login and emails
+ * it to them — same pattern as adminResetAnalystPassword in
+ * registrations/actions.ts, extended with an explicit customPassword escape
+ * hatch (min 8 chars, same floor as adminCreateIntroducerLogin) for when
+ * back office needs to set a specific password themselves rather than a
+ * random one — e.g. handing it to the introducer over the phone right away.
+ * Leaving it blank keeps the original auto-generated behavior.
  */
-export async function adminResetIntroducerPassword(introducerId: string): Promise<{ ok: boolean; message: string }> {
+export async function adminResetIntroducerPassword(introducerId: string, customPassword?: string): Promise<{ ok: boolean; message: string }> {
   const auth = await requireBackOfficeUserId();
   if ("error" in auth) return { ok: false, message: auth.error };
+  if (customPassword && customPassword.length < 8) return { ok: false, message: await t("introducers.error.password_min_length") };
 
   const admin = createAdminClient();
   const { data: introducer } = await admin.from("introducers").select("party_id").eq("id", introducerId).maybeSingle();
@@ -228,7 +232,7 @@ export async function adminResetIntroducerPassword(introducerId: string): Promis
   const { data: identity } = await admin.from("individuals").select("email, full_name").eq("party_id", introducer.party_id).single();
   if (!identity?.email) return { ok: false, message: await t("introducers.error.no_email") };
 
-  const password = generatePassword();
+  const password = customPassword || generatePassword();
   const { error: authError } = await admin.auth.admin.updateUserById(userRow.auth_user_id, { password });
   if (authError) {
     return { ok: false, message: `${await t("introducers.error.reset_password_failed_prefix")}${authError.message}` };

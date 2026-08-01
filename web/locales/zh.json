@@ -519,6 +519,8 @@
   "introducers.detail.edit_email_login_note": "这位已经有登入帐号——改电邮的话，登入用的电邮也会一起更新。",
   "introducers.detail.login_heading": "登入帐号",
   "introducers.detail.no_login_note": "这位引荐人还没有开通登入帐号，请回到引荐人列表页开通。",
+  "introducers.detail.custom_password_label": "自订新密码（选填）",
+  "introducers.detail.custom_password_placeholder": "留空则系统自动生成密码",
   "introducers.detail.reset_password_button": "重设密码",
   "introducers.detail.confirm_reset_password": "确定要重设这位引荐人的密码吗？旧密码会立即失效，新密码会发邮件给他本人。",
   "introducers.cell.unassigned": "未指定",

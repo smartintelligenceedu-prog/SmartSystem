@@ -519,6 +519,8 @@
   "introducers.detail.edit_email_login_note": "This person already has a login — changing the email also updates their login email.",
   "introducers.detail.login_heading": "Login Account",
   "introducers.detail.no_login_note": "This introducer doesn't have a login account yet — go back to the Introducer list to create one.",
+  "introducers.detail.custom_password_label": "Custom New Password (optional)",
+  "introducers.detail.custom_password_placeholder": "Leave blank to auto-generate a password",
   "introducers.detail.reset_password_button": "Reset Password",
   "introducers.detail.confirm_reset_password": "Reset this introducer's password? Their old password stops working immediately and the new one is emailed to them.",
   "introducers.cell.unassigned": "Unassigned",
