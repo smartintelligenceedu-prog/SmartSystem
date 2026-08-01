@@ -32,6 +32,8 @@ export async function LeaderSection({ analystId }: { analystId: string }) {
     customer_count: 0,
     session_count: 0,
     total_revenue: 0,
+    yearly_revenue: 0,
+    monthly_revenue: 0,
     team_commission_total: 0,
     pending_team_count: 0,
   };
@@ -58,6 +60,8 @@ export async function LeaderSection({ analystId }: { analystId: string }) {
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <StatCard label={await t("dashboard.leader.stat.team_summary")} value={String(summary.analyst_count)} />
         <StatCard label={await t("dashboard.leader.stat.team_sales")} value={formatMYR(summary.total_revenue)} />
+        <StatCard label={await t("dashboard.leader.stat.team_sales_yearly")} value={formatMYR(summary.yearly_revenue)} />
+        <StatCard label={await t("dashboard.leader.stat.team_sales_monthly")} value={formatMYR(summary.monthly_revenue)} />
         <StatCard label={await t("dashboard.leader.stat.team_commission")} value={formatMYR(summary.team_commission_total)} />
         <StatCard label={await t("dashboard.leader.stat.override_summary")} value={formatMYR(overrideSummary)} />
         <StatCard label={await t("dashboard.leader.stat.pending_team_approval")} value={String(summary.pending_team_count)} />

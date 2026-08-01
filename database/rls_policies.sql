@@ -558,6 +558,8 @@ returns table (
   customer_count bigint,
   session_count bigint,
   total_revenue numeric,
+  yearly_revenue numeric, -- migration 063 — current calendar year
+  monthly_revenue numeric, -- migration 063 — current calendar month
   team_commission_total numeric,
   pending_team_count bigint
 )
@@ -568,6 +570,8 @@ as $$
 declare
   requester_id uuid := current_analyst_id();
   target_id uuid := coalesce(for_analyst_id, requester_id);
+  v_year_start timestamptz := date_trunc('year', now());
+  v_month_start timestamptz := date_trunc('month', now());
 begin
   if requester_id is null and not is_back_office() then
     raise exception 'not authorized';
@@ -592,6 +596,10 @@ begin
          where analyst_id in (select id from analysts where assigned_leader_id = target_id)),
       coalesce((select sum(total_amount) from orders
          where analyst_id in (select id from analysts where assigned_leader_id = target_id) and status = 'paid'), 0),
+      coalesce((select sum(total_amount) from orders
+         where analyst_id in (select id from analysts where assigned_leader_id = target_id) and status = 'paid' and created_at >= v_year_start), 0),
+      coalesce((select sum(total_amount) from orders
+         where analyst_id in (select id from analysts where assigned_leader_id = target_id) and status = 'paid' and created_at >= v_month_start), 0),
       coalesce((
         -- Team Commission includes the leader's OWN commission_records, not
         -- just team members' — sponsor/leader-type commission is credited

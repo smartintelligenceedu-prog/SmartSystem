@@ -1588,7 +1588,9 @@
 
   "dashboard.leader.title": "Team Management (Leader)",
   "dashboard.leader.stat.team_summary": "Team Member (Direct Sponsor)",
-  "dashboard.leader.stat.team_sales": "Team Sales",
+  "dashboard.leader.stat.team_sales": "Overall Team Sales",
+  "dashboard.leader.stat.team_sales_yearly": "Yearly Team Sales",
+  "dashboard.leader.stat.team_sales_monthly": "Monthly Team Sales",
   "dashboard.leader.stat.team_commission": "Team Commission",
   "dashboard.leader.stat.override_summary": "Commission this Month",
   "dashboard.leader.stat.pending_team_approval": "Pending Team Approval",

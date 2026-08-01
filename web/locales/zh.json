@@ -1588,7 +1588,9 @@
 
   "dashboard.leader.title": "团队管理（Leader）",
   "dashboard.leader.stat.team_summary": "团队人数（直属下线）",
-  "dashboard.leader.stat.team_sales": "Team Sales",
+  "dashboard.leader.stat.team_sales": "Overall Team Sales",
+  "dashboard.leader.stat.team_sales_yearly": "Yearly Team Sales",
+  "dashboard.leader.stat.team_sales_monthly": "Monthly Team Sales",
   "dashboard.leader.stat.team_commission": "Team Commission",
   "dashboard.leader.stat.override_summary": "本月佣金",
   "dashboard.leader.stat.pending_team_approval": "Pending Team Approval",
