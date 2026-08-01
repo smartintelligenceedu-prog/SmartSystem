@@ -561,6 +561,8 @@ returns table (
   yearly_revenue numeric, -- migration 063 — current calendar year
   monthly_revenue numeric, -- migration 063 — current calendar month
   team_commission_total numeric,
+  yearly_team_commission numeric, -- migration 064 — current calendar year
+  monthly_team_commission numeric, -- migration 064 — current calendar month
   pending_team_count bigint
 )
 language plpgsql
@@ -608,6 +610,18 @@ begin
         select sum(commission_amount) from commission_records
         where analyst_id = target_id
            or analyst_id in (select id from analysts where assigned_leader_id = target_id)
+      ), 0),
+      coalesce((
+        select sum(commission_amount) from commission_records
+        where (analyst_id = target_id
+           or analyst_id in (select id from analysts where assigned_leader_id = target_id))
+          and calculated_at >= v_year_start
+      ), 0),
+      coalesce((
+        select sum(commission_amount) from commission_records
+        where (analyst_id = target_id
+           or analyst_id in (select id from analysts where assigned_leader_id = target_id))
+          and calculated_at >= v_month_start
       ), 0),
       (select count(*) from analysts where assigned_leader_id = target_id and status = 'pending');
 end;
