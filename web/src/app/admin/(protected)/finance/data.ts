@@ -184,13 +184,14 @@ export interface ProfitAndLoss {
   netProfit: number;
 }
 
-// "YYYY-MM" -> the month's [start, end) date bounds, end exclusive (first
-// day of the next month) so a query never has to guess how many days are in
-// the month.
-function monthBounds(month: string): { start: string; end: string } {
-  const [year, mon] = month.split("-").map(Number);
-  const start = `${month}-01`;
-  const endDate = new Date(year, mon, 1); // mon is 1-indexed already, so this is the 1st of next month
+// "YYYY-MM" x2 -> the [start, end) date bounds spanning from the first day
+// of fromMonth through the last day of toMonth, end exclusive (first day of
+// the month after toMonth) so a query never has to guess how many days are
+// in a given month. A single-month view is just fromMonth === toMonth.
+function monthRangeBounds(fromMonth: string, toMonth: string): { start: string; end: string } {
+  const [, toYear, toMon] = toMonth.match(/^(\d{4})-(\d{2})$/)!.map(Number);
+  const start = `${fromMonth}-01`;
+  const endDate = new Date(toYear, toMon, 1); // toMon is 1-indexed already, so this is the 1st of the month after toMonth
   const end = endDate.toISOString().slice(0, 10);
   return { start, end };
 }
@@ -203,12 +204,14 @@ export function currentMonth(): string {
 // Dashboard's "Monthly Sales - commission expense" estimate, which reads
 // orders/commission_records directly and includes unposted transactions.
 // The two will diverge until back office posts everything; that's expected
-// during the transition, not a bug. `month` is "YYYY-MM"; a back-dated
-// expense entered today for an earlier month shows up when that month is
-// selected, not in whichever month happens to be open right now.
-export async function getProfitAndLoss(month: string): Promise<ProfitAndLoss> {
+// during the transition, not a bug. `fromMonth`/`toMonth` are "YYYY-MM",
+// inclusive on both ends — a single-month view just passes the same value
+// for both. A back-dated expense entered today for an earlier month shows
+// up when that month is in range, not only in whichever month happens to
+// be open right now.
+export async function getProfitAndLoss(fromMonth: string, toMonth: string): Promise<ProfitAndLoss> {
   const admin = createAdminClient();
-  const { start: monthStart, end: monthEnd } = monthBounds(month);
+  const { start: monthStart, end: monthEnd } = monthRangeBounds(fromMonth, toMonth);
 
   const { data: accounts } = await admin
     .from("chart_of_accounts")
@@ -275,9 +278,9 @@ export interface ReportDeliverySummary {
 // breakdown automatically (account 5600, auto-posted by
 // calculate_report_override_commission() — see commission_engine.sql). This
 // is just the count-by-tier the user separately asked for alongside the P&L.
-export async function getReportDeliverySummary(month: string): Promise<ReportDeliverySummary> {
+export async function getReportDeliverySummary(fromMonth: string, toMonth: string): Promise<ReportDeliverySummary> {
   const admin = createAdminClient();
-  const { start: monthStart, end: monthEnd } = monthBounds(month);
+  const { start: monthStart, end: monthEnd } = monthRangeBounds(fromMonth, toMonth);
 
   const { data: items } = await admin
     .from("order_items")
@@ -311,9 +314,9 @@ export interface JournalEntryRow {
 // N) — a back-dated expense entered late should still show up when the
 // user is reviewing that month's books, no matter how many entries were
 // posted after it. `month` is "YYYY-MM".
-export async function listJournalEntriesForMonth(month: string): Promise<JournalEntryRow[]> {
+export async function listJournalEntriesForMonth(fromMonth: string, toMonth: string): Promise<JournalEntryRow[]> {
   const admin = createAdminClient();
-  const { start: monthStart, end: monthEnd } = monthBounds(month);
+  const { start: monthStart, end: monthEnd } = monthRangeBounds(fromMonth, toMonth);
   const { data: entries } = await admin
     .from("journal_entries")
     .select("id, entry_date, description, source_type, status")

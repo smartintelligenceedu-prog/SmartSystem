@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { PostToLedgerButton } from "./post-to-ledger-button";
 import { UnpostedTransactionsList } from "./unposted-transactions-list";
 import { RecordExpenseForm } from "./record-expense-form";
-import { MonthPicker } from "./month-picker";
+import { DateRangePicker } from "./date-range-picker";
 import { VoidExpenseButton } from "./void-expense-button";
 import { EditExpenseDescription } from "./edit-expense-description";
 import { t } from "@/lib/i18n";
@@ -41,22 +41,24 @@ function StatCard({ label, value }: { label: string; value: string }) {
 export default async function FinancePage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string }>;
+  searchParams: Promise<{ from?: string; to?: string }>;
 }) {
   const context = await getPortalUserContext();
   if (!context) redirect("/admin/login");
   if (!hasAnyRole(context, ["admin", "finance"])) redirect("/admin");
 
-  const { month: monthParam } = await searchParams;
-  const month = monthParam || currentMonth();
-  const isCurrentMonth = month === currentMonth();
+  const { from: fromParam, to: toParam } = await searchParams;
+  const fromMonth = fromParam || currentMonth();
+  const toMonth = toParam || currentMonth();
+  const isSingleCurrentMonth = fromMonth === toMonth && fromMonth === currentMonth();
+  const periodLabel = fromMonth === toMonth ? fromMonth : `${fromMonth} – ${toMonth}`;
 
   const [unposted, unpostedTransactions, pnl, recentEntries, reportSummary] = await Promise.all([
     getUnpostedSummary(),
     listUnpostedTransactions(),
-    getProfitAndLoss(month),
-    listJournalEntriesForMonth(month),
-    getReportDeliverySummary(month),
+    getProfitAndLoss(fromMonth, toMonth),
+    listJournalEntriesForMonth(fromMonth, toMonth),
+    getReportDeliverySummary(fromMonth, toMonth),
   ]);
   const debitPrefix = await t("finance.page.debit_prefix");
   const creditPrefix = await t("finance.page.credit_prefix");
@@ -69,11 +71,10 @@ export default async function FinancePage({
           <h1 className="text-xl font-semibold">{await t("finance.page.title")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{await t("finance.page.subtitle")}</p>
         </div>
-        <div className="flex items-center gap-2">
-          <MonthPicker month={month} />
-          <Button size="sm" variant="secondary" render={<Link href="/admin/finance/institutional">{await t("finance.institutional.nav_link")}</Link>} />
-        </div>
+        <Button size="sm" variant="secondary" render={<Link href="/admin/finance/institutional">{await t("finance.institutional.nav_link")}</Link>} />
       </div>
+
+      <DateRangePicker from={fromMonth} to={toMonth} />
 
       <Card>
         <CardContent className="flex flex-wrap items-center justify-between gap-4 pt-6">
@@ -104,9 +105,9 @@ export default async function FinancePage({
 
       <div>
         <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">
-          {month}
+          {periodLabel}
           {await t("finance.page.pnl_title_suffix")}
-          {!isCurrentMonth && <span className="ml-2 text-primary normal-case">{await t("finance.page.not_current_month")}</span>}
+          {!isSingleCurrentMonth && <span className="ml-2 text-primary normal-case">{await t("finance.page.not_current_month")}</span>}
         </h2>
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           <StatCard label="Total Revenue" value={formatMYR(pnl.totalRevenue)} />
