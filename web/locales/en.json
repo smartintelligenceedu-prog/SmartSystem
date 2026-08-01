@@ -1573,8 +1573,8 @@
   "dashboard.pic.description_suffix": " channel development campaign(s) (campus/institution/roadshow) under your name. A full campaign management interface will be available in a future phase.",
   "dashboard.nothing_to_show": "Your account doesn't have any dashboard content configured yet — please contact an admin to confirm your role settings.",
 
-  "login.title": "Back Office Login",
-  "login.subtitle": "For company back-office staff only",
+  "login.title": "Portal Login",
+  "login.subtitle": "Sign in to your Smart Intelligence Edu account",
   "login.error.not_authorized": "This account doesn't have back-office access — please contact an admin",
   "login.error.incomplete_profile": "Account profile is incomplete — please contact an admin",
   "login.error.suspended": "This account has been suspended — please contact an admin",

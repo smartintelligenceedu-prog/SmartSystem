@@ -1573,8 +1573,8 @@
   "dashboard.pic.description_suffix": " 个通路开发活动（校园/机构/roadshow）。完整的活动管理界面会在未来阶段开放。",
   "dashboard.nothing_to_show": "你的帐号目前没有对应任何仪表板内容，请联系管理员确认角色设定。",
 
-  "login.title": "后台登入",
-  "login.subtitle": "仅限公司后台人员使用",
+  "login.title": "登入门户",
+  "login.subtitle": "登入您的智赋宝账号",
   "login.error.not_authorized": "此帐号没有后台权限，请联系管理员",
   "login.error.incomplete_profile": "帐号资料不完整，请联系管理员",
   "login.error.suspended": "此帐号已被停用，请联系管理员",
