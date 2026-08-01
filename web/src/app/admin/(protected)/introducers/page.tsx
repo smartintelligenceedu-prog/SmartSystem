@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getPortalUserContext } from "@/lib/auth/context";
 import { isBackOfficeRole } from "@/lib/auth/roles";
 import { listIntroducers, listActiveIntroducersForSponsorPicker, listApprovedAnalystsForAssignment } from "./data";
@@ -61,7 +62,11 @@ export default async function IntroducersPage() {
             )}
             {introducers.map((row) => (
               <TableRow key={row.introducer_id}>
-                <TableCell>{row.full_name}</TableCell>
+                <TableCell>
+                  <Link href={`/admin/introducers/${row.introducer_id}`} className="hover:underline">
+                    {row.full_name}
+                  </Link>
+                </TableCell>
                 <TableCell className="text-muted-foreground">
                   <div>{row.email}</div>
                   <div>{row.phone}</div>

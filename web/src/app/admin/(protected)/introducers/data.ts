@@ -103,6 +103,45 @@ export async function listApprovedAnalystsForAssignment(): Promise<{ id: string;
   return analysts.map((a) => ({ id: a.id, name: nameByParty.get(a.party_id) ?? "—" })).sort((a, b) => a.name.localeCompare(b.name));
 }
 
+export interface IntroducerDetail {
+  introducer_id: string;
+  party_id: string;
+  full_name: string;
+  email: string;
+  phone: string;
+  bank_name: string;
+  bank_account_name: string;
+  bank_account_no: string;
+  has_login: boolean;
+}
+
+export async function getIntroducerDetail(introducerId: string): Promise<IntroducerDetail | null> {
+  const admin = createAdminClient();
+  const { data: introducer } = await admin
+    .from("introducers")
+    .select("id, party_id, bank_name, bank_account_name, bank_account_no")
+    .eq("id", introducerId)
+    .maybeSingle();
+  if (!introducer) return null;
+
+  const [{ data: identity }, { data: userRow }] = await Promise.all([
+    admin.from("individuals").select("full_name, email, phone").eq("party_id", introducer.party_id).maybeSingle(),
+    admin.from("users").select("id").eq("party_id", introducer.party_id).maybeSingle(),
+  ]);
+
+  return {
+    introducer_id: introducer.id,
+    party_id: introducer.party_id,
+    full_name: identity?.full_name ?? "",
+    email: identity?.email ?? "",
+    phone: identity?.phone ?? "",
+    bank_name: introducer.bank_name ?? "",
+    bank_account_name: introducer.bank_account_name ?? "",
+    bank_account_no: introducer.bank_account_no ?? "",
+    has_login: !!userRow,
+  };
+}
+
 export async function listActiveIntroducersForSponsorPicker(): Promise<{ id: string; name: string }[]> {
   const admin = createAdminClient();
   const { data: introducers } = await admin.from("introducers").select("id, party_id").eq("status", "active");
