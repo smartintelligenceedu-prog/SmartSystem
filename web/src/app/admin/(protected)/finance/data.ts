@@ -176,8 +176,10 @@ export interface AccountBalance {
 
 export interface ProfitAndLoss {
   revenue: AccountBalance[];
+  commission: AccountBalance[];
   expense: AccountBalance[];
   totalRevenue: number;
+  totalCommission: number;
   totalExpense: number;
   netProfit: number;
 }
@@ -228,20 +230,38 @@ export async function getProfitAndLoss(month: string): Promise<ProfitAndLoss> {
   }
 
   const revenue: AccountBalance[] = [];
+  const commission: AccountBalance[] = [];
   const expense: AccountBalance[] = [];
   for (const a of accounts ?? []) {
     const totals = byAccount.get(a.id) ?? { debit: 0, credit: 0 };
     if (a.account_type === "revenue") {
       revenue.push({ code: a.code, name: a.name, balance: totals.credit - totals.debit });
+    } else if (a.name.startsWith("Commission Expense")) {
+      // Payouts to analysts/introducers/PIC — kept separate from the
+      // company's own costs (report production, operating expenses) so
+      // back office can see "money paid out to the team" distinctly from
+      // "money the company itself spent". Split by name prefix rather than
+      // account_type/code range since 5600 报告制作成本 (report COGS) sits in
+      // the same 5xxx code block but isn't a commission payout.
+      commission.push({ code: a.code, name: a.name, balance: totals.debit - totals.credit });
     } else {
       expense.push({ code: a.code, name: a.name, balance: totals.debit - totals.credit });
     }
   }
 
   const totalRevenue = revenue.reduce((s, r) => s + r.balance, 0);
+  const totalCommission = commission.reduce((s, c) => s + c.balance, 0);
   const totalExpense = expense.reduce((s, e) => s + e.balance, 0);
 
-  return { revenue, expense, totalRevenue, totalExpense, netProfit: totalRevenue - totalExpense };
+  return {
+    revenue,
+    commission,
+    expense,
+    totalRevenue,
+    totalCommission,
+    totalExpense,
+    netProfit: totalRevenue - totalCommission - totalExpense,
+  };
 }
 
 export interface ReportDeliverySummary {

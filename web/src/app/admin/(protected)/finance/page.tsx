@@ -108,9 +108,10 @@ export default async function FinancePage({
           {await t("finance.page.pnl_title_suffix")}
           {!isCurrentMonth && <span className="ml-2 text-primary normal-case">{await t("finance.page.not_current_month")}</span>}
         </h2>
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           <StatCard label="Total Revenue" value={formatMYR(pnl.totalRevenue)} />
-          <StatCard label="Total Expense" value={formatMYR(pnl.totalExpense)} />
+          <StatCard label="Total Commission" value={formatMYR(pnl.totalCommission)} />
+          <StatCard label="Expense" value={formatMYR(pnl.totalExpense)} />
           <StatCard label="Net Profit" value={formatMYR(pnl.netProfit)} />
         </div>
         <p className="mt-2 text-xs text-muted-foreground">{await t("finance.page.pnl_note")}</p>
@@ -126,11 +127,22 @@ export default async function FinancePage({
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-3">
         <div>
           <h3 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">{await t("finance.page.revenue_accounts")}</h3>
           <div className="divide-y divide-slate-100 rounded-md border bg-card">
             {pnl.revenue.map((a) => (
+              <div key={a.code} className="flex justify-between px-3 py-2 text-sm">
+                <span className="text-muted-foreground">{a.code} {a.name}</span>
+                <span className="tabular-nums">{formatMYR(a.balance)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <h3 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">{await t("finance.page.commission_accounts")}</h3>
+          <div className="divide-y divide-slate-100 rounded-md border bg-card">
+            {pnl.commission.map((a) => (
               <div key={a.code} className="flex justify-between px-3 py-2 text-sm">
                 <span className="text-muted-foreground">{a.code} {a.name}</span>
                 <span className="tabular-nums">{formatMYR(a.balance)}</span>

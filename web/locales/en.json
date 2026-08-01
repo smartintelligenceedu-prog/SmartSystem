@@ -299,6 +299,7 @@
   "finance.page.not_current_month": "Not current month",
   "finance.page.pnl_note": "This figure only counts posted transactions — it may differ from the Dashboard's \"quick estimate\" Net Profit until everything is posted, after which the two will converge.",
   "finance.page.revenue_accounts": "Revenue Accounts",
+  "finance.page.commission_accounts": "Commission Accounts",
   "finance.page.expense_accounts": "Expense Accounts",
   "finance.page.recent_entries": "Recent Postings",
   "finance.page.no_entries": "No postings yet",
