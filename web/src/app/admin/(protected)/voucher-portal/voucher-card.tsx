@@ -3,11 +3,13 @@
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { CheckIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 import { submitWithoutReset } from "@/lib/submit-without-reset";
 import { ct } from "@/lib/i18n-client";
 import { updateMarketingVoucher, deleteMarketingVoucher, setMarketingVoucherActive, type VoucherFormState } from "./actions";
@@ -21,8 +23,17 @@ export function VoucherCard({ voucher, canManage }: { voucher: MarketingVoucherR
   const [isEditing, setIsEditing] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
+  const [selected, setSelected] = useState(false);
   const [state, formAction] = useActionState(updateMarketingVoucher, initialState);
   const formRef = useRef<HTMLFormElement>(null);
+
+  // Management buttons (Edit/Activate/Delete) sit inside the same card the
+  // click-to-select handler is on — without this they'd bubble up and flip
+  // the selected state every time back office deletes or deactivates a
+  // voucher, which reads as "why did this turn blue when I clicked delete".
+  function stopSelectToggle(e: React.MouseEvent) {
+    e.stopPropagation();
+  }
 
   useEffect(() => {
     if (state.status === "success") {
@@ -99,19 +110,39 @@ export function VoucherCard({ voucher, canManage }: { voucher: MarketingVoucherR
   );
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-lg border bg-card">
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => setSelected((prev) => !prev)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          setSelected((prev) => !prev);
+        }
+      }}
+      className={cn(
+        "relative flex cursor-pointer flex-col overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-sm transition-all duration-[250ms] ease-in-out",
+        "hover:-translate-y-1 hover:border-[#BAE6FD] hover:shadow-lg",
+        selected && "border-2 border-[#0052CC] bg-[#F0F7FF]"
+      )}
+    >
+      {selected && (
+        <div className="absolute top-3 right-3 z-10 flex size-5 items-center justify-center rounded-full bg-[#0052CC] text-white shadow-sm">
+          <CheckIcon className="size-3.5" strokeWidth={3} />
+        </div>
+      )}
       {canManage ? imageAndTitle : <Link href={`/admin/voucher-portal/${voucher.id}`}>{imageAndTitle}</Link>}
       <div className="flex flex-1 flex-col gap-2 p-3 pt-2">
         {voucher.terms && <p className="whitespace-pre-line text-xs text-muted-foreground">{voucher.terms}</p>}
         {canManage && (
           <div className="mt-auto flex flex-wrap gap-2">
-            <Button size="xs" variant="outline" onClick={() => setIsEditing(true)}>
+            <Button size="xs" variant="outline" onClick={(e) => { stopSelectToggle(e); setIsEditing(true); }}>
               {ct("voucher_portal.action.edit")}
             </Button>
-            <Button size="xs" variant="outline" onClick={doToggleActive} disabled={isPending}>
+            <Button size="xs" variant="outline" onClick={(e) => { stopSelectToggle(e); doToggleActive(); }} disabled={isPending}>
               {voucher.is_active ? ct("voucher_portal.action.deactivate") : ct("voucher_portal.action.activate")}
             </Button>
-            <Button size="xs" variant="destructive" onClick={doDelete} disabled={isPending}>
+            <Button size="xs" variant="destructive" onClick={(e) => { stopSelectToggle(e); doDelete(); }} disabled={isPending}>
               {ct("voucher_portal.action.delete")}
             </Button>
           </div>
