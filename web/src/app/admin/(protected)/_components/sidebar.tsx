@@ -36,6 +36,7 @@ export function Sidebar({ context }: { context: PortalUserContext }) {
 
   const hasAnalyst = !!context.analystId;
   const isLeader = hasRole(context, "leader") && hasAnalyst;
+  const isPic = hasRole(context, "pic") && hasAnalyst;
   const isBackOffice = isBackOfficeRole(context);
   const isFinance = hasAnyRole(context, ["admin", "finance"]);
   const isAdmin = hasRole(context, "admin");
@@ -53,7 +54,7 @@ export function Sidebar({ context }: { context: PortalUserContext }) {
       ...(hasAnalyst || isBackOffice ? [{ href: "/admin/sales-orders", label: ct("sales_orders.page.title") }] : []),
       ...(hasAnalyst ? [{ href: "/admin/vouchers", label: ct("vouchers.nav.label") }] : []),
       ...(hasAnalyst ? [{ href: "/admin/reports", label: ct("reports.title.self") }] : isBackOffice ? [{ href: "/admin/reports", label: ct("reports.title.back_office") }] : []),
-      ...(hasAnalyst && !isFinance ? [{ href: "/admin/finance/institutional", label: ct("finance.institutional.nav.agent_label") }] : []),
+      ...(isPic && !isFinance ? [{ href: "/admin/finance/institutional", label: ct("finance.institutional.nav.agent_label") }] : []),
     ],
     partnership: [
       ...(isBackOffice ? [{ href: "/admin/introducers", label: ct("introducers.page.title") }] : []),

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getPortalUserContext } from "@/lib/auth/context";
-import { hasAnyRole } from "@/lib/auth/roles";
+import { hasAnyRole, hasRole } from "@/lib/auth/roles";
 import { listInstitutionalOrders, listInstitutionOptions, listPackages, listActivePackageOptions, type InstitutionalOrderState } from "./data";
 import { listApprovedAgents } from "../../sales-orders/data";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -43,7 +43,11 @@ export default async function InstitutionalOrdersPage() {
   if (!context) redirect("/admin/login");
 
   const canManage = hasAnyRole(context, ["admin", "finance"]);
-  const isAgentViewer = !canManage && !!context.analystId;
+  // Institutional/B2B order handling is a PIC-only capability, not a
+  // general analyst one — every analyst used to get isAgentViewer just for
+  // having an analyst profile at all, showing this page (and its sidebar
+  // link) to plain agents who have nothing to do with institutional deals.
+  const isAgentViewer = !canManage && !!context.analystId && hasRole(context, "pic");
   if (!canManage && !isAgentViewer) redirect("/admin");
 
   const [orders, agents, institutions, packages, activePackageOptions] = await Promise.all([
