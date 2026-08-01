@@ -596,12 +596,28 @@ begin
          where owner_analyst_id in (select id from analysts where assigned_leader_id = target_id)),
       (select count(*) from detection_sessions
          where analyst_id in (select id from analysts where assigned_leader_id = target_id)),
-      coalesce((select sum(total_amount) from orders
-         where analyst_id in (select id from analysts where assigned_leader_id = target_id) and status = 'paid'), 0),
-      coalesce((select sum(total_amount) from orders
-         where analyst_id in (select id from analysts where assigned_leader_id = target_id) and status = 'paid' and created_at >= v_year_start), 0),
-      coalesce((select sum(total_amount) from orders
-         where analyst_id in (select id from analysts where assigned_leader_id = target_id) and status = 'paid' and created_at >= v_month_start), 0),
+      coalesce((
+        -- Team Sales includes the leader's OWN orders, not just team
+        -- members' — same reasoning as team_commission_total below: a
+        -- leader with no downline yet would otherwise see RM0 here even
+        -- while personally closing sales.
+        select sum(total_amount) from orders
+        where (analyst_id = target_id
+           or analyst_id in (select id from analysts where assigned_leader_id = target_id))
+          and status = 'paid'
+      ), 0),
+      coalesce((
+        select sum(total_amount) from orders
+        where (analyst_id = target_id
+           or analyst_id in (select id from analysts where assigned_leader_id = target_id))
+          and status = 'paid' and created_at >= v_year_start
+      ), 0),
+      coalesce((
+        select sum(total_amount) from orders
+        where (analyst_id = target_id
+           or analyst_id in (select id from analysts where assigned_leader_id = target_id))
+          and status = 'paid' and created_at >= v_month_start
+      ), 0),
       coalesce((
         -- Team Commission includes the leader's OWN commission_records, not
         -- just team members' — sponsor/leader-type commission is credited
