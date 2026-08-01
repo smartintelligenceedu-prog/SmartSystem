@@ -24,6 +24,7 @@ export interface RegistrationDetail extends RegistrationListRow {
   // same conditional handling in getRegistrationDetail below.
   registration_order_id: string | null;
   order_id: string | null;
+  order_status: string | null;
   ic_or_passport_no: string;
   bank_name: string | null;
   bank_account_name: string | null;
@@ -153,6 +154,7 @@ export async function getRegistrationDetail(analystId: string): Promise<Registra
   // purchase) — everything below in this block stays null/"—" for them.
   let regOrder: { id: string; order_id: string; kit_id: string; ic_document_url: string | null; payment_screenshot_url: string | null; rejection_reason: string | null } | null = null;
   let kit: { name: string; price: number } | null = null;
+  let orderStatus: string | null = null;
   if (analyst.registration_order_id) {
     const { data } = await admin
       .from("registration_orders")
@@ -161,8 +163,12 @@ export async function getRegistrationDetail(analystId: string): Promise<Registra
       .maybeSingle();
     regOrder = data;
     if (regOrder) {
-      const { data: kitData } = await admin.from("registration_kits").select("name, price").eq("id", regOrder.kit_id).maybeSingle();
+      const [{ data: kitData }, { data: orderData }] = await Promise.all([
+        admin.from("registration_kits").select("name, price").eq("id", regOrder.kit_id).maybeSingle(),
+        admin.from("orders").select("status").eq("id", regOrder.order_id).maybeSingle(),
+      ]);
       kit = kitData;
+      orderStatus = orderData?.status ?? null;
     }
   }
 
@@ -196,6 +202,7 @@ export async function getRegistrationDetail(analystId: string): Promise<Registra
     party_id: analyst.party_id,
     registration_order_id: regOrder?.id ?? null,
     order_id: regOrder?.order_id ?? null,
+    order_status: orderStatus,
     status: analyst.status as AnalystStatus,
     created_at: analyst.created_at,
     full_name: identity.full_name,

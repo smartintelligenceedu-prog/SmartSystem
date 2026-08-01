@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -139,6 +140,13 @@ export function ReviewPanel({
             <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{ct("registrations.detail.registration_payment_heading")}</p>
             <Field label={ct("registrations.detail.field.kit")} value={`${detail.kit_name} · ${formatMYR(detail.price)}`} />
             <DocumentLink label={ct("registrations.detail.field.payment_screenshot")} url={detail.payment_screenshot_signed_url} />
+            {detail.order_status === "paid" && detail.order_id && (
+              <Button
+                size="sm"
+                variant="secondary"
+                render={<Link href={`/admin/sales-orders/${detail.order_id}/receipt`}>{ct("registrations.detail.view_receipt")}</Link>}
+              />
+            )}
           </CardContent>
         </Card>
       )}
