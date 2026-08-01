@@ -71,13 +71,6 @@ export async function runMonthlyPayout(_prev: RunPayoutState, formData: FormData
     .maybeSingle();
   if (existingRun) return { status: "error", message: await t("payroll.error.period_already_run") };
 
-  const { data: run, error: runError } = await admin
-    .from("commission_payout_runs")
-    .insert({ period_start, period_end, processed_by: auth.userId })
-    .select("id")
-    .single();
-  if (runError) return { status: "error", message: `${await t("payroll.error.run_failed")}${runError.message}` };
-
   // period_end is a date; calculated_at is a timestamptz — add one day so
   // the whole end date is included regardless of time-of-day.
   const periodEndExclusive = new Date(`${period_end}T00:00:00+08:00`);
@@ -91,9 +84,23 @@ export async function runMonthlyPayout(_prev: RunPayoutState, formData: FormData
     .gte("calculated_at", periodStartInclusive)
     .lt("calculated_at", periodEndExclusive.toISOString());
 
+  // Only create the run row once there's something to actually settle —
+  // creating it upfront (as this used to) permanently locks the period out
+  // via the existingRun check above even when zero records were processed,
+  // with no way to retry later once commissions for that period actually
+  // get approved (this is exactly what happened to a real July period:
+  // an early/premature run found nothing, but the period could never be
+  // re-run once the real commissions were approved afterward).
   if (!approvedRecords || approvedRecords.length === 0) {
     return { status: "success", message: await t("payroll.run.no_approved_records") };
   }
+
+  const { data: run, error: runError } = await admin
+    .from("commission_payout_runs")
+    .insert({ period_start, period_end, processed_by: auth.userId })
+    .select("id")
+    .single();
+  if (runError) return { status: "error", message: `${await t("payroll.error.run_failed")}${runError.message}` };
 
   const recordIds = approvedRecords.map((r) => r.id);
   const { error: tagError } = await admin
