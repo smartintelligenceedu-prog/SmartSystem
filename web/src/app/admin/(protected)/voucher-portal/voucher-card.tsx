@@ -3,7 +3,6 @@
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { CheckIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -126,11 +125,6 @@ export function VoucherCard({ voucher, canManage }: { voucher: MarketingVoucherR
         selected && "border-2 border-[#0052CC] bg-[#F0F7FF]"
       )}
     >
-      {selected && (
-        <div className="absolute top-3 right-3 z-10 flex size-5 items-center justify-center rounded-full bg-[#0052CC] text-white shadow-sm">
-          <CheckIcon className="size-3.5" strokeWidth={3} />
-        </div>
-      )}
       {canManage ? imageAndTitle : <Link href={`/admin/voucher-portal/${voucher.id}`}>{imageAndTitle}</Link>}
       <div className="flex flex-1 flex-col gap-2 p-3 pt-2">
         {voucher.terms && <p className="whitespace-pre-line text-xs text-muted-foreground">{voucher.terms}</p>}
