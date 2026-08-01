@@ -291,11 +291,33 @@ export async function getReportDeliverySummary(fromMonth: string, toMonth: strin
 
   const standardCount = (items ?? []).filter((i) => i.report_tier === "standard").length;
   const upgradeCount = (items ?? []).filter((i) => i.report_tier === "upgrade").length;
+
+  // totalCost is the real amount actually posted to the ledger (5600 报告
+  // 制作成本) for reports delivered in this range — not re-derived from
+  // today's standard/upgrade rate. Report cost became configurable in
+  // /admin/settings (migration 060), so a rate change part-way through a
+  // period would make count × current-rate wrong for reports delivered
+  // under the old rate; summing the real postings stays correct
+  // automatically no matter how many times the rate changes, and matches
+  // the Expense breakdown's own 5600 balance exactly.
+  const { data: costEntries } = await admin
+    .from("journal_entries")
+    .select("id")
+    .eq("source_type", "report_delivery")
+    .gte("entry_date", monthStart)
+    .lt("entry_date", monthEnd);
+  const costEntryIds = (costEntries ?? []).map((e) => e.id);
+  const { data: costLines } =
+    costEntryIds.length > 0
+      ? await admin.from("journal_lines").select("debit").in("journal_entry_id", costEntryIds)
+      : { data: [] };
+  const totalCost = (costLines ?? []).reduce((sum, l) => sum + Number(l.debit ?? 0), 0);
+
   return {
     standardCount,
     upgradeCount,
     totalCount: standardCount + upgradeCount,
-    totalCost: standardCount * 25 + upgradeCount * 125,
+    totalCost,
   };
 }
 
