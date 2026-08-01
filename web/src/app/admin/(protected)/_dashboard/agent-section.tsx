@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,8 +44,39 @@ export async function AgentSection({ analystId }: { analystId: string }) {
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  const { data: analyst } = await supabase.from("analysts").select("referral_code, status, party_id").eq("id", analystId).single();
+  const { data: analyst } = await supabase
+    .from("analysts")
+    .select("referral_code, status, party_id, registration_order_id")
+    .eq("id", analystId)
+    .single();
   const { data: identity } = await supabase.from("individuals").select("full_name, nickname").eq("party_id", analyst?.party_id ?? "").maybeSingle();
+
+  // "My Registration Receipt" quick action — the RM688 kit purchase has no
+  // customer record and never appears in /admin/sales-orders (that list is
+  // filtered to order_type = 'detection_service' only), so without this the
+  // analyst has no way to ever find/print it. Only offered once the order
+  // is actually paid (i.e. their registration was approved) — a pending
+  // order has nothing worth printing yet.
+  //
+  // registration_orders is back-office-only RLS, and a registration order's
+  // orders.analyst_id is never set (register/actions.ts never assigns it —
+  // there's no approved analyst yet at submission time), so the self-scope
+  // "analyst reads own orders" policy wouldn't match here either. The admin
+  // client is used for just these two lookups, strictly scoped to the id
+  // this analyst's own row already pointed at — no cross-account read.
+  let registrationReceiptOrderId: string | null = null;
+  if (analyst?.registration_order_id) {
+    const admin = createAdminClient();
+    const { data: regOrder } = await admin
+      .from("registration_orders")
+      .select("order_id")
+      .eq("id", analyst.registration_order_id)
+      .maybeSingle();
+    if (regOrder?.order_id) {
+      const { data: regPaymentOrder } = await admin.from("orders").select("id, status").eq("id", regOrder.order_id).maybeSingle();
+      if (regPaymentOrder?.status === "paid") registrationReceiptOrderId = regPaymentOrder.id;
+    }
+  }
 
   const [
     { count: availableCredit },
@@ -202,6 +234,13 @@ export async function AgentSection({ analystId }: { analystId: string }) {
           <Button size="sm" variant="secondary" render={<Link href="/admin/customers">{await t("dashboard.agent.action.view_customers")}</Link>} />
           <Button size="sm" variant="secondary" render={<Link href="/admin/commission">{await t("dashboard.agent.action.my_commission")}</Link>} />
           <Button size="sm" variant="secondary" render={<Link href="/admin/reports">{await t("dashboard.agent.action.my_reports")}</Link>} />
+          {registrationReceiptOrderId && (
+            <Button
+              size="sm"
+              variant="secondary"
+              render={<Link href={`/admin/sales-orders/${registrationReceiptOrderId}/receipt`}>{await t("dashboard.agent.action.my_registration_receipt")}</Link>}
+            />
+          )}
         </div>
       </div>
 

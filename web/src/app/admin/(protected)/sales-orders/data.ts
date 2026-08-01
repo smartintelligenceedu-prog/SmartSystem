@@ -194,10 +194,59 @@ export interface ReceiptDetail {
   items: ReceiptLineItem[];
 }
 
+// Printable receipt for a registration-fee order (the RM688 kit purchase) —
+// this order type has no order_items.customer_id/analyst_id and no
+// orders.analyst_id at all (see register/actions.ts's insert), since the
+// registrant themselves is the payer and isn't an approved analyst yet at
+// submission time. Reads through registration_orders.party_id instead to
+// find who paid, and — once approved — their own analysts.id, so canView
+// on the receipt page treats them the same as any other order they're
+// entitled to see.
+async function getRegistrationReceiptDetail(
+  admin: ReturnType<typeof createAdminClient>,
+  order: { id: string; total_amount: number; status: string; created_at: string }
+): Promise<ReceiptDetail | null> {
+  const { data: regOrder } = await admin
+    .from("registration_orders")
+    .select("party_id, kit_id")
+    .eq("order_id", order.id)
+    .maybeSingle();
+  if (!regOrder) return null;
+
+  const [{ data: identity }, { data: kit }, { data: analyst }, { data: item }] = await Promise.all([
+    admin.from("individuals").select("full_name").eq("party_id", regOrder.party_id).maybeSingle(),
+    admin.from("registration_kits").select("name").eq("id", regOrder.kit_id).maybeSingle(),
+    admin.from("analysts").select("id").eq("party_id", regOrder.party_id).maybeSingle(),
+    admin.from("order_items").select("description, subtotal").eq("order_id", order.id).eq("item_type", "registration_kit").maybeSingle(),
+  ]);
+
+  const registrantName = identity?.full_name ?? "—";
+  const analystId = analyst?.id ?? null;
+
+  return {
+    order_id: order.id,
+    order_analyst_id: null,
+    item_analyst_ids: analystId ? [analystId] : [],
+    analyst_name: registrantName,
+    customer_name: registrantName,
+    total_amount: Number(order.total_amount),
+    status: order.status,
+    created_at: order.created_at,
+    items: [
+      {
+        description: item?.description ?? kit?.name ?? "—",
+        customer_name: null,
+        subtotal: Number(item?.subtotal ?? order.total_amount),
+      },
+    ],
+  };
+}
+
 // Printable receipt for a regular (non-institutional) detection_service
-// order — analysts couldn't get one anywhere before this; the only
-// printable document in the whole system was the institutional (B2B)
-// invoice/receipt, which is back-office/finance only.
+// order, or a registration-fee order — analysts couldn't get either
+// anywhere before this; the only printable document in the whole system
+// was the institutional (B2B) invoice/receipt, which is back-office/finance
+// only.
 export async function getReceiptDetail(orderId: string): Promise<ReceiptDetail | null> {
   const admin = createAdminClient();
   const { data: order } = await admin
@@ -205,7 +254,9 @@ export async function getReceiptDetail(orderId: string): Promise<ReceiptDetail |
     .select("id, analyst_id, total_amount, status, created_at, order_type")
     .eq("id", orderId)
     .maybeSingle();
-  if (!order || order.order_type !== "detection_service") return null;
+  if (!order) return null;
+  if (order.order_type === "registration") return getRegistrationReceiptDetail(admin, order);
+  if (order.order_type !== "detection_service") return null;
 
   const { data: items } = await admin.from("order_items").select("id, description, customer_id, analyst_id, subtotal").eq("order_id", orderId);
 

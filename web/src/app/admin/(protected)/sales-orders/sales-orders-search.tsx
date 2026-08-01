@@ -102,13 +102,13 @@ export function SalesOrdersSearch({ orders, isBackOffice }: { orders: SalesOrder
               <TableHead>{ct("sales_orders.list.column.type")}</TableHead>
               <TableHead>{ct("sales_orders.list.column.amount")}</TableHead>
               <TableHead>{ct("sales_orders.list.column.status")}</TableHead>
-              {isBackOffice && <TableHead></TableHead>}
+              <TableHead></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.length === 0 && (
               <TableRow>
-                <TableCell colSpan={isBackOffice ? 7 : 5} className="text-center text-muted-foreground">
+                <TableCell colSpan={isBackOffice ? 7 : 6} className="text-center text-muted-foreground">
                   {orders.length === 0 ? ct("sales_orders.list.empty_no_orders") : ct("sales_orders.list.empty_no_match")}
                 </TableCell>
               </TableRow>
@@ -125,17 +125,24 @@ export function SalesOrdersSearch({ orders, isBackOffice }: { orders: SalesOrder
                 <TableCell>
                   <Badge variant={o.order_status === "paid" ? "secondary" : "outline"}>{orderStatusLabel(o.order_status)}</Badge>
                 </TableCell>
-                {isBackOffice && (
-                  <TableCell>
-                    {o.review_status === "pending" && (
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    {isBackOffice && o.review_status === "pending" && (
                       <Button
                         size="sm"
                         variant="outline"
                         render={<Link href={`/admin/sales-orders/${o.order_id}`}>{ct("sales_orders.list.review_button")}</Link>}
                       />
                     )}
-                  </TableCell>
-                )}
+                    {o.order_status === "paid" && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        render={<Link href={`/admin/sales-orders/${o.order_id}/receipt`}>{ct("sales_orders.list.print_receipt_button")}</Link>}
+                      />
+                    )}
+                  </div>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
