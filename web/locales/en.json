@@ -1238,6 +1238,7 @@
   "schedule.no_devices": "No detection devices available",
   "schedule.free_all_day": "Free all day",
   "schedule.booking.toggle": "Book Device Detection",
+  "schedule.booking.view_only_note": "Only a Machine Assessor can book a device — you can currently only view machine status.",
   "schedule.booking.customer_label": "Select Customer",
   "schedule.booking.child_label": "Test Subject",
   "schedule.booking.self_option": "(Customer themself)",
@@ -1286,6 +1287,7 @@
   "schedule.form.error.no_user_row": "Couldn't find your user record",
   "schedule.form.error.subject_not_found": "Couldn't find the subject's record",
   "schedule.form.error.no_permission": "You don't have permission to do this",
+  "schedule.form.error.machine_assessor_required": "Only a Machine Assessor can book a device",
   "schedule.form.error.invalid_form": "There's a problem with the form",
 
   "payroll.nav.label": "Payroll",
@@ -1545,6 +1547,7 @@
   "role.leader": "Team Leader",
   "role.introducer": "Introducer",
   "role.pic": "Channel PIC",
+  "role.machine_assessor": "Machine Assessor",
 
   "profile.page.title": "My Account",
   "profile.language_heading": "语言 / Language",

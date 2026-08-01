@@ -331,7 +331,7 @@ export async function adminReassignSponsor(
   return { ok: true, message: await t("registrations.success.sponsor_reassigned") };
 }
 
-const GRANTABLE_EXTRA_ROLES = ["leader", "pic"] as const;
+const GRANTABLE_EXTRA_ROLES = ["leader", "pic", "machine_assessor"] as const;
 type GrantableExtraRole = (typeof GRANTABLE_EXTRA_ROLES)[number];
 
 // Auto-promotion: the moment a downline's login goes live, their sponsor

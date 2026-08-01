@@ -3,7 +3,7 @@
 // getPortalUserContext() from context.ts. Display labels now live in
 // locales/*.json under the "role.*" keys (see ROLE_KEY maps at each call site).
 
-export type PortalRole = "admin" | "finance" | "back_office" | "agent" | "leader" | "introducer" | "pic";
+export type PortalRole = "admin" | "finance" | "back_office" | "agent" | "leader" | "introducer" | "pic" | "machine_assessor";
 
 export interface RolesBearer {
   roles: PortalRole[];

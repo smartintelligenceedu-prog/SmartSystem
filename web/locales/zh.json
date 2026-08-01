@@ -1238,6 +1238,7 @@
   "schedule.no_devices": "目前没有可用的检测设备",
   "schedule.free_all_day": "今日空闲",
   "schedule.booking.toggle": "预约设备检测",
+  "schedule.booking.view_only_note": "只有认证测试师才能预约仪器，你目前只能查看设备状态。",
   "schedule.booking.customer_label": "选择顾客",
   "schedule.booking.child_label": "受测者",
   "schedule.booking.self_option": "（顾客本人）",
@@ -1286,6 +1287,7 @@
   "schedule.form.error.no_user_row": "找不到对应的使用者资料",
   "schedule.form.error.subject_not_found": "找不到受测者的资料",
   "schedule.form.error.no_permission": "没有权限执行此操作",
+  "schedule.form.error.machine_assessor_required": "只有认证测试师才能预约仪器",
   "schedule.form.error.invalid_form": "表单资料有误",
 
   "payroll.nav.label": "薪资结算",
@@ -1545,6 +1547,7 @@
   "role.leader": "团队主管",
   "role.introducer": "引荐人",
   "role.pic": "通路负责人",
+  "role.machine_assessor": "认证测试师",
 
   "profile.page.title": "我的帐户",
   "profile.language_heading": "语言 / Language",

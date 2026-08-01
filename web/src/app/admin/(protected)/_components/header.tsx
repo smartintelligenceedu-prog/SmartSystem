@@ -15,6 +15,7 @@ const ROLE_KEY: Record<PortalRole, TranslationKey> = {
   leader: "role.leader",
   introducer: "role.introducer",
   pic: "role.pic",
+  machine_assessor: "role.machine_assessor",
 };
 
 export async function Header({ context }: { context: PortalUserContext }) {

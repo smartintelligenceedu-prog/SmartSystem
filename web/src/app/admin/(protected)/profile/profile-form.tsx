@@ -12,7 +12,7 @@ import type { PortalRole } from "@/lib/auth/roles";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { ct } from "@/lib/i18n-client";
 
-const ROLE_KEY: Record<PortalRole, "role.admin" | "role.finance" | "role.back_office" | "role.agent" | "role.leader" | "role.introducer" | "role.pic"> = {
+const ROLE_KEY: Record<PortalRole, "role.admin" | "role.finance" | "role.back_office" | "role.agent" | "role.leader" | "role.introducer" | "role.pic" | "role.machine_assessor"> = {
   admin: "role.admin",
   finance: "role.finance",
   back_office: "role.back_office",
@@ -20,6 +20,7 @@ const ROLE_KEY: Record<PortalRole, "role.admin" | "role.finance" | "role.back_of
   leader: "role.leader",
   introducer: "role.introducer",
   pic: "role.pic",
+  machine_assessor: "role.machine_assessor",
 };
 
 export function ProfileForm({ context }: { context: PortalUserContext }) {

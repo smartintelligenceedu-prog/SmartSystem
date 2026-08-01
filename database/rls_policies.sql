@@ -63,6 +63,27 @@ as $$
   )
 $$;
 
+-- Machine Assessor (认证测试师): an extra role layered on top of an existing
+-- analyst login, same shape as leader/pic (migration 004/066). Gates the
+-- ability to book/reserve a device from the general device-schedule page —
+-- everyone else with page access still sees machine status/availability,
+-- just can't create a booking there.
+create or replace function is_machine_assessor()
+returns boolean
+language sql stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from user_roles ur
+    join roles r on r.id = ur.role_id
+    join users u on u.id = ur.user_id
+    where u.auth_user_id = auth.uid()
+      and r.name = 'machine_assessor'
+  )
+$$;
+
 -- Recursive downline lookup (excludes root_id itself)
 create or replace function downline_analyst_ids(root_id uuid)
 returns table(id uuid)

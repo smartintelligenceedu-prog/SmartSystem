@@ -8,7 +8,9 @@ import { getChildContext, getCustomerSelfContext } from "../report/data";
 import { createCustomer } from "../../../actions";
 import { t } from "@/lib/i18n";
 
-async function requireCallerContext(): Promise<{ analystId: string | null; isBackOffice: boolean } | { error: string }> {
+async function requireCallerContext(): Promise<
+  { analystId: string | null; isBackOffice: boolean; isMachineAssessor: boolean } | { error: string }
+> {
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },
@@ -18,10 +20,13 @@ async function requireCallerContext(): Promise<{ analystId: string | null; isBac
   const { data: userRow } = await supabase.from("users").select("id, party_id").eq("auth_user_id", user.id).single();
   if (!userRow) return { error: await t("schedule.form.error.no_user_row") };
 
-  const { data: isBackOffice } = await supabase.rpc("is_back_office");
+  const [{ data: isBackOffice }, { data: isMachineAssessor }] = await Promise.all([
+    supabase.rpc("is_back_office"),
+    supabase.rpc("is_machine_assessor"),
+  ]);
   const { data: analyst } = await supabase.from("analysts").select("id").eq("party_id", userRow.party_id).maybeSingle();
 
-  return { analystId: analyst?.id ?? null, isBackOffice: !!isBackOffice };
+  return { analystId: analyst?.id ?? null, isBackOffice: !!isBackOffice, isMachineAssessor: !!isMachineAssessor };
 }
 
 // Built per-call, not a module-scope constant — see the identical note in
@@ -190,6 +195,9 @@ export async function scheduleAppointmentForNewCustomer(
   const auth = await requireCallerContext();
   if ("error" in auth) return { status: "error", message: auth.error };
   if (!auth.analystId) return { status: "error", message: await t("schedule.form.error.no_permission") };
+  if (!auth.isBackOffice && !auth.isMachineAssessor) {
+    return { status: "error", message: await t("schedule.form.error.machine_assessor_required") };
+  }
 
   const schema = await buildNewCustomerScheduleSchema();
   const parsed = schema.safeParse({
@@ -275,6 +283,9 @@ export async function reserveDeviceForBooth(_prev: ScheduleAppointmentState, for
   const auth = await requireCallerContext();
   if ("error" in auth) return { status: "error", message: auth.error };
   if (!auth.analystId) return { status: "error", message: await t("schedule.form.error.no_permission") };
+  if (!auth.isBackOffice && !auth.isMachineAssessor) {
+    return { status: "error", message: await t("schedule.form.error.machine_assessor_required") };
+  }
 
   const schema = await buildBoothReservationSchema();
   const parsed = schema.safeParse({

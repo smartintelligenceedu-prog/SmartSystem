@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getPortalUserContext } from "@/lib/auth/context";
-import { isBackOfficeRole } from "@/lib/auth/roles";
+import { hasRole, isBackOfficeRole } from "@/lib/auth/roles";
 import {
   listDeviceScheduleForDate,
   listActiveCenters,
@@ -33,6 +33,11 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
   const selectedDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : todayDateString();
 
   const isBackOffice = isBackOfficeRole(context);
+  // Booking a device from this general schedule view (as opposed to the
+  // per-customer schedule pages, which stay open to any analyst booking
+  // their own customer) is restricted to certified Machine Assessors —
+  // everyone else with page access still sees machine status/availability.
+  const canBookMachine = isBackOffice || hasRole(context, "machine_assessor");
   const [groups, centers, devices, customers, boothLabel] = await Promise.all([
     listDeviceScheduleForDate(selectedDate),
     listActiveCenters(),
@@ -50,7 +55,11 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
         </div>
       </div>
 
-      <InlineBookingForm customers={customers} centers={centers} devices={devices} />
+      {canBookMachine ? (
+        <InlineBookingForm customers={customers} centers={centers} devices={devices} />
+      ) : (
+        <p className="text-sm text-muted-foreground">{t("schedule.booking.view_only_note")}</p>
+      )}
 
       <form className="flex items-end gap-2">
         <div className="space-y-2">
