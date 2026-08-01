@@ -29,7 +29,14 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
   const context = await getPortalUserContext();
   if (!context) redirect("/admin/login");
   const isBackOffice = isBackOfficeRole(context);
-  if (!context.analystId && !context.introducerId && !isBackOffice) redirect("/admin");
+  // Introducers used to be let in here to see who they'd referred, but that
+  // exposed each customer's full sales/commission/report detail on the
+  // linked detail page (see the matching removal in
+  // [customerId]/page.tsx's canView) — far more than the aggregate
+  // "X customers referred this month" stat their own dashboard already
+  // shows. Removed entirely per explicit request rather than trying to
+  // trim individual columns/fields.
+  if (!context.analystId && !isBackOffice) redirect("/admin");
 
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page) || 1);
@@ -51,11 +58,7 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const canManageRow = (ownerAnalystId: string) => isBackOffice || ownerAnalystId === context.analystId;
 
-  const subtitle = isBackOffice
-    ? await t("customer.list.subtitle_all")
-    : context.analystId
-      ? await t("customer.list.subtitle_own")
-      : await t("customer.list.subtitle_introducer");
+  const subtitle = isBackOffice ? await t("customer.list.subtitle_all") : await t("customer.list.subtitle_own");
 
   // t() is async (locale-aware) and can't be called inside the rows.map()
   // callback below — resolved up front instead.

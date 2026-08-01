@@ -74,8 +74,16 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
   if (!detail) notFound();
 
   const isBackOffice = isBackOfficeRole(context);
-  const canView =
-    isBackOffice || detail.owner_analyst_id === context.analystId || (context.introducerId && detail.acquired_via_introducer_id === context.introducerId);
+  // Introducers used to be let in here via acquired_via_introducer_id match
+  // (they can see who they referred), but that exposed the full customer
+  // record — order amounts, the assigned analyst's own commission records,
+  // self-assessment/report status, activity timeline — far beyond the
+  // aggregate "X customers referred this month" stat their own dashboard
+  // already shows. Removed entirely per explicit request; introducers no
+  // longer have a route into /admin/customers at all (see the matching
+  // guard in customers/page.tsx), but this stays defense-in-depth against a
+  // direct URL hit.
+  const canView = isBackOffice || detail.owner_analyst_id === context.analystId;
   if (!canView) redirect("/admin/customers");
 
   const canEdit = isBackOffice || detail.owner_analyst_id === context.analystId;

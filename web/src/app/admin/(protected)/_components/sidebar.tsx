@@ -45,7 +45,7 @@ export function Sidebar({ context }: { context: PortalUserContext }) {
 
   const groupItems: Record<GroupKey, NavItem[]> = {
     business: [
-      ...(hasAnalyst || context.introducerId || isBackOffice
+      ...(hasAnalyst || isBackOffice
         ? [{ href: "/admin/customers", label: isBackOffice ? ct("customer.nav.label_back_office") : ct("customer.nav.label") }]
         : []),
       ...(hasAnalyst || isBackOffice ? [{ href: "/admin/leads", label: ct("leads.nav.label") }] : []),
