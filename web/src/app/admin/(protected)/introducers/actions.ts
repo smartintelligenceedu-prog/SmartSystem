@@ -205,6 +205,30 @@ export async function adminUpdateIntroducerInfo(
   return { ok: true, message: await t("introducers.success.info_updated") };
 }
 
+// Migration 070 — lets back office fix/set an introducer's sponsor after
+// the fact (e.g. applied before their referrer's link was known, or was
+// attributed to the wrong person) — same self-reference/cycle guards as
+// adminReassignSponsor() for analysts in registrations/actions.ts, enforced
+// server-side in the RPC itself, not just in this action.
+export async function adminReassignIntroducerSponsor(
+  introducerId: string,
+  newSponsorId: string | null
+): Promise<{ ok: boolean; message: string }> {
+  const auth = await requireBackOfficeUserId();
+  if ("error" in auth) return { ok: false, message: auth.error };
+
+  const admin = createAdminClient();
+  const { error } = await admin.rpc("admin_reassign_introducer_sponsor", {
+    p_introducer_id: introducerId,
+    p_new_sponsor_id: newSponsorId,
+  });
+  if (error) return { ok: false, message: `${await t("introducers.error.reassign_sponsor_failed_prefix")}${error.message}` };
+
+  revalidatePath(`/admin/introducers/${introducerId}`);
+  revalidatePath("/admin/introducers");
+  return { ok: true, message: await t("introducers.success.sponsor_reassigned") };
+}
+
 /**
  * Resets the password for an introducer who already has a login and emails
  * it to them — same pattern as adminResetAnalystPassword in

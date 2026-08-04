@@ -1,8 +1,9 @@
 import { redirect, notFound } from "next/navigation";
 import { getPortalUserContext } from "@/lib/auth/context";
 import { isBackOfficeRole } from "@/lib/auth/roles";
-import { getIntroducerDetail } from "../data";
+import { getIntroducerDetail, listActiveIntroducersForSponsorPicker } from "../data";
 import { EditIntroducerInfoForm } from "./edit-introducer-info-form";
+import { ReassignIntroducerSponsorForm } from "./reassign-introducer-sponsor-form";
 import { IntroducerLoginAccountCard } from "./introducer-login-account-card";
 import { BackButton } from "../../_components/back-button";
 import { t } from "@/lib/i18n";
@@ -14,7 +15,7 @@ export default async function IntroducerDetailPage({ params }: { params: Promise
   if (!isBackOfficeRole(context)) redirect("/admin");
 
   const { introducerId } = await params;
-  const detail = await getIntroducerDetail(introducerId);
+  const [detail, introducers] = await Promise.all([getIntroducerDetail(introducerId), listActiveIntroducersForSponsorPicker()]);
   if (!detail) notFound();
 
   return (
@@ -26,6 +27,7 @@ export default async function IntroducerDetailPage({ params }: { params: Promise
       </div>
 
       <EditIntroducerInfoForm detail={detail} />
+      <ReassignIntroducerSponsorForm detail={detail} introducers={introducers} />
       <IntroducerLoginAccountCard detail={detail} />
     </div>
   );

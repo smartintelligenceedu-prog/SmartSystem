@@ -113,13 +113,15 @@ export interface IntroducerDetail {
   bank_account_name: string;
   bank_account_no: string;
   has_login: boolean;
+  sponsor_id: string | null;
+  sponsor_name: string | null;
 }
 
 export async function getIntroducerDetail(introducerId: string): Promise<IntroducerDetail | null> {
   const admin = createAdminClient();
   const { data: introducer } = await admin
     .from("introducers")
-    .select("id, party_id, bank_name, bank_account_name, bank_account_no")
+    .select("id, party_id, bank_name, bank_account_name, bank_account_no, sponsor_id")
     .eq("id", introducerId)
     .maybeSingle();
   if (!introducer) return null;
@@ -128,6 +130,15 @@ export async function getIntroducerDetail(introducerId: string): Promise<Introdu
     admin.from("individuals").select("full_name, email, phone").eq("party_id", introducer.party_id).maybeSingle(),
     admin.from("users").select("id").eq("party_id", introducer.party_id).maybeSingle(),
   ]);
+
+  let sponsorName: string | null = null;
+  if (introducer.sponsor_id) {
+    const { data: sponsor } = await admin.from("introducers").select("party_id").eq("id", introducer.sponsor_id).maybeSingle();
+    if (sponsor) {
+      const { data: sponsorIdentity } = await admin.from("individuals").select("full_name").eq("party_id", sponsor.party_id).maybeSingle();
+      sponsorName = sponsorIdentity?.full_name ?? null;
+    }
+  }
 
   return {
     introducer_id: introducer.id,
@@ -139,6 +150,8 @@ export async function getIntroducerDetail(introducerId: string): Promise<Introdu
     bank_account_name: introducer.bank_account_name ?? "",
     bank_account_no: introducer.bank_account_no ?? "",
     has_login: !!userRow,
+    sponsor_id: introducer.sponsor_id,
+    sponsor_name: sponsorName,
   };
 }
 
