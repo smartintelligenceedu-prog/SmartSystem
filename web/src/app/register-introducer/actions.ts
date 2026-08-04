@@ -63,6 +63,46 @@ export async function submitIntroducerApplication(
     sponsorId = sponsor.id;
   }
 
+  // Auto-detect the sponsor from the applicant's own customer history when
+  // they didn't type a code themselves — someone becoming an introducer has
+  // very often already been a customer brought in by one, and shouldn't
+  // need to know/re-enter that introducer's code to keep the same lineage
+  // (2-level introducer commission chain) going. Matches by phone, the same
+  // "same real-world person, different DB row" convention already used for
+  // the introducer commission phone-duplicate guard (migration 035) — never
+  // by IC/email. Silently no-ops (never blocks the application) whenever:
+  // the phone matches no customer, the matched customer wasn't themselves
+  // introducer-referred, or they have no delivered report yet (i.e. they
+  // registered but never actually completed a detection session) — in every
+  // one of those cases this applicant just becomes a sponsor-less/"root"
+  // introducer, exactly like leaving the sponsor code field blank today.
+  if (!sponsorId && input.phone) {
+    // customers <-> individuals have no direct foreign key (both point at
+    // parties), so this is two flat queries merged in application code —
+    // same convention as everywhere else in this codebase that needs a
+    // customer's phone (e.g. registrations/data.ts's sponsor-name lookup).
+    const { data: matchedIndividuals } = await admin.from("individuals").select("party_id").eq("phone", input.phone);
+    const partyIds = (matchedIndividuals ?? []).map((i) => i.party_id);
+    if (partyIds.length > 0) {
+      const { data: matches } = await admin
+        .from("customers")
+        .select("id, acquired_via_introducer_id")
+        .in("party_id", partyIds)
+        .not("acquired_via_introducer_id", "is", null);
+      for (const match of matches ?? []) {
+        const { count } = await admin
+          .from("order_items")
+          .select("id", { count: "exact", head: true })
+          .eq("customer_id", match.id)
+          .not("report_delivered_at", "is", null);
+        if (count && count > 0) {
+          sponsorId = match.acquired_via_introducer_id;
+          break;
+        }
+      }
+    }
+  }
+
   // Carries an analyst's own /register-introducer?ref=<code> link through to
   // introducers.assigned_analyst_id at approval time, so this application
   // shows up under that analyst's own Finance/leads views once approved. This
