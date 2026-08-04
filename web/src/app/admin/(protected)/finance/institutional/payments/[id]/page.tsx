@@ -62,20 +62,24 @@ export default async function ReceiptPrintPage({ params }: { params: Promise<{ i
             </span>
           </div>
         )}
-        <div className="flex items-start justify-between border-b-4 border-black pb-6">
-          <div>
-            <h1 className="text-2xl font-extrabold tracking-tight">{ISSUER.name}</h1>
-            <p className="mt-1 text-sm text-neutral-600">{ISSUER.addressLine1}</p>
-            <p className="text-sm text-neutral-600">{ISSUER.addressLine2}</p>
-            <p className="mt-1 text-sm text-neutral-600">
-              {t("finance.institutional.print.phone")}: {ISSUER.phone}
-            </p>
-            <p className="text-sm text-neutral-600">{ISSUER.email}</p>
-            <p className="mt-1 text-sm text-neutral-600">
-              {t("finance.institutional.print.ssm_no")}: {ISSUER.ssmNumber}
-            </p>
+        <div className="flex flex-wrap items-start justify-between gap-4 border-b-4 border-black pb-6">
+          <div className="flex items-start gap-4">
+            {/* eslint-disable-next-line @next/next/no-img-element -- static public asset on a print page, next/image's optimizer adds nothing here */}
+            <img src="/logo-mark.png" alt="" className="h-16 w-16 shrink-0" />
+            <div>
+              <h1 className="text-2xl font-extrabold tracking-tight">{ISSUER.name}</h1>
+              <p className="mt-1 text-sm text-neutral-600">{ISSUER.addressLine1}</p>
+              <p className="text-sm text-neutral-600">{ISSUER.addressLine2}</p>
+              <p className="mt-1 text-sm text-neutral-600">
+                {t("finance.institutional.print.phone")}: {ISSUER.phone}
+              </p>
+              <p className="text-sm text-neutral-600">{ISSUER.email}</p>
+              <p className="mt-1 text-sm text-neutral-600">
+                {t("finance.institutional.print.ssm_no")}: {ISSUER.ssmNumber}
+              </p>
+            </div>
           </div>
-          <div className="text-right">
+          <div className="shrink-0 text-right">
             <h2 className="text-3xl font-black tracking-wide">{t("finance.institutional.print.receipt_title")}</h2>
             <p className="mt-2 text-sm text-neutral-600">{t(PAYMENT_TYPE_KEY[payment.payment_type])}</p>
           </div>
@@ -103,7 +107,7 @@ export default async function ReceiptPrintPage({ params }: { params: Promise<{ i
               <p className="mt-2 text-sm text-neutral-400">—</p>
             )}
           </div>
-          <div className="text-right">
+          <div className="shrink-0 text-right">
             <div className="grid grid-cols-2 gap-x-4 text-sm">
               <span className="text-neutral-500">{t("finance.institutional.print.receipt_no")}</span>
               <span className="font-mono font-semibold">{payment.receipt_no ?? "—"}</span>
