@@ -55,6 +55,13 @@ export interface InstitutionalOrderRow {
   // already fully applied) — gates the "套餐定金抵扣" button.
   package_deposit_applied: number;
   package_deposit_remaining: number;
+  // Migration 068 — a planned deposit figure set at order creation, purely
+  // to give back office something to follow up against — never itself an
+  // accounting event. expected_deposit_remaining nets off whatever's already
+  // been recorded (voided deposits excluded), so it can prefill "登记定金"'s
+  // amount box with what's still outstanding rather than starting blank.
+  expected_deposit_amount: number | null;
+  expected_deposit_remaining: number | null;
   has_any_invoice_ever: boolean;
   is_deposit_order: boolean;
 }
@@ -74,7 +81,7 @@ export async function listInstitutionalOrders(scopedToAnalystId?: string): Promi
   const { data: orders } = await admin
     .from("orders")
     .select(
-      "id, total_amount, status, created_at, invoice_requested_at, institutional_package_id, deposit_for_package_id, package_deposit_applied, institution_party_id, customer_id"
+      "id, total_amount, status, created_at, invoice_requested_at, institutional_package_id, deposit_for_package_id, package_deposit_applied, institution_party_id, customer_id, expected_deposit_amount"
     )
     .eq("billing_mode", "invoice")
     .order("created_at", { ascending: false });
@@ -144,6 +151,9 @@ export async function listInstitutionalOrders(scopedToAnalystId?: string): Promi
       const depositTotal = orderPayments
         .filter((p) => p.payment_type === "deposit" && p.status !== "voided")
         .reduce((s, p) => s + Number(p.amount), 0);
+      const expectedDepositAmount = o.expected_deposit_amount !== null ? Number(o.expected_deposit_amount) : null;
+      const expectedDepositRemaining =
+        expectedDepositAmount !== null && expectedDepositAmount - depositTotal > 0 ? expectedDepositAmount - depositTotal : null;
       // Migration 047 — a voided invoice (status='void') no longer counts as
       // "this order has an invoice" here, so a voided order correctly falls
       // back to the 'no_invoice' state and becomes editable again.
@@ -232,6 +242,8 @@ export async function listInstitutionalOrders(scopedToAnalystId?: string): Promi
         package_name: o.institutional_package_id ? (packageNameById.get(o.institutional_package_id) ?? null) : null,
         package_deposit_applied: Number(o.package_deposit_applied),
         package_deposit_remaining: o.institutional_package_id ? (packageDepositRemainingById.get(o.institutional_package_id) ?? 0) : 0,
+        expected_deposit_amount: expectedDepositAmount,
+        expected_deposit_remaining: expectedDepositRemaining,
         // Migration 047 — distinguishes "never invoiced" (safe to fully
         // delete) from "was invoiced then voided" (edit-only, since the void
         // invoice's order_id linkage must be kept — see actions.ts).

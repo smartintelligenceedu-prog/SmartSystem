@@ -244,7 +244,7 @@ export function OrderActionsCell({
             <Button size="sm" disabled={isPending} onClick={doIssueInvoice}>
               {ct("finance.institutional.action.issue_invoice")}
             </Button>
-            <Button size="sm" variant="secondary" disabled={isPending} onClick={() => openPaymentForm("deposit", null)}>
+            <Button size="sm" variant="secondary" disabled={isPending} onClick={() => openPaymentForm("deposit", row.expected_deposit_remaining)}>
               {ct("finance.institutional.action.record_deposit")}
             </Button>
             <Button size="sm" variant="outline" disabled={isPending} onClick={() => setIsEditing(true)}>
@@ -277,7 +277,7 @@ export function OrderActionsCell({
         )}
         {row.state === "deposit_received_awaiting_settlement" && (
           <>
-            <Button size="sm" variant="secondary" disabled={isPending} onClick={() => openPaymentForm("deposit", null)}>
+            <Button size="sm" variant="secondary" disabled={isPending} onClick={() => openPaymentForm("deposit", row.expected_deposit_remaining)}>
               {ct("finance.institutional.action.record_deposit")}
             </Button>
             <Button size="sm" disabled={isPending} onClick={doIssueFinalSettlement}>
@@ -295,6 +295,11 @@ export function OrderActionsCell({
       {row.state === "deposit_received_awaiting_settlement" && row.deposit_balance > 0 && (
         <p className="text-xs text-muted-foreground">
           {ct("finance.institutional.column.deposit_balance")}: {formatMYR(row.deposit_balance)}
+        </p>
+      )}
+      {(row.state === "no_invoice" || row.state === "deposit_received_awaiting_settlement") && row.expected_deposit_remaining !== null && (
+        <p className="text-xs text-muted-foreground">
+          {ct("finance.institutional.column.expected_deposit_remaining")}: {formatMYR(row.expected_deposit_remaining)}
         </p>
       )}
       {/* Every deposit payment on this order, so a duplicate/mistaken one

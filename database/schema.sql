@@ -725,6 +725,12 @@ create table orders (
   -- stamps when, so back office sees a flag on Finance -> Institutional.
   -- Never written to by the agent-facing UI beyond this one field.
   invoice_requested_at timestamptz,
+  -- Migration 068 — a planned deposit figure for a standalone invoice-mode
+  -- order (institution- or individual-customer-billed), set at order
+  -- creation so back office has something to follow up on before the actual
+  -- deposit payment is recorded. Purely informational — the real accounting
+  -- effect still only happens via a payments row (handle_payment_recorded()).
+  expected_deposit_amount numeric(12,2),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

@@ -170,6 +170,11 @@ export function CreateInstitutionalOrderForm({
                 required
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="expected_deposit_amount">{ct("finance.institutional.new_order.expected_deposit_label")}</Label>
+              <Input id="expected_deposit_amount" name="expected_deposit_amount" type="number" step="0.01" min="0" />
+              <p className="text-xs text-muted-foreground">{ct("finance.institutional.new_order.expected_deposit_hint")}</p>
+            </div>
           </div>
 
           <div className="border-t pt-4">

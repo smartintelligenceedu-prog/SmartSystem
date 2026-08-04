@@ -55,6 +55,11 @@ async function buildCreateOrderSchema() {
       // already existed on the schema (used by the consumer sales-order
       // flow); this is the first invoice-mode path to populate it.
       customer_id: z.string().uuid().optional().or(z.literal("")),
+      // Migration 068 — purely a follow-up hint for back office (what this
+      // order is EXPECTED to collect as a deposit), not itself an accounting
+      // event. Optional: plenty of orders are settled in full with no deposit
+      // step at all.
+      expected_deposit_amount: z.coerce.number().min(0).optional(),
     })
     .refine(
       (v) =>
@@ -378,6 +383,7 @@ export async function createInstitutionalOrder(
     billing_postcode: formData.get("billing_postcode") || undefined,
     institution_phone: formData.get("institution_phone") || undefined,
     customer_id: formData.get("customer_id") || undefined,
+    expected_deposit_amount: formData.get("expected_deposit_amount") || undefined,
   });
   if (!parsed.success) {
     return { status: "error", message: parsed.error.issues[0]?.message ?? (await t("finance.institutional.error.invalid_form")) };
@@ -439,6 +445,7 @@ export async function createInstitutionalOrder(
       institution_party_id: institutionPartyId,
       customer_id: customerId,
       institutional_package_id: input.institutional_package_id || null,
+      expected_deposit_amount: input.expected_deposit_amount ?? null,
     })
     .select("id")
     .single();
