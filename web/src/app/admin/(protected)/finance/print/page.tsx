@@ -77,21 +77,21 @@ export default async function FinancePrintPage({
 
       <div className="relative rounded-md border border-neutral-300 bg-white p-10 print:border-0 print:p-0">
         <div className="flex flex-wrap items-start justify-between gap-4 border-b-4 border-black pb-6">
-          <div className="flex min-w-0 flex-1 items-start gap-4">
-            {/* eslint-disable-next-line @next/next/no-img-element -- static public asset on a print page, next/image's optimizer adds nothing here */}
-            <img src="/logo-mark.png" alt="" className="h-16 w-16 shrink-0" />
-            <div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-3">
+              {/* eslint-disable-next-line @next/next/no-img-element -- static public asset on a print page, next/image's optimizer adds nothing here */}
+              <img src="/logo-mark.png" alt="" className="h-10 w-10 shrink-0" />
               <h1 className="text-2xl font-extrabold tracking-tight">{company.name}</h1>
-              <p className="mt-1 text-sm text-neutral-600">{company.addressLine1}</p>
-              <p className="text-sm text-neutral-600">{company.addressLine2}</p>
-              <p className="mt-1 text-sm text-neutral-600">
-                {await t("finance.institutional.print.phone")}: {company.phone}
-              </p>
-              <p className="text-sm text-neutral-600">{company.email}</p>
-              <p className="mt-1 text-sm text-neutral-600">
-                {await t("finance.institutional.print.ssm_no")}: {company.ssmNumber}
-              </p>
             </div>
+            <p className="mt-2 text-sm text-neutral-600">{company.addressLine1}</p>
+            <p className="text-sm text-neutral-600">{company.addressLine2}</p>
+            <p className="mt-1 text-sm text-neutral-600">
+              {await t("finance.institutional.print.phone")}: {company.phone}
+            </p>
+            <p className="text-sm text-neutral-600">{company.email}</p>
+            <p className="mt-1 text-sm text-neutral-600">
+              {await t("finance.institutional.print.ssm_no")}: {company.ssmNumber}
+            </p>
           </div>
           <div className="shrink-0 text-right">
             <h2 className="text-2xl font-black tracking-wide">{await t("finance.pnl_print.title")}</h2>
