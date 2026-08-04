@@ -37,7 +37,7 @@ export function CreateInstitutionalOrderForm({
   agents: { id: string; name: string }[];
   institutions: InstitutionOption[];
   packages: PackageOption[];
-  customers: { id: string; name: string }[];
+  customers: { id: string; name: string; owner_analyst_id: string | null }[];
 }) {
   const [state, formAction, isPending] = useActionState(createInstitutionalOrder, initialState);
   const formRef = useRef<HTMLFormElement>(null);
@@ -49,6 +49,19 @@ export function CreateInstitutionalOrderForm({
   const [customerId, setCustomerId] = useState<string | null>(null);
   const customerOptions = customers.map((c) => ({ value: c.id, label: c.name }));
   const isCustomerOptionEqual = (a: { value: string }, b: { value: string }) => a.value === b.value;
+  // Picking the customer already tells us who the responsible analyst is
+  // (their own owner_analyst_id) — default any row that hasn't been given
+  // its own analyst yet, rather than leaving it blank. Left blank, that row's
+  // order_item.analyst_id stays null forever, which silently hides the whole
+  // line from every analyst-scoped view (their own dashboard, their own
+  // Sales Orders list, the commission engine) even after it's fully paid.
+  // Never overwrites a row the user already set by hand.
+  function selectCustomer(id: string | null) {
+    setCustomerId(id);
+    const customer = customers.find((c) => c.id === id);
+    if (!customer?.owner_analyst_id) return;
+    setRows((prev) => prev.map((r) => (r.analystId ? r : { ...r, analystId: customer.owner_analyst_id! })));
+  }
   // Reusing an already-billed institution (from a prior order OR a PIC
   // channel campaign, migration 043) skips retyping SSM/address; "new"
   // keeps today's freeform entry. Defaults to "new" when there's simply
@@ -300,7 +313,7 @@ export function CreateInstitutionalOrderForm({
                   <Combobox
                     items={customerOptions}
                     value={customerOptions.find((o) => o.value === customerId) ?? null}
-                    onValueChange={(o) => setCustomerId(o?.value ?? null)}
+                    onValueChange={(o) => selectCustomer(o?.value ?? null)}
                     isItemEqualToValue={isCustomerOptionEqual}
                   >
                     <ComboboxInputGroup>
