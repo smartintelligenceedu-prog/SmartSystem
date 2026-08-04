@@ -919,6 +919,11 @@ create table commission_records (
   -- insert_commission()'s p_customer_id); backs the phone-number duplicate
   -- guard and the commission-page customer/phone display.
   customer_id uuid references customers(id),
+  -- Migration 069 — marks which single order_item's analyst_report_fee
+  -- already absorbed this row's amount (only ever set on a trigger_type =
+  -- 'introducer' row) — see calculate_report_override_commission() for why
+  -- only one report per customer ever claims it.
+  offset_by_order_item_id uuid references order_items(id),
   constraint chk_commission_payee check (
     (analyst_id is not null and introducer_id is null) or
     (analyst_id is null and introducer_id is not null)

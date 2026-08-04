@@ -144,7 +144,13 @@ $$;
 -- itself is untouched and still used by the registration branch below.
 -- ----------------------------------------------------------------------------
 
-create or replace function insert_item_commission(
+-- Migration 069 — old 10-arg signature dropped so this is a true replace,
+-- not a second overload sitting alongside the original (Postgres treats a
+-- different parameter list as a different function identity for CREATE OR
+-- REPLACE purposes, same reason team_summary() needed a drop first).
+drop function if exists insert_item_commission(text, uuid, int, uuid, uuid, text, numeric, numeric, numeric, numeric);
+
+create function insert_item_commission(
   p_trigger_type text,
   p_order_item_id uuid,
   p_level int,
@@ -154,7 +160,14 @@ create or replace function insert_item_commission(
   p_rate numeric,
   p_flat_amount numeric,
   p_cap numeric,
-  p_base numeric
+  p_base numeric,
+  -- Migration 069 — nets off an already-paid one-time introducer referral
+  -- commission against whichever single report absorbs it (see the call
+  -- site in calculate_report_override_commission()), instead of paying
+  -- both amounts in full. Every other caller (report_override,
+  -- personal_sale, voucher_resale, the PIC-campaign analyst fee) leaves
+  -- this at its default and behaves exactly as before.
+  p_deduction numeric default 0
 )
 returns void
 language plpgsql
@@ -170,6 +183,10 @@ begin
 
   if p_cap is not null and v_amount > p_cap then
     v_amount := p_cap;
+  end if;
+
+  if p_deduction > 0 then
+    v_amount := greatest(v_amount - p_deduction, 0);
   end if;
 
   insert into commission_records (
@@ -463,6 +480,8 @@ declare
   v_expense_account uuid;
   v_liability_account uuid;
   v_entry_id uuid;
+  v_intro_rec record;
+  v_intro_deduction numeric;
 begin
   if new.report_delivered_at is null or old.report_delivered_at is not null then
     return new;
@@ -520,7 +539,23 @@ begin
   -- ---- 2. Analyst report fee (migration 025) — to the performing analyst
   -- directly. Migration 026: uses the campaign's fixed
   -- pic_analyst_report_fee_amount when this item came through a PIC channel
-  -- campaign that has one set; otherwise falls back to the global rule. ----
+  -- campaign that has one set; otherwise falls back to the global rule.
+  --
+  -- Migration 069: when this customer was brought in by an introducer, the
+  -- introducer's ONE-TIME referral commission(s) — level 1 AND level 2,
+  -- whichever are actually configured — are netted off the analyst's fee on
+  -- whichever single report is delivered FIRST for that customer, instead
+  -- of being paid on top of it. Sums and consumes every not-yet-offset
+  -- introducer row for this customer (so a future non-zero level 2 rate
+  -- gets included automatically, not just level 1). Locked via `for update`
+  -- + offset_by_order_item_id so two reports delivered around the same time
+  -- (e.g. two siblings from the same first order) can't both claim the same
+  -- introducer commission(s). Every other report for that customer pays the
+  -- analyst the fee in full, since the introducer rows are already
+  -- consumed. A different customer's own introducer commission is entirely
+  -- unaffected — this only ever looks at rows for new.customer_id.
+  -- PIC-campaign customers never reach this branch at all (handled above),
+  -- so there's no overlap between the two acquisition channels.
   if new.analyst_id is not null then
     if v_campaign_id is not null and v_pic_analyst_report_fee_amount is not null then
       perform insert_item_commission(
@@ -530,9 +565,26 @@ begin
     else
       select * into v_rule from get_active_rule('analyst_report_fee', 1);
       if v_rule.calculation_type is not null then
+        v_intro_deduction := 0;
+        if new.customer_id is not null then
+          for v_intro_rec in
+            select id, commission_amount
+            from commission_records
+            where trigger_type = 'introducer'
+              and customer_id = new.customer_id
+              and offset_by_order_item_id is null
+            order by level_number asc
+            for update
+          loop
+            v_intro_deduction := v_intro_deduction + v_intro_rec.commission_amount;
+            update commission_records set offset_by_order_item_id = new.id where id = v_intro_rec.id;
+          end loop;
+        end if;
+
         perform insert_item_commission(
           'analyst_report_fee', new.id, 1, new.analyst_id, null,
-          v_rule.calculation_type, v_rule.rate_percent, v_rule.flat_amount, v_rule.cap_amount, new.subtotal
+          v_rule.calculation_type, v_rule.rate_percent, v_rule.flat_amount, v_rule.cap_amount, new.subtotal,
+          v_intro_deduction
         );
       end if;
     end if;
