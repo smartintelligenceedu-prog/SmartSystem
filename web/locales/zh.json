@@ -1985,5 +1985,20 @@
   "voucher_portal.detail.back_link": "← 返回优惠券商城",
   "voucher_portal.detail.redeem_button": "兑换此优惠券",
   "voucher_portal.detail.confirm_redeem": "确定要兑换这张优惠券吗？每个帐号只能兑换一次，确认后无法复原。",
-  "voucher_portal.detail.redeemed_at_prefix": "已于以下时间兑换："
+  "voucher_portal.detail.redeemed_at_prefix": "已于以下时间兑换：",
+
+  "team_hierarchy.nav.label": "顾问架构总览",
+  "team_hierarchy.page.title": "顾问架构总览",
+  "team_hierarchy.page.subtitle": "查看全公司所有顾问的推荐人／负责领导人关系，确认有没有指派错误",
+  "team_hierarchy.sponsor_prefix": "推荐人：",
+  "team_hierarchy.tree.title": "组织架构（按负责领导人分层）",
+  "team_hierarchy.tree.empty": "目前没有任何顾问资料",
+  "team_hierarchy.anomaly.title": "⚠️ 需要留意的异常",
+  "team_hierarchy.anomaly.empty": "没有发现异常，架构关系正常",
+  "team_hierarchy.anomaly.self_sponsor": "「{name}」的推荐人栏位指向自己，请检查",
+  "team_hierarchy.anomaly.self_leader": "「{name}」的负责领导人栏位指向自己，请检查",
+  "team_hierarchy.anomaly.cycle": "「{name}」与上层形成循环指派（领导人链条绕回自己），已从下方架构图移除，请检查",
+  "team_hierarchy.anomaly.sponsor_leader_mismatch": "「{name}」的推荐人是「{sponsor}」，但负责领导人是「{leader}」——两者不同，请确认是否正确",
+  "team_hierarchy.anomaly.leader_inactive": "「{name}」的负责领导人「{leader}」目前状态是「{status}」，不是已核准顾问",
+  "team_hierarchy.orphan.title": "无法归类的顾问（循环指派，未显示在架构图内）"
 }

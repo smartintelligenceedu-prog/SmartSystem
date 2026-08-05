@@ -64,6 +64,7 @@ export function Sidebar({ context }: { context: PortalUserContext }) {
     ],
     team: [
       ...(isLeader ? [{ href: "/admin/team", label: ct("team.page.title") }] : []),
+      ...(isBackOffice ? [{ href: "/admin/team-hierarchy", label: ct("team_hierarchy.nav.label") }] : []),
       ...(hasAnalyst || isBackOffice ? [{ href: "/admin/schedule", label: ct("schedule.nav.label") }] : []),
       ...(hasAnalyst ? [{ href: "/admin/certification", label: ct("certification.nav.label") }] : []),
     ],

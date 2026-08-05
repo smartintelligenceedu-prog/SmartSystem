@@ -1985,5 +1985,20 @@
   "voucher_portal.detail.back_link": "← Back to Voucher Portal",
   "voucher_portal.detail.redeem_button": "Redeem This Voucher",
   "voucher_portal.detail.confirm_redeem": "Redeem this voucher? Each account can only redeem once, and this cannot be undone.",
-  "voucher_portal.detail.redeemed_at_prefix": "Redeemed at: "
+  "voucher_portal.detail.redeemed_at_prefix": "Redeemed at: ",
+
+  "team_hierarchy.nav.label": "Consultant Org Chart",
+  "team_hierarchy.page.title": "Consultant Org Chart",
+  "team_hierarchy.page.subtitle": "See every consultant's sponsor / assigned-leader relationship company-wide, and confirm nothing is mis-assigned",
+  "team_hierarchy.sponsor_prefix": "Sponsor: ",
+  "team_hierarchy.tree.title": "Org Structure (by Assigned Leader)",
+  "team_hierarchy.tree.empty": "No consultants yet",
+  "team_hierarchy.anomaly.title": "⚠️ Anomalies to Review",
+  "team_hierarchy.anomaly.empty": "No anomalies found — the hierarchy looks consistent",
+  "team_hierarchy.anomaly.self_sponsor": "\"{name}\"'s sponsor field points to themselves — please check",
+  "team_hierarchy.anomaly.self_leader": "\"{name}\"'s assigned-leader field points to themselves — please check",
+  "team_hierarchy.anomaly.cycle": "\"{name}\" forms a leadership cycle (the chain loops back to itself) — removed from the tree below, please check",
+  "team_hierarchy.anomaly.sponsor_leader_mismatch": "\"{name}\"'s sponsor is \"{sponsor}\" but their assigned leader is \"{leader}\" — these differ, please confirm this is correct",
+  "team_hierarchy.anomaly.leader_inactive": "\"{name}\"'s assigned leader \"{leader}\" currently has status \"{status}\", not an approved consultant",
+  "team_hierarchy.orphan.title": "Unplaceable consultants (leadership cycle, not shown in the tree)"
 }
