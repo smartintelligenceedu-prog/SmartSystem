@@ -316,3 +316,106 @@ export async function reserveDeviceForBooth(_prev: ScheduleAppointmentState, for
   revalidatePath("/admin/schedule");
   return result;
 }
+
+export type UpdateAppointmentState = { status: "idle" } | { status: "error"; message: string } | { status: "success" };
+
+// Time/device correction for an existing booking made on /admin/schedule —
+// deliberately scoped to just center/device/date/start/end (reuses
+// buildBoothReservationSchema's exact field set) rather than also letting
+// this reassign the customer or analyst, which stays out of scope; cancel +
+// rebook covers that case instead. Refuses a row that's already
+// 'completed' — by then a real detection_sessions row exists
+// (saveOnePageReport() in report/actions.ts), and that table's FK to
+// detection_appointments has no ON DELETE/cascade, so the underlying booking
+// record for a finished test is treated as immutable — or already
+// cancelled/no_show. The device's own no_overlapping_device_bookings GiST
+// exclusion constraint still guards against the edited slot creating a new
+// conflict (surfaced as SQLSTATE 23P01, same handling as insertAppointment).
+export async function updateAppointmentSchedule(
+  appointmentId: string,
+  _prev: UpdateAppointmentState,
+  formData: FormData
+): Promise<UpdateAppointmentState> {
+  const auth = await requireCallerContext();
+  if ("error" in auth) return { status: "error", message: auth.error };
+  if (!auth.isBackOffice && !auth.isMachineAssessor) {
+    return { status: "error", message: await t("schedule.form.error.machine_assessor_required") };
+  }
+
+  const admin = createAdminClient();
+  const { data: appointment } = await admin.from("detection_appointments").select("id, status").eq("id", appointmentId).maybeSingle();
+  if (!appointment) return { status: "error", message: await t("schedule.form.error.appointment_not_found") };
+  if (["completed", "cancelled", "no_show"].includes(appointment.status)) {
+    return { status: "error", message: await t("schedule.form.error.appointment_not_editable") };
+  }
+
+  const schema = await buildBoothReservationSchema();
+  const parsed = schema.safeParse({
+    center_id: formData.get("center_id"),
+    device_id: formData.get("device_id"),
+    detection_date: formData.get("detection_date"),
+    start_time: formData.get("start_time"),
+    end_time: formData.get("end_time"),
+  });
+  if (!parsed.success) {
+    return { status: "error", message: parsed.error.issues[0]?.message ?? (await t("schedule.form.error.invalid_form")) };
+  }
+  const input = parsed.data;
+
+  const scheduledAt = toMYTimestamp(input.detection_date, input.start_time);
+  const scheduledEnd = toMYTimestamp(input.detection_date, input.end_time);
+  const durationMinutes = Math.round((scheduledEnd.getTime() - scheduledAt.getTime()) / 60000);
+  if (durationMinutes <= 0) {
+    return { status: "error", message: await t("schedule.form.error.invalid_time_range") };
+  }
+
+  const { error } = await admin
+    .from("detection_appointments")
+    .update({
+      device_id: input.device_id,
+      center_id: input.center_id,
+      scheduled_at: scheduledAt.toISOString(),
+      duration_minutes: durationMinutes,
+    })
+    .eq("id", appointmentId);
+  if (error) {
+    if (error.code === "23P01") {
+      return { status: "error", message: await t("schedule.form.error.device_conflict") };
+    }
+    return { status: "error", message: `${await t("schedule.form.error.save_failed")}${error.message}` };
+  }
+
+  revalidatePath("/admin/schedule");
+  return { status: "success" };
+}
+
+export type CancelAppointmentState = { ok: boolean; message: string };
+
+// Soft-cancel only, never a real DELETE — see updateAppointmentSchedule's
+// header comment for why a completed booking's row must stay put. Setting
+// status='cancelled' is also what actually frees the device's time slot
+// back up for a new booking, since no_overlapping_device_bookings'
+// exclusion constraint explicitly excludes cancelled/no_show rows.
+export async function cancelAppointment(appointmentId: string): Promise<CancelAppointmentState> {
+  const auth = await requireCallerContext();
+  if ("error" in auth) return { ok: false, message: auth.error };
+  if (!auth.isBackOffice && !auth.isMachineAssessor) {
+    return { ok: false, message: await t("schedule.form.error.machine_assessor_required") };
+  }
+
+  const admin = createAdminClient();
+  const { data: appointment } = await admin.from("detection_appointments").select("id, status").eq("id", appointmentId).maybeSingle();
+  if (!appointment) return { ok: false, message: await t("schedule.form.error.appointment_not_found") };
+  if (appointment.status === "completed") {
+    return { ok: false, message: await t("schedule.form.error.appointment_already_completed") };
+  }
+  if (appointment.status === "cancelled" || appointment.status === "no_show") {
+    return { ok: true, message: await t("schedule.form.error.appointment_already_cancelled") };
+  }
+
+  const { error } = await admin.from("detection_appointments").update({ status: "cancelled" }).eq("id", appointmentId);
+  if (error) return { ok: false, message: `${await t("schedule.form.error.save_failed")}${error.message}` };
+
+  revalidatePath("/admin/schedule");
+  return { ok: true, message: await t("schedule.form.cancel_success") };
+}

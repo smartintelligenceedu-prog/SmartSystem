@@ -9,16 +9,12 @@ import {
 } from "@/app/admin/(protected)/_scheduling/data";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { t } from "@/lib/i18n";
 import { InlineBookingForm } from "./inline-booking-form";
+import { ScheduleSlotItem } from "./schedule-slot-item";
 
 export const dynamic = "force-dynamic";
-
-function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString("en-GB", { timeZone: "Asia/Kuala_Lumpur", hour: "2-digit", minute: "2-digit" });
-}
 
 function todayDateString() {
   return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kuala_Lumpur" });
@@ -83,12 +79,16 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
               {g.slots.length === 0 ? (
                 <p className="mt-2 text-sm text-emerald-700">{t("schedule.free_all_day")}</p>
               ) : (
-                <div className="mt-2 flex flex-wrap gap-2">
+                <div className="mt-2 flex flex-wrap items-start gap-2">
                   {g.slots.map((s) => (
-                    <Badge key={s.appointment_id} variant="outline">
-                      {formatTime(s.start_at)}–{formatTime(s.end_at)} · {s.analyst_name}
-                      {s.is_booth ? ` · ${boothLabel}` : ""}
-                    </Badge>
+                    <ScheduleSlotItem
+                      key={s.appointment_id}
+                      slot={s}
+                      devices={devices}
+                      centers={centers}
+                      canManage={canBookMachine}
+                      boothLabel={boothLabel}
+                    />
                   ))}
                 </div>
               )}

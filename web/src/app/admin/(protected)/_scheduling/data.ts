@@ -126,10 +126,18 @@ export async function listCustomersWithChildrenForBooking(isBackOffice: boolean,
 
 export interface DeviceScheduleSlot {
   appointment_id: string;
+  device_id: string;
+  center_id: string | null;
   start_at: string;
   end_at: string;
   analyst_name: string;
   is_booth: boolean;
+  // Raw status, exposed so the UI can hide edit/cancel controls once a
+  // booking is already 'completed' (a real report/detection_sessions row
+  // exists by then — see updateAppointmentSchedule/cancelAppointment in
+  // customers/children/[id]/schedule/actions.ts for why those two never
+  // touch a completed row).
+  status: string;
 }
 
 export interface DeviceScheduleGroup {
@@ -154,7 +162,7 @@ export async function listDeviceScheduleForDate(dateStr: string): Promise<Device
     admin.from("devices").select("id, serial_no, model").eq("status", "active").order("serial_no"),
     admin
       .from("detection_appointments")
-      .select("id, device_id, analyst_id, scheduled_at, duration_minutes, status")
+      .select("id, device_id, center_id, analyst_id, scheduled_at, duration_minutes, status")
       .gte("scheduled_at", dayStart.toISOString())
       .lt("scheduled_at", dayEnd.toISOString())
       .not("status", "in", "(cancelled,no_show)"),
@@ -177,10 +185,13 @@ export async function listDeviceScheduleForDate(dateStr: string): Promise<Device
         const party = partyByAnalyst.get(a.analyst_id);
         return {
           appointment_id: a.id as string,
+          device_id: a.device_id as string,
+          center_id: a.center_id,
           start_at: start.toISOString(),
           end_at: end.toISOString(),
           analyst_name: (party && nameByParty.get(party)) ?? "—",
           is_booth: a.status === "booth_reserved",
+          status: a.status,
         };
       })
       .sort((a, b) => a.start_at.localeCompare(b.start_at));
