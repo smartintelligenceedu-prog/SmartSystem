@@ -49,6 +49,18 @@ export async function IntroducerSection({ introducerId }: { introducerId: string
     paid_bonus: 0,
   };
 
+  // Mirrors LeaderSection's own "commission this month" calculation — a
+  // plain self-scope read of the current calendar month's commission_records,
+  // independent of the total/pending/paid status breakdown above.
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const { data: myMonthlyCommission } = await supabase
+    .from("commission_records")
+    .select("commission_amount")
+    .eq("introducer_id", introducerId)
+    .gte("calculated_at", monthStart);
+  const monthlyBonus = (myMonthlyCommission ?? []).reduce((total, r) => total + Number(r.commission_amount), 0);
+
   const [
     title,
     referralCodePrefix,
@@ -56,6 +68,7 @@ export async function IntroducerSection({ introducerId }: { introducerId: string
     noAnalystNote,
     statTotalIntroducedCustomers,
     statTotalBonus,
+    statMonthlyBonus,
     statPendingBonus,
     statPaidBonus,
     monthlyStatsTitle,
@@ -77,6 +90,7 @@ export async function IntroducerSection({ introducerId }: { introducerId: string
     t("dashboard.introducer.no_analyst_note"),
     t("dashboard.introducer.stat.total_introduced_customers"),
     t("dashboard.introducer.stat.total_bonus"),
+    t("dashboard.introducer.stat.monthly_bonus"),
     t("dashboard.introducer.stat.pending_bonus"),
     t("dashboard.introducer.stat.paid_bonus"),
     t("dashboard.introducer.monthly_stats_title"),
@@ -114,6 +128,7 @@ export async function IntroducerSection({ introducerId }: { introducerId: string
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <StatCard label={statTotalIntroducedCustomers} value={String(summary.total_introduced_customers)} />
         <StatCard label={statTotalBonus} value={formatMYR(summary.total_bonus)} />
+        <StatCard label={statMonthlyBonus} value={formatMYR(monthlyBonus)} />
         <StatCard label={statPendingBonus} value={formatMYR(summary.pending_bonus)} />
         <StatCard label={statPaidBonus} value={formatMYR(summary.paid_bonus)} />
       </div>

@@ -234,8 +234,8 @@ export async function submitRegistration(
   }
 
   await notifyBackOffice(
-    `新分析师注册：${input.full_name}`,
-    `<p>${input.full_name}（${input.email}）刚提交了分析师注册申请。</p><p>套装：${kit.name}</p><p>请登入后台查看：/admin/registrations/${analyst.id}</p>`
+    `新顾问注册：${input.full_name}`,
+    `<p>${input.full_name}（${input.email}）刚提交了顾问注册申请。</p><p>套装：${kit.name}</p><p>请登入后台查看：/admin/registrations/${analyst.id}</p>`
   );
 
   return {

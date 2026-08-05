@@ -51,6 +51,29 @@ export async function LeaderSection({ analystId }: { analystId: string }) {
     .eq("analyst_id", analystId)
     .gte("calculated_at", monthStart);
   const overrideSummary = (myCommission ?? []).reduce((total, r) => total + Number(r.commission_amount), 0);
+  const currentYear = String(now.getFullYear());
+
+  const [
+    teamSummaryLabel,
+    teamSalesLabel,
+    teamSalesYearlyLabel,
+    teamSalesMonthlyLabel,
+    teamCommissionLabel,
+    teamCommissionYearlyLabel,
+    teamCommissionMonthlyLabel,
+    overrideSummaryLabel,
+    pendingTeamApprovalLabel,
+  ] = await Promise.all([
+    t("dashboard.leader.stat.team_summary"),
+    t("dashboard.leader.stat.team_sales"),
+    t("dashboard.leader.stat.team_sales_yearly"),
+    t("dashboard.leader.stat.team_sales_monthly"),
+    t("dashboard.leader.stat.team_commission"),
+    t("dashboard.leader.stat.team_commission_yearly"),
+    t("dashboard.leader.stat.team_commission_monthly"),
+    t("dashboard.leader.stat.override_summary"),
+    t("dashboard.leader.stat.pending_team_approval"),
+  ]);
 
   return (
     <section className="space-y-4">
@@ -60,15 +83,15 @@ export async function LeaderSection({ analystId }: { analystId: string }) {
       </div>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatCard label={await t("dashboard.leader.stat.team_summary")} value={String(summary.analyst_count)} />
-        <StatCard label={await t("dashboard.leader.stat.team_sales")} value={formatMYR(summary.total_revenue)} />
-        <StatCard label={await t("dashboard.leader.stat.team_sales_yearly")} value={formatMYR(summary.yearly_revenue)} />
-        <StatCard label={await t("dashboard.leader.stat.team_sales_monthly")} value={formatMYR(summary.monthly_revenue)} />
-        <StatCard label={await t("dashboard.leader.stat.team_commission")} value={formatMYR(summary.team_commission_total)} />
-        <StatCard label={await t("dashboard.leader.stat.team_commission_yearly")} value={formatMYR(summary.yearly_team_commission)} />
-        <StatCard label={await t("dashboard.leader.stat.team_commission_monthly")} value={formatMYR(summary.monthly_team_commission)} />
-        <StatCard label={await t("dashboard.leader.stat.override_summary")} value={formatMYR(overrideSummary)} />
-        <StatCard label={await t("dashboard.leader.stat.pending_team_approval")} value={String(summary.pending_team_count)} />
+        <StatCard label={teamSalesLabel} value={formatMYR(summary.total_revenue)} />
+        <StatCard label={teamSalesYearlyLabel.replace("{year}", currentYear)} value={formatMYR(summary.yearly_revenue)} />
+        <StatCard label={teamSalesMonthlyLabel} value={formatMYR(summary.monthly_revenue)} />
+        <StatCard label={teamSummaryLabel} value={String(summary.analyst_count)} />
+        <StatCard label={teamCommissionLabel} value={formatMYR(summary.team_commission_total)} />
+        <StatCard label={teamCommissionYearlyLabel.replace("{year}", currentYear)} value={formatMYR(summary.yearly_team_commission)} />
+        <StatCard label={teamCommissionMonthlyLabel} value={formatMYR(summary.monthly_team_commission)} />
+        <StatCard label={overrideSummaryLabel} value={formatMYR(overrideSummary)} />
+        <StatCard label={pendingTeamApprovalLabel} value={String(summary.pending_team_count)} />
       </div>
       <p className="text-xs text-muted-foreground">{await t("dashboard.leader.note")}</p>
     </section>
