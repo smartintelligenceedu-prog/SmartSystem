@@ -1612,6 +1612,7 @@
   "notifications.empty": "目前没有新通知",
   "notifications.pending_sales_orders": "待审核销售订单",
   "notifications.pending_registrations": "待审批新注册",
+  "notifications.pending_introducer_applications": "待审批引荐人申请",
   "coming_soon.message": "此功能开发中",
   "copy_link.copied": "已复制",
 

@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { notifyBackOffice } from "@/lib/notifications";
 import { t } from "@/lib/i18n";
 
 async function buildApplicationSchema() {
@@ -135,6 +136,14 @@ export async function submitIntroducerApplication(
   if (error) {
     return { status: "error", message: `${await t("register_introducer.error.submit_failed_prefix")}${error.message}` };
   }
+
+  // Same convention as register/actions.ts's new-analyst notification and
+  // sales-orders/actions.ts's new-order notification — this was the one
+  // public application flow that never told back office anything landed.
+  await notifyBackOffice(
+    `新引荐人申请：${input.full_name}`,
+    `<p>${input.full_name}（${input.email}，${input.phone}）刚提交了引荐人申请。</p><p>请登入后台查看：/admin/introducer-applications</p>`
+  );
 
   return { status: "success" };
 }

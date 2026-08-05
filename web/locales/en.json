@@ -1612,6 +1612,7 @@
   "notifications.empty": "No new notifications",
   "notifications.pending_sales_orders": "Sales orders pending review",
   "notifications.pending_registrations": "New registrations pending approval",
+  "notifications.pending_introducer_applications": "Introducer applications pending approval",
   "coming_soon.message": "This feature is under development",
   "copy_link.copied": "Copied",
 

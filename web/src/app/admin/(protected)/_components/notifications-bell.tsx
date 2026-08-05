@@ -7,15 +7,17 @@ import { t } from "@/lib/i18n";
 // existing per-page pending counts. Zero-JS dropdown via <details>/<summary>.
 export async function NotificationsBell() {
   const admin = createAdminClient();
-  const [{ count: pendingSalesOrders }, { count: pendingRegistrations }] = await Promise.all([
+  const [{ count: pendingSalesOrders }, { count: pendingRegistrations }, { count: pendingIntroducerApplications }] = await Promise.all([
     admin.from("sales_orders").select("id", { count: "exact", head: true }).eq("status", "pending"),
     admin.from("analysts").select("id", { count: "exact", head: true }).eq("status", "pending"),
+    admin.from("introducer_applications").select("id", { count: "exact", head: true }).eq("status", "pending"),
   ]);
-  const total = (pendingSalesOrders ?? 0) + (pendingRegistrations ?? 0);
+  const total = (pendingSalesOrders ?? 0) + (pendingRegistrations ?? 0) + (pendingIntroducerApplications ?? 0);
 
-  const [salesOrdersLabel, registrationsLabel] = await Promise.all([
+  const [salesOrdersLabel, registrationsLabel, introducerApplicationsLabel] = await Promise.all([
     t("notifications.pending_sales_orders"),
     t("notifications.pending_registrations"),
+    t("notifications.pending_introducer_applications"),
   ]);
 
   return (
@@ -40,6 +42,12 @@ export async function NotificationsBell() {
           <Link href="/admin/registrations" className="block rounded-md px-2 py-1.5 hover:bg-accent/50">
             {registrationsLabel}
             <span className="ml-1 font-medium">{pendingRegistrations}</span>
+          </Link>
+        )}
+        {(pendingIntroducerApplications ?? 0) > 0 && (
+          <Link href="/admin/introducer-applications" className="block rounded-md px-2 py-1.5 hover:bg-accent/50">
+            {introducerApplicationsLabel}
+            <span className="ml-1 font-medium">{pendingIntroducerApplications}</span>
           </Link>
         )}
       </div>
