@@ -480,7 +480,7 @@ declare
   v_expense_account uuid;
   v_liability_account uuid;
   v_entry_id uuid;
-  v_intro_rec record;
+  v_intro_commission_id uuid;
   v_intro_deduction numeric;
 begin
   if new.report_delivered_at is null or old.report_delivered_at is not null then
@@ -541,19 +541,16 @@ begin
   -- pic_analyst_report_fee_amount when this item came through a PIC channel
   -- campaign that has one set; otherwise falls back to the global rule.
   --
-  -- Migration 069: when this customer was brought in by an introducer, the
-  -- introducer's ONE-TIME referral commission(s) — level 1 AND level 2,
-  -- whichever are actually configured — are netted off the analyst's fee on
-  -- whichever single report is delivered FIRST for that customer, instead
-  -- of being paid on top of it. Sums and consumes every not-yet-offset
-  -- introducer row for this customer (so a future non-zero level 2 rate
-  -- gets included automatically, not just level 1). Locked via `for update`
-  -- + offset_by_order_item_id so two reports delivered around the same time
+  -- Migration 071 (correcting migration 069): only the introducer's LEVEL 1
+  -- commission (the direct introducer, paid once on this customer's first
+  -- paid order) is netted off the analyst's fee on whichever single report
+  -- is delivered FIRST for that customer, instead of being paid on top of
+  -- it. Level 2 (that introducer's own upline) is a separate company-funded
+  -- expense and never touches the analyst's fee. Locked via `for update` +
+  -- offset_by_order_item_id so two reports delivered around the same time
   -- (e.g. two siblings from the same first order) can't both claim the same
-  -- introducer commission(s). Every other report for that customer pays the
-  -- analyst the fee in full, since the introducer rows are already
-  -- consumed. A different customer's own introducer commission is entirely
-  -- unaffected — this only ever looks at rows for new.customer_id.
+  -- level-1 commission. Every other report for that customer pays the
+  -- analyst the fee in full, since the introducer row is already consumed.
   -- PIC-campaign customers never reach this branch at all (handled above),
   -- so there's no overlap between the two acquisition channels.
   if new.analyst_id is not null then
@@ -565,27 +562,29 @@ begin
     else
       select * into v_rule from get_active_rule('analyst_report_fee', 1);
       if v_rule.calculation_type is not null then
-        v_intro_deduction := 0;
+        v_intro_commission_id := null;
+        v_intro_deduction := null;
         if new.customer_id is not null then
-          for v_intro_rec in
-            select id, commission_amount
-            from commission_records
-            where trigger_type = 'introducer'
-              and customer_id = new.customer_id
-              and offset_by_order_item_id is null
-            order by level_number asc
-            for update
-          loop
-            v_intro_deduction := v_intro_deduction + v_intro_rec.commission_amount;
-            update commission_records set offset_by_order_item_id = new.id where id = v_intro_rec.id;
-          end loop;
+          select id, commission_amount into v_intro_commission_id, v_intro_deduction
+          from commission_records
+          where trigger_type = 'introducer'
+            and level_number = 1
+            and customer_id = new.customer_id
+            and offset_by_order_item_id is null
+          order by calculated_at asc
+          limit 1
+          for update;
         end if;
 
         perform insert_item_commission(
           'analyst_report_fee', new.id, 1, new.analyst_id, null,
           v_rule.calculation_type, v_rule.rate_percent, v_rule.flat_amount, v_rule.cap_amount, new.subtotal,
-          v_intro_deduction
+          coalesce(v_intro_deduction, 0)
         );
+
+        if v_intro_commission_id is not null then
+          update commission_records set offset_by_order_item_id = new.id where id = v_intro_commission_id;
+        end if;
       end if;
     end if;
   end if;
