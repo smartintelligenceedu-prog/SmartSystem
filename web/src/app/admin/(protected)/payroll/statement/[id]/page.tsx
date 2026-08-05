@@ -5,7 +5,6 @@ import { getIntroducerStatementDetail } from "../../data";
 import { getCompanyInfo } from "../../../settings/data";
 import { t } from "@/lib/i18n";
 import { PayrollPrintButton } from "../../print-button";
-import { Logo } from "@/components/logo";
 
 export const dynamic = "force-dynamic";
 
@@ -56,12 +55,24 @@ export default async function IntroducerStatementPage({ params }: { params: Prom
       </div>
 
       <div className="rounded-md border border-neutral-300 bg-white p-10 print:border-0 print:p-0">
-        <div className="flex items-start justify-between border-b-4 border-black pb-6">
+        <div className="flex flex-wrap items-start justify-between gap-4 border-b-4 border-black pb-6">
           <div>
-            <Logo className="mb-2 w-40" />
-            <p className="text-sm text-neutral-600">{ISSUER.name}</p>
+            <div className="flex items-center gap-3">
+              {/* eslint-disable-next-line @next/next/no-img-element -- static public asset on a print page, next/image's optimizer adds nothing here */}
+              <img src="/logo-mark.png" alt="" className="h-10 w-10 shrink-0" />
+              <p className="text-lg font-extrabold tracking-tight">{ISSUER.name}</p>
+            </div>
+            <p className="mt-2 text-sm text-neutral-600">{ISSUER.addressLine1}</p>
+            <p className="text-sm text-neutral-600">{ISSUER.addressLine2}</p>
+            <p className="mt-1 text-sm text-neutral-600">
+              {t("finance.institutional.print.phone")}: {ISSUER.phone}
+            </p>
+            <p className="text-sm text-neutral-600">{ISSUER.email}</p>
+            <p className="mt-1 text-sm text-neutral-600">
+              {t("finance.institutional.print.ssm_no")}: {ISSUER.ssmNumber}
+            </p>
           </div>
-          <div className="text-right">
+          <div className="shrink-0 text-right">
             <h1 className="text-2xl font-extrabold tracking-tight">{t("payroll.statement.title")}</h1>
             <p className="mt-1 text-sm text-neutral-600">{statement.introducer_name}</p>
             <p className="mt-2 text-sm text-neutral-600">
