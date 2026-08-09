@@ -429,11 +429,21 @@ export interface StaffPayslipRow {
   gross_amount: number;
   description: string | null;
   created_at: string;
+  document_type: "payslip" | "admin_fee";
 }
 
 async function resolveStaffPayslips(
   admin: ReturnType<typeof createAdminClient>,
-  rows: { id: string; party_id: string; period_start: string; period_end: string; gross_amount: number; description: string | null; created_at: string }[]
+  rows: {
+    id: string;
+    party_id: string;
+    period_start: string;
+    period_end: string;
+    gross_amount: number;
+    description: string | null;
+    created_at: string;
+    document_type: string;
+  }[]
 ): Promise<StaffPayslipRow[]> {
   if (rows.length === 0) return [];
   const partyIds = [...new Set(rows.map((r) => r.party_id))];
@@ -448,6 +458,7 @@ async function resolveStaffPayslips(
     gross_amount: Number(r.gross_amount),
     description: r.description,
     created_at: r.created_at,
+    document_type: r.document_type === "admin_fee" ? "admin_fee" : "payslip",
   }));
 }
 
@@ -456,7 +467,7 @@ export async function listAllStaffPayslips(): Promise<StaffPayslipRow[]> {
   const admin = createAdminClient();
   const { data } = await admin
     .from("staff_payslips")
-    .select("id, party_id, period_start, period_end, gross_amount, description, created_at")
+    .select("id, party_id, period_start, period_end, gross_amount, description, created_at, document_type")
     .order("created_at", { ascending: false });
   return resolveStaffPayslips(admin, data ?? []);
 }
@@ -471,7 +482,7 @@ export async function listMyStaffPayslips(partyId: string): Promise<StaffPayslip
   const supabase = await createServerSupabaseClient();
   const { data } = await supabase
     .from("staff_payslips")
-    .select("id, party_id, period_start, period_end, gross_amount, description, created_at")
+    .select("id, party_id, period_start, period_end, gross_amount, description, created_at, document_type")
     .eq("party_id", partyId)
     .order("created_at", { ascending: false });
   const admin = createAdminClient();
@@ -482,7 +493,7 @@ export async function getStaffPayslipDetail(payslipId: string): Promise<StaffPay
   const admin = createAdminClient();
   const { data } = await admin
     .from("staff_payslips")
-    .select("id, party_id, period_start, period_end, gross_amount, description, created_at")
+    .select("id, party_id, period_start, period_end, gross_amount, description, created_at, document_type")
     .eq("id", payslipId)
     .maybeSingle();
   if (!data) return null;
@@ -490,14 +501,42 @@ export async function getStaffPayslipDetail(payslipId: string): Promise<StaffPay
   return rows[0] ?? null;
 }
 
-// Candidate list for the "issue a staff payslip" create form — every portal
-// user, not just ones with neither an analyst nor introducer row, since an
-// analyst could in principle also draw a fixed staff salary component.
+// Candidate list for the "issue a staff payslip" create form — the union of
+// every portal login (an analyst could in principle also draw a fixed staff
+// salary component) and every bare staff_members entry (migration 072) —
+// someone registered for payroll purposes only, with no login account.
 export async function listStaffPayslipRecipients(): Promise<{ party_id: string; name: string }[]> {
   const admin = createAdminClient();
-  const { data: users } = await admin.from("users").select("party_id");
-  if (!users || users.length === 0) return [];
-  const partyIds = [...new Set(users.map((u) => u.party_id))];
+  const [{ data: users }, { data: staffMembers }] = await Promise.all([
+    admin.from("users").select("party_id"),
+    admin.from("staff_members").select("party_id").eq("status", "active"),
+  ]);
+  const partyIds = [...new Set([...(users ?? []).map((u) => u.party_id), ...(staffMembers ?? []).map((s) => s.party_id)])];
+  if (partyIds.length === 0) return [];
   const { data: identities } = await admin.from("individuals").select("party_id, full_name").in("party_id", partyIds);
   return (identities ?? []).map((i) => ({ party_id: i.party_id, name: i.full_name })).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+// Management list for the "add a staff member" mini-form's own history —
+// shown so back office can see who's already registered without a login.
+export interface StaffMemberRow {
+  id: string;
+  party_id: string;
+  full_name: string;
+  status: "active" | "inactive";
+}
+
+export async function listStaffMembers(): Promise<StaffMemberRow[]> {
+  const admin = createAdminClient();
+  const { data } = await admin.from("staff_members").select("id, party_id, status").order("created_at", { ascending: false });
+  if (!data || data.length === 0) return [];
+  const partyIds = data.map((s) => s.party_id);
+  const { data: identities } = await admin.from("individuals").select("party_id, full_name").in("party_id", partyIds);
+  const nameByParty = new Map((identities ?? []).map((i) => [i.party_id, i.full_name]));
+  return data.map((s) => ({
+    id: s.id,
+    party_id: s.party_id,
+    full_name: nameByParty.get(s.party_id) ?? "—",
+    status: s.status as "active" | "inactive",
+  }));
 }

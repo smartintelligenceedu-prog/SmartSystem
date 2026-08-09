@@ -63,7 +63,9 @@ export default async function StaffPayslipPage({ params }: { params: Promise<{ i
             </p>
           </div>
           <div className="shrink-0 text-right">
-            <h1 className="text-2xl font-extrabold tracking-tight">{t("payroll.staff.payslip_title")}</h1>
+            <h1 className="text-2xl font-extrabold tracking-tight">
+              {payslip.document_type === "admin_fee" ? t("payroll.admin_fee.print_title") : t("payroll.staff.payslip_title")}
+            </h1>
             <p className="mt-1 text-sm text-neutral-600">{payslip.full_name}</p>
             <p className="mt-2 text-sm text-neutral-600">
               {t("payroll.payslip.period_label")}: {formatDate(payslip.period_start)} – {formatDate(payslip.period_end)}
@@ -94,6 +96,26 @@ export default async function StaffPayslipPage({ params }: { params: Promise<{ i
             </div>
           </div>
         </div>
+
+        {payslip.document_type === "admin_fee" && ISSUER.bankAccountNumber && (
+          <div className="mt-10 border-t border-neutral-200 pt-6 text-xs">
+            <p className="mb-1 text-neutral-600">{t("payroll.admin_fee.remit_note")}</p>
+            <p className="mb-1 font-bold text-neutral-500 uppercase">{t("finance.institutional.print.bank_details_title")}</p>
+            {ISSUER.bankName && (
+              <p className="text-neutral-600">
+                {t("finance.institutional.print.bank_name")}: {ISSUER.bankName}
+              </p>
+            )}
+            {ISSUER.bankAccountName && (
+              <p className="text-neutral-600">
+                {t("finance.institutional.print.bank_account_name")}: {ISSUER.bankAccountName}
+              </p>
+            )}
+            <p className="text-neutral-600">
+              {t("finance.institutional.print.bank_account_number")}: {ISSUER.bankAccountNumber}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

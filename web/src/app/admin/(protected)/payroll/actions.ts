@@ -154,6 +154,7 @@ async function buildCreateStaffPayslipSchema() {
     period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, await t("payroll.error.invalid_period")),
     gross_amount: z.coerce.number().positive(await t("payroll.staff.error.invalid_amount")),
     description: z.string().trim().optional(),
+    document_type: z.enum(["payslip", "admin_fee"]).default("payslip"),
   });
 }
 
@@ -174,6 +175,7 @@ export async function createStaffPayslip(_prev: CreateStaffPayslipState, formDat
     period_end: formData.get("period_end"),
     gross_amount: formData.get("gross_amount"),
     description: formData.get("description") || undefined,
+    document_type: formData.get("document_type") || undefined,
   });
   if (!parsed.success) {
     return { status: "error", message: parsed.error.issues[0]?.message ?? await t("payroll.error.invalid_period") };
@@ -191,8 +193,111 @@ export async function createStaffPayslip(_prev: CreateStaffPayslipState, formDat
     gross_amount: input.gross_amount,
     description: input.description ?? null,
     created_by: auth.userId,
+    document_type: input.document_type,
   });
   if (error) return { status: "error", message: `${await t("payroll.error.run_failed")}${error.message}` };
+
+  revalidatePath("/admin/payroll");
+  return { status: "success" };
+}
+
+// Built inside the action (not at module scope) — see buildCreateStaffPayslipSchema's note above.
+async function buildUpdateStaffPayslipSchema() {
+  return z.object({
+    period_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, await t("payroll.error.invalid_period")),
+    period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, await t("payroll.error.invalid_period")),
+    gross_amount: z.coerce.number().positive(await t("payroll.staff.error.invalid_amount")),
+    description: z.string().trim().optional(),
+  });
+}
+
+export type UpdateStaffPayslipState = { status: "idle" } | { status: "error"; message: string } | { status: "success" };
+
+// Scoped to amount/period/description only — party_id and document_type
+// define what the document fundamentally IS, so changing either is a
+// delete-and-recreate, not an edit. staff_payslips never posts to the
+// ledger on its own (unlike commission_records/operating expenses), so a
+// plain in-place UPDATE is safe here — no reversal entry needed.
+export async function updateStaffPayslip(payslipId: string, _prev: UpdateStaffPayslipState, formData: FormData): Promise<UpdateStaffPayslipState> {
+  const auth = await requireFinanceUserId();
+  if ("error" in auth) return { status: "error", message: auth.error };
+
+  const schema = await buildUpdateStaffPayslipSchema();
+  const parsed = schema.safeParse({
+    period_start: formData.get("period_start"),
+    period_end: formData.get("period_end"),
+    gross_amount: formData.get("gross_amount"),
+    description: formData.get("description") || undefined,
+  });
+  if (!parsed.success) {
+    return { status: "error", message: parsed.error.issues[0]?.message ?? await t("payroll.error.invalid_period") };
+  }
+  const input = parsed.data;
+  if (input.period_end < input.period_start) {
+    return { status: "error", message: await t("payroll.error.invalid_period_range") };
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("staff_payslips")
+    .update({
+      period_start: input.period_start,
+      period_end: input.period_end,
+      gross_amount: input.gross_amount,
+      description: input.description ?? null,
+    })
+    .eq("id", payslipId);
+  if (error) return { status: "error", message: `${await t("payroll.error.run_failed")}${error.message}` };
+
+  revalidatePath("/admin/payroll");
+  return { status: "success" };
+}
+
+export type DeleteStaffPayslipState = { ok: boolean; message: string };
+
+export async function deleteStaffPayslip(payslipId: string): Promise<DeleteStaffPayslipState> {
+  const auth = await requireFinanceUserId();
+  if ("error" in auth) return { ok: false, message: auth.error };
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("staff_payslips").delete().eq("id", payslipId);
+  if (error) return { ok: false, message: `${await t("payroll.error.run_failed")}${error.message}` };
+
+  revalidatePath("/admin/payroll");
+  return { ok: true, message: await t("payroll.staff.delete_success") };
+}
+
+// Built inside the action (not at module scope) — see buildCreateStaffPayslipSchema's note above.
+async function buildAddStaffMemberSchema() {
+  return z.object({
+    full_name: z.string().trim().min(2, await t("payroll.staff.error.invalid_name")),
+  });
+}
+
+export type AddStaffMemberState = { status: "idle" } | { status: "error"; message: string } | { status: "success" };
+
+// Registers a bare identity (parties + individuals, no users/auth login) so
+// pure back-office staff who'll never sign into the portal can still appear
+// in the staff-payslip recipient dropdown — see migration 072's header.
+export async function addStaffMember(_prev: AddStaffMemberState, formData: FormData): Promise<AddStaffMemberState> {
+  const auth = await requireFinanceUserId();
+  if ("error" in auth) return { status: "error", message: auth.error };
+
+  const schema = await buildAddStaffMemberSchema();
+  const parsed = schema.safeParse({ full_name: formData.get("full_name") });
+  if (!parsed.success) {
+    return { status: "error", message: parsed.error.issues[0]?.message ?? await t("payroll.staff.error.invalid_name") };
+  }
+
+  const admin = createAdminClient();
+  const { data: party, error: partyError } = await admin.from("parties").insert({ party_type: "individual" }).select("id").single();
+  if (partyError) return { status: "error", message: `${await t("payroll.error.run_failed")}${partyError.message}` };
+
+  const { error: individualError } = await admin.from("individuals").insert({ party_id: party.id, full_name: parsed.data.full_name });
+  if (individualError) return { status: "error", message: `${await t("payroll.error.run_failed")}${individualError.message}` };
+
+  const { error: staffError } = await admin.from("staff_members").insert({ party_id: party.id });
+  if (staffError) return { status: "error", message: `${await t("payroll.error.run_failed")}${staffError.message}` };
 
   revalidatePath("/admin/payroll");
   return { status: "success" };

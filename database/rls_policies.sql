@@ -269,6 +269,20 @@ create policy "self or back office reads staff payslips" on staff_payslips for s
   using (party_id = current_party_id() or is_back_office());
 create policy "back office writes staff payslips" on staff_payslips for insert
   with check (is_back_office());
+create policy "back office updates staff payslips" on staff_payslips for update
+  using (is_back_office());
+create policy "back office deletes staff payslips" on staff_payslips for delete
+  using (is_back_office());
+
+-- Bare-identity payee roster for staff_payslips (migration 072) — back
+-- office only, same posture as registration_kits/commission_rules.
+alter table staff_members enable row level security;
+create policy "back office reads staff members" on staff_members for select
+  using (is_back_office());
+create policy "back office writes staff members" on staff_members for insert
+  with check (is_back_office());
+create policy "back office updates staff members" on staff_members for update
+  using (is_back_office());
 
 -- Sales item / price catalog (migration 033) — back office only, same as
 -- commission_rules/chart_of_accounts; analyst-facing pages read this through

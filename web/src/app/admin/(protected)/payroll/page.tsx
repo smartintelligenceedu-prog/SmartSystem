@@ -16,6 +16,7 @@ import { t } from "@/lib/i18n";
 import { RunPayoutForm } from "./run-payout-form";
 import { CreateStaffPayslipForm } from "./create-staff-payslip-form";
 import { PayeeSettlementList } from "./payee-settlement-list";
+import { StaffPayslipListRow } from "./staff-payslip-list-row";
 
 export const dynamic = "force-dynamic";
 
@@ -67,22 +68,7 @@ export default async function PayrollPage() {
               ) : (
                 <div className="divide-y">
                   {staffPayslips.map((p) => (
-                    <div key={p.id} className="flex items-center justify-between py-3 text-sm">
-                      <div>
-                        <p>{p.full_name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatDate(p.period_start)} – {formatDate(p.period_end)}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="tabular-nums font-medium">{formatMYR(p.gross_amount)}</span>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          render={<Link href={`/admin/payroll/staff-payslip/${p.id}`}>{t("payroll.view_detail_link")}</Link>}
-                        />
-                      </div>
-                    </div>
+                    <StaffPayslipListRow key={p.id} payslip={p} detailHref={`/admin/payroll/staff-payslip/${p.id}`} />
                   ))}
                 </div>
               )}

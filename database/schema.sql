@@ -982,9 +982,24 @@ create table staff_payslips (
   gross_amount numeric(12,2) not null check (gross_amount >= 0),
   description text,
   created_by uuid references users(id),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  -- 'payslip' = company pays this person (default); 'admin_fee' = the
+  -- reverse — this person (typically a Leader) owes the company for their
+  -- share of pooled admin/office overhead. Same row shape, only the
+  -- printed title/wording differs (migration 072).
+  document_type text not null default 'payslip' check (document_type in ('payslip', 'admin_fee'))
 );
 create index idx_staff_payslips_party on staff_payslips(party_id);
+
+-- Lightweight payee roster for staff_payslips — lets back office register a
+-- bare identity (name only, no login) for someone who should be payable via
+-- Staff Payslip but will never sign into the portal (migration 072).
+create table staff_members (
+  id uuid primary key default gen_random_uuid(),
+  party_id uuid not null unique references parties(id),
+  status text not null default 'active' check (status in ('active', 'inactive')),
+  created_at timestamptz not null default now()
+);
 
 -- ============================================================================
 -- 10. FINANCE

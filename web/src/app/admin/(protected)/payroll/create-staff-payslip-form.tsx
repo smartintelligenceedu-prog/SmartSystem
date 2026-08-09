@@ -9,8 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ct } from "@/lib/i18n-client";
 import { createStaffPayslip, type CreateStaffPayslipState } from "./actions";
 import { submitWithoutReset } from "@/lib/submit-without-reset";
+import { AddStaffMemberForm } from "./add-staff-member-form";
 
 const initialState: CreateStaffPayslipState = { status: "idle" };
+const DOCUMENT_TYPE_OPTIONS = ["payslip", "admin_fee"] as const;
 
 export function CreateStaffPayslipForm({ recipients }: { recipients: { party_id: string; name: string }[] }) {
   const [state, formAction, isPending] = useActionState(createStaffPayslip, initialState);
@@ -38,6 +40,22 @@ export function CreateStaffPayslipForm({ recipients }: { recipients: { party_id:
                 {recipients.map((r) => (
                   <SelectItem key={r.party_id} value={r.party_id}>
                     {r.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <AddStaffMemberForm />
+          <div className="space-y-2">
+            <Label htmlFor="document_type">{ct("payroll.staff.document_type_label")}</Label>
+            <Select name="document_type" items={DOCUMENT_TYPE_OPTIONS.map((v) => ({ value: v, label: ct(`payroll.staff.document_type.${v}`) }))} defaultValue="payslip">
+              <SelectTrigger id="document_type" className="w-full">
+                <SelectValue placeholder="—" />
+              </SelectTrigger>
+              <SelectContent>
+                {DOCUMENT_TYPE_OPTIONS.map((v) => (
+                  <SelectItem key={v} value={v}>
+                    {ct(`payroll.staff.document_type.${v}`)}
                   </SelectItem>
                 ))}
               </SelectContent>
