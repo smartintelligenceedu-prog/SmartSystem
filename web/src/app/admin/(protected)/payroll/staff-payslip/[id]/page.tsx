@@ -62,7 +62,7 @@ export default async function StaffPayslipPage({ params }: { params: Promise<{ i
               {t("finance.institutional.print.ssm_no")}: {ISSUER.ssmNumber}
             </p>
           </div>
-          <div className="shrink-0 text-right">
+          <div className="shrink-0 text-left">
             <h1 className="text-2xl font-extrabold tracking-tight">
               {payslip.document_type === "admin_fee" ? t("payroll.admin_fee.print_title") : t("payroll.staff.payslip_title")}
             </h1>
