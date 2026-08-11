@@ -987,7 +987,13 @@ create table staff_payslips (
   -- reverse — this person (typically a Leader) owes the company for their
   -- share of pooled admin/office overhead. Same row shape, only the
   -- printed title/wording differs (migration 072).
-  document_type text not null default 'payslip' check (document_type in ('payslip', 'admin_fee'))
+  document_type text not null default 'payslip' check (document_type in ('payslip', 'admin_fee')),
+  -- Set once an admin_fee statement is actually collected (migration 073) —
+  -- self-contained here rather than the real payments/receipts pipeline,
+  -- since this isn't customer revenue. receipt_no mirrors the real
+  -- 'RCP-YYYYMMDD-xxxxxx' format purely for visual consistency.
+  paid_at timestamptz,
+  receipt_no text
 );
 create index idx_staff_payslips_party on staff_payslips(party_id);
 

@@ -430,6 +430,8 @@ export interface StaffPayslipRow {
   description: string | null;
   created_at: string;
   document_type: "payslip" | "admin_fee";
+  paid_at: string | null;
+  receipt_no: string | null;
 }
 
 async function resolveStaffPayslips(
@@ -443,6 +445,8 @@ async function resolveStaffPayslips(
     description: string | null;
     created_at: string;
     document_type: string;
+    paid_at: string | null;
+    receipt_no: string | null;
   }[]
 ): Promise<StaffPayslipRow[]> {
   if (rows.length === 0) return [];
@@ -459,6 +463,8 @@ async function resolveStaffPayslips(
     description: r.description,
     created_at: r.created_at,
     document_type: r.document_type === "admin_fee" ? "admin_fee" : "payslip",
+    paid_at: r.paid_at,
+    receipt_no: r.receipt_no,
   }));
 }
 
@@ -467,7 +473,7 @@ export async function listAllStaffPayslips(): Promise<StaffPayslipRow[]> {
   const admin = createAdminClient();
   const { data } = await admin
     .from("staff_payslips")
-    .select("id, party_id, period_start, period_end, gross_amount, description, created_at, document_type")
+    .select("id, party_id, period_start, period_end, gross_amount, description, created_at, document_type, paid_at, receipt_no")
     .order("created_at", { ascending: false });
   return resolveStaffPayslips(admin, data ?? []);
 }
@@ -482,7 +488,7 @@ export async function listMyStaffPayslips(partyId: string): Promise<StaffPayslip
   const supabase = await createServerSupabaseClient();
   const { data } = await supabase
     .from("staff_payslips")
-    .select("id, party_id, period_start, period_end, gross_amount, description, created_at, document_type")
+    .select("id, party_id, period_start, period_end, gross_amount, description, created_at, document_type, paid_at, receipt_no")
     .eq("party_id", partyId)
     .order("created_at", { ascending: false });
   const admin = createAdminClient();
@@ -493,7 +499,7 @@ export async function getStaffPayslipDetail(payslipId: string): Promise<StaffPay
   const admin = createAdminClient();
   const { data } = await admin
     .from("staff_payslips")
-    .select("id, party_id, period_start, period_end, gross_amount, description, created_at, document_type")
+    .select("id, party_id, period_start, period_end, gross_amount, description, created_at, document_type, paid_at, receipt_no")
     .eq("id", payslipId)
     .maybeSingle();
   if (!data) return null;

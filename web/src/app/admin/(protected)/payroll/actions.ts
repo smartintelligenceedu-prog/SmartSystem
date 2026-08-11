@@ -267,6 +267,33 @@ export async function deleteStaffPayslip(payslipId: string): Promise<DeleteStaff
   return { ok: true, message: await t("payroll.staff.delete_success") };
 }
 
+export type MarkPaidState = { ok: boolean; message: string };
+
+// Self-contained receipt (migration 073) — deliberately not the real
+// payments/receipts trigger pipeline (finance_engine.sql), which posts
+// customer-revenue journal entries on every insert; an admin_fee collection
+// is internal cost-sharing recovery, not revenue, so it stays off the ledger
+// the same way the rest of staff_payslips already does.
+export async function markStaffPayslipPaid(payslipId: string): Promise<MarkPaidState> {
+  const auth = await requireFinanceUserId();
+  if ("error" in auth) return { ok: false, message: auth.error };
+
+  const admin = createAdminClient();
+  const { data: existing } = await admin.from("staff_payslips").select("paid_at").eq("id", payslipId).maybeSingle();
+  if (!existing) return { ok: false, message: await t("payroll.staff.error.not_found") };
+  if (existing.paid_at) return { ok: true, message: await t("payroll.staff.already_paid") };
+
+  const receiptNo = `RCP-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${Math.random().toString(16).slice(2, 8)}`;
+  const { error } = await admin
+    .from("staff_payslips")
+    .update({ paid_at: new Date().toISOString(), receipt_no: receiptNo })
+    .eq("id", payslipId);
+  if (error) return { ok: false, message: `${await t("payroll.error.run_failed")}${error.message}` };
+
+  revalidatePath("/admin/payroll");
+  return { ok: true, message: await t("payroll.staff.mark_paid_success") };
+}
+
 // Built inside the action (not at module scope) — see buildCreateStaffPayslipSchema's note above.
 async function buildAddStaffMemberSchema() {
   return z.object({

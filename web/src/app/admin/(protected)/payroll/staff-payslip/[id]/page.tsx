@@ -63,13 +63,25 @@ export default async function StaffPayslipPage({ params }: { params: Promise<{ i
             </p>
           </div>
           <div className="shrink-0 text-left">
-            <h1 className="text-2xl font-extrabold tracking-tight">
-              {payslip.document_type === "admin_fee" ? t("payroll.admin_fee.print_title") : t("payroll.staff.payslip_title")}
-            </h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-extrabold tracking-tight">
+                {payslip.document_type === "admin_fee" ? t("payroll.admin_fee.print_title") : t("payroll.staff.payslip_title")}
+              </h1>
+              {payslip.document_type === "admin_fee" && payslip.paid_at && (
+                <span className="rounded border-2 border-emerald-600 px-2 py-0.5 text-xs font-bold tracking-wide text-emerald-600 uppercase">
+                  {t("payroll.admin_fee.paid_stamp")}
+                </span>
+              )}
+            </div>
             <p className="mt-1 text-sm text-neutral-600">{payslip.full_name}</p>
             <p className="mt-2 text-sm text-neutral-600">
               {t("payroll.payslip.period_label")}: {formatDate(payslip.period_start)} – {formatDate(payslip.period_end)}
             </p>
+            {payslip.document_type === "admin_fee" && payslip.receipt_no && (
+              <p className="mt-1 text-sm text-neutral-600">
+                {t("payroll.admin_fee.receipt_no_label")}: {payslip.receipt_no}
+              </p>
+            )}
           </div>
         </div>
 
@@ -97,7 +109,16 @@ export default async function StaffPayslipPage({ params }: { params: Promise<{ i
           </div>
         </div>
 
-        {payslip.document_type === "admin_fee" && ISSUER.bankAccountNumber && (
+        {payslip.document_type === "admin_fee" && payslip.paid_at && (
+          <div className="mt-10 border-t border-neutral-200 pt-6 text-xs">
+            <p className="text-neutral-600">{t("payroll.admin_fee.thank_you_note")}</p>
+            <p className="mt-1 text-neutral-600">
+              {t("payroll.admin_fee.paid_at_label")}: {formatDate(payslip.paid_at)}
+            </p>
+          </div>
+        )}
+
+        {payslip.document_type === "admin_fee" && !payslip.paid_at && ISSUER.bankAccountNumber && (
           <div className="mt-10 border-t border-neutral-200 pt-6 text-xs">
             <p className="mb-1 text-neutral-600">{t("payroll.admin_fee.remit_note")}</p>
             <p className="mb-1 font-bold text-neutral-500 uppercase">{t("finance.institutional.print.bank_details_title")}</p>

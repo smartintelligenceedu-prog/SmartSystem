@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ct } from "@/lib/i18n-client";
-import { updateStaffPayslip, deleteStaffPayslip, type UpdateStaffPayslipState } from "./actions";
+import { updateStaffPayslip, deleteStaffPayslip, markStaffPayslipPaid, type UpdateStaffPayslipState } from "./actions";
 import { submitWithoutReset } from "@/lib/submit-without-reset";
 import type { StaffPayslipRow } from "./data";
 
@@ -31,7 +31,8 @@ export function StaffPayslipListRow({ payslip, detailHref }: { payslip: StaffPay
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
   const [isDeleting, startDeleteTransition] = useTransition();
-  const [deleteMessage, setDeleteMessage] = useState<string | null>(null);
+  const [isMarkingPaid, startMarkPaidTransition] = useTransition();
+  const [rowMessage, setRowMessage] = useState<string | null>(null);
   const boundUpdate = updateStaffPayslip.bind(null, payslip.id);
   const [state, formAction, isSaving] = useActionState(boundUpdate, initialState);
 
@@ -46,7 +47,16 @@ export function StaffPayslipListRow({ payslip, detailHref }: { payslip: StaffPay
     if (!window.confirm(ct("payroll.staff.confirm_delete"))) return;
     startDeleteTransition(async () => {
       const result = await deleteStaffPayslip(payslip.id);
-      setDeleteMessage(result.message);
+      setRowMessage(result.message);
+      if (result.ok) router.refresh();
+    });
+  }
+
+  function doMarkPaid() {
+    if (!window.confirm(ct("payroll.staff.confirm_mark_paid"))) return;
+    startMarkPaidTransition(async () => {
+      const result = await markStaffPayslipPaid(payslip.id);
+      setRowMessage(result.message);
       if (result.ok) router.refresh();
     });
   }
@@ -96,21 +106,30 @@ export function StaffPayslipListRow({ payslip, detailHref }: { payslip: StaffPay
     );
   }
 
+  const isAdminFee = payslip.document_type === "admin_fee";
+  const isPaid = !!payslip.paid_at;
+
   return (
     <div className="flex items-center justify-between py-3 text-sm">
       <div>
         <p className="flex items-center gap-2">
           {payslip.full_name}
-          {payslip.document_type === "admin_fee" && <Badge variant="secondary">{ct("payroll.staff.badge.admin_fee")}</Badge>}
+          {isAdminFee && <Badge variant="secondary">{ct("payroll.staff.badge.admin_fee")}</Badge>}
+          {isAdminFee && isPaid && <Badge variant="secondary">{ct("payroll.staff.badge.paid")}</Badge>}
         </p>
         <p className="text-xs text-muted-foreground">
           {formatDate(payslip.period_start)} – {formatDate(payslip.period_end)}
         </p>
-        {deleteMessage && <p className="text-xs text-muted-foreground">{deleteMessage}</p>}
+        {rowMessage && <p className="text-xs text-muted-foreground">{rowMessage}</p>}
       </div>
       <div className="flex items-center gap-3">
         <span className="tabular-nums font-medium">{formatMYR(payslip.gross_amount)}</span>
         <Button size="sm" variant="ghost" render={<Link href={detailHref}>{ct("payroll.view_detail_link")}</Link>} />
+        {isAdminFee && !isPaid && (
+          <Button size="sm" variant="ghost" disabled={isMarkingPaid} onClick={doMarkPaid}>
+            {ct("payroll.staff.mark_paid_button")}
+          </Button>
+        )}
         <Button size="sm" variant="ghost" onClick={() => setIsEditing(true)}>
           {ct("payroll.staff.edit_button")}
         </Button>
