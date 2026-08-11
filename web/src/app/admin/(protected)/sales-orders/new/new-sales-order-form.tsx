@@ -36,6 +36,10 @@ function emptyLine(): ItemLine {
   return { item_id: "", amount: "" };
 }
 
+function todayDateString() {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kuala_Lumpur" });
+}
+
 export function NewSalesOrderForm({
   ownAnalystId,
   ownAnalystName,
@@ -137,6 +141,12 @@ export function NewSalesOrderForm({
       <CardContent className="pt-6">
         <form onSubmit={handleSubmit} className="space-y-4">
           <input type="hidden" name="mode" value={mode} />
+
+          <div className="space-y-2">
+            <Label htmlFor="order_date">{ct("sales_orders.form.order_date_label")}</Label>
+            <Input id="order_date" name="order_date" type="date" max={todayDateString()} defaultValue={todayDateString()} className="w-40" />
+            <p className="text-xs text-muted-foreground">{ct("sales_orders.form.order_date_hint")}</p>
+          </div>
 
           <div className="space-y-2">
             <Label>{ct("sales_orders.form.payment_method")}</Label>

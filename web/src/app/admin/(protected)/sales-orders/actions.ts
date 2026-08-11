@@ -45,6 +45,27 @@ async function requireBackOfficeUserId(): Promise<{ userId: string } | { error: 
   return { userId: userRow.id };
 }
 
+// Malaysia has a single fixed UTC+8 offset (no DST) — same helper used by
+// the scheduling module's toMYTimestamp().
+function todayMYDateString(): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kuala_Lumpur" });
+}
+
+// Combines a back-dated order_date with the CURRENT MY time-of-day, so an
+// order entered late for "yesterday" still sorts sensibly against other
+// same-day orders instead of collapsing to midnight. Only ever called when
+// order_date differs from today — the common case leaves created_at unset
+// entirely so the column's own now() default applies unchanged.
+function buildBackdatedCreatedAt(orderDate: string): string {
+  const nowTimeStr = new Date().toLocaleTimeString("en-GB", {
+    timeZone: "Asia/Kuala_Lumpur",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+  return new Date(`${orderDate}T${nowTimeStr}+08:00`).toISOString();
+}
+
 const lineSchema = z.object({
   item_id: z.string().uuid(),
   // Can be negative for a discount line — sign/kind is re-derived
@@ -66,6 +87,7 @@ async function buildRedeemSchema() {
     customer_id: z.string().uuid(await t("sales_orders.error.select_customer")),
     amount: z.coerce.number().positive(await t("sales_orders.error.valid_amount")),
     voucher_id: z.string().uuid(await t("sales_orders.error.select_voucher")),
+    order_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, await t("sales_orders.error.invalid_date")).optional(),
   });
 }
 
@@ -73,7 +95,20 @@ async function buildPayNowSchema() {
   return z.object({
     mode: z.literal("pay_now"),
     members_json: z.string().min(1, await t("sales_orders.error.add_one_customer")),
+    order_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, await t("sales_orders.error.invalid_date")).optional(),
   });
+}
+
+// Shared by both create-order paths — validates the optional back-dated
+// order_date (rejecting the future) and resolves it into an insert-ready
+// `created_at` override, or undefined to leave the column's own now()
+// default in place for the common (today, or left blank) case.
+async function resolveOrderCreatedAt(orderDate: string | undefined): Promise<{ createdAt?: string } | { error: string }> {
+  if (!orderDate) return {};
+  const today = todayMYDateString();
+  if (orderDate > today) return { error: await t("sales_orders.error.future_date_not_allowed") };
+  if (orderDate === today) return {};
+  return { createdAt: buildBackdatedCreatedAt(orderDate) };
 }
 
 export type CreateSalesOrderState =
@@ -107,9 +142,13 @@ export async function createSalesOrder(_prev: CreateSalesOrderState, formData: F
       customer_id: formData.get("customer_id"),
       amount: formData.get("amount"),
       voucher_id: formData.get("voucher_id"),
+      order_date: formData.get("order_date") || undefined,
     });
     if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message ?? (await t("sales_orders.error.invalid_form")) };
     const input = parsed.data;
+
+    const createdAtResult = await resolveOrderCreatedAt(input.order_date);
+    if ("error" in createdAtResult) return { status: "error", message: createdAtResult.error };
 
     const { data: customer } = await admin.from("customers").select("id, owner_analyst_id").eq("id", input.customer_id).maybeSingle();
     if (!customer || customer.owner_analyst_id !== auth.analystId) {
@@ -146,7 +185,13 @@ export async function createSalesOrder(_prev: CreateSalesOrderState, formData: F
     // approve flow already relies on (see the comment in registrations/actions.ts).
     const { data: order, error: orderError } = await admin
       .from("orders")
-      .insert({ order_type: "detection_service", analyst_id: auth.analystId, total_amount: input.amount, status: "pending" })
+      .insert({
+        order_type: "detection_service",
+        analyst_id: auth.analystId,
+        total_amount: input.amount,
+        status: "pending",
+        ...(createdAtResult.createdAt ? { created_at: createdAtResult.createdAt } : {}),
+      })
       .select("id")
       .single();
     if (orderError) return { status: "error", message: `${await t("sales_orders.error.create_order_failed_prefix")}${orderError.message}` };
@@ -187,8 +232,15 @@ export async function createSalesOrder(_prev: CreateSalesOrderState, formData: F
   // 'pending', waits for back-office review of the one shared payment
   // screenshot — same flow as the Registration Module.
   const payNowSchema = await buildPayNowSchema();
-  const parsed = payNowSchema.safeParse({ mode: "pay_now", members_json: formData.get("members_json") });
+  const parsed = payNowSchema.safeParse({
+    mode: "pay_now",
+    members_json: formData.get("members_json"),
+    order_date: formData.get("order_date") || undefined,
+  });
   if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message ?? (await t("sales_orders.error.invalid_form")) };
+
+  const createdAtResult = await resolveOrderCreatedAt(parsed.data.order_date);
+  if ("error" in createdAtResult) return { status: "error", message: createdAtResult.error };
 
   const members = parseMembers(parsed.data.members_json);
   if (!members) return { status: "error", message: await t("sales_orders.error.add_customer_and_amount") };
@@ -228,7 +280,13 @@ export async function createSalesOrder(_prev: CreateSalesOrderState, formData: F
 
   const { data: order, error: orderError } = await admin
     .from("orders")
-    .insert({ order_type: "detection_service", analyst_id: auth.analystId, total_amount: totalAmount, status: "pending" })
+    .insert({
+      order_type: "detection_service",
+      analyst_id: auth.analystId,
+      total_amount: totalAmount,
+      status: "pending",
+      ...(createdAtResult.createdAt ? { created_at: createdAtResult.createdAt } : {}),
+    })
     .select("id")
     .single();
   if (orderError) return { status: "error", message: `${await t("sales_orders.error.create_order_failed_prefix")}${orderError.message}` };
