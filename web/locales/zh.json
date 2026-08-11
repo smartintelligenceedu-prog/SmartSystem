@@ -1357,6 +1357,7 @@
   "payroll.run.submit": "执行结算",
   "payroll.run.no_approved_records": "这个期间没有已审核的佣金纪录可供结算",
   "payroll.run.success_prefix": "结算完成，已生成 ",
+  "payroll.run.settlement_description_prefix": "佣金月结发放 - ",
   "payroll.run.success_analysts": " 份顾问薪资单、",
   "payroll.run.success_introducers": " 份介绍人收益结算单",
   "payroll.run.history_title": "历史结算纪录",

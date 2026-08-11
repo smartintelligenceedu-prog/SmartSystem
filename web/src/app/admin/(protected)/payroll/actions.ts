@@ -136,7 +136,43 @@ export async function runMonthlyPayout(_prev: RunPayoutState, formData: FormData
     if (error) return { status: "error", message: `${await t("payroll.error.run_failed")}${error.message}` };
   }
 
+  // postToLedger() only ever posts the ACCRUAL (Dr expense / Cr 2000
+  // Commission Payable) the moment a commission_record exists — nothing
+  // previously debited 2000 back down once it was actually paid out, so the
+  // liability just accumulated forever with no ledger trace of real cash
+  // leaving the company. This posts that missing settlement entry for the
+  // run's total (Dr 2000 / Cr 1000), dated the day the run actually
+  // executed (not the period it covers — that's when the accrual posted).
+  const totalPayout = approvedRecords.reduce((sum, r) => sum + Number(r.commission_amount), 0);
+  const { data: settlementAccounts } = await admin.from("chart_of_accounts").select("id, code").in("code", ["1000", "2000"]);
+  const settlementAccountIdByCode = new Map((settlementAccounts ?? []).map((a) => [a.code, a.id]));
+  const cashAccountId = settlementAccountIdByCode.get("1000");
+  const payableAccountId = settlementAccountIdByCode.get("2000");
+  if (!cashAccountId || !payableAccountId) {
+    return { status: "error", message: await t("finance.error.missing_accounts") };
+  }
+  const { data: settlementEntry, error: settlementEntryError } = await admin
+    .from("journal_entries")
+    .insert({
+      entry_date: new Date().toISOString().slice(0, 10),
+      source_type: "commission_payout_run",
+      source_id: run.id,
+      description: `${await t("payroll.run.settlement_description_prefix")}${period_start} ~ ${period_end}`,
+      posted_by: auth.userId,
+    })
+    .select("id")
+    .single();
+  if (settlementEntryError || !settlementEntry) {
+    return { status: "error", message: `${await t("payroll.error.run_failed")}${settlementEntryError?.message ?? ""}` };
+  }
+  const { error: settlementLinesError } = await admin.from("journal_lines").insert([
+    { journal_entry_id: settlementEntry.id, account_id: payableAccountId, debit: totalPayout, credit: 0 },
+    { journal_entry_id: settlementEntry.id, account_id: cashAccountId, debit: 0, credit: totalPayout },
+  ]);
+  if (settlementLinesError) return { status: "error", message: `${await t("payroll.error.run_failed")}${settlementLinesError.message}` };
+
   revalidatePath("/admin/payroll");
+  revalidatePath("/admin/finance");
   return {
     status: "success",
     message: `${await t("payroll.run.success_prefix")}${analystTotals.size}${await t("payroll.run.success_analysts")}${introducerTotals.size}${await t("payroll.run.success_introducers")}`,

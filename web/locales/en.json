@@ -1357,6 +1357,7 @@
   "payroll.run.submit": "Run Settlement",
   "payroll.run.no_approved_records": "There are no approved commission records available for settlement in this period",
   "payroll.run.success_prefix": "Settlement complete — generated ",
+  "payroll.run.settlement_description_prefix": "Commission Payout Run - ",
   "payroll.run.success_analysts": " consultant payslip(s), ",
   "payroll.run.success_introducers": " introducer statement(s)",
   "payroll.run.history_title": "Settlement History",
