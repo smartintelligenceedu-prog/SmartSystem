@@ -1435,6 +1435,7 @@
   "payroll.admin_fee.print_title": "Admin Fee Statement / 行政费缴费通知单",
   "payroll.admin_fee.remit_note": "请将以上款项汇入以下公司账户：",
   "payroll.staff.error.not_found": "找不到这张单据",
+  "payroll.staff.error.already_posted": "这张单据已经过账到总账，金额/期间不可修改，如需更正请删除后重新建立",
   "payroll.staff.already_paid": "这张单据本来就已经标记为已收款",
   "payroll.staff.mark_paid_success": "已标记为已收款，并产生收据编号",
   "payroll.staff.mark_paid_button": "标记已收款",

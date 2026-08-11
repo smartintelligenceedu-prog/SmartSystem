@@ -61,6 +61,14 @@ export function StaffPayslipListRow({ payslip, detailHref }: { payslip: StaffPay
     });
   }
 
+  const isAdminFee = payslip.document_type === "admin_fee";
+  const isPaid = !!payslip.paid_at;
+  // A 'payslip' posts to the ledger immediately at creation; an 'admin_fee'
+  // only once paid — either way, once posted, amount/period are locked
+  // (server-side too — see updateStaffPayslip's own check) since editing
+  // them in place would desync the already-posted journal_lines amount.
+  const isPosted = !isAdminFee || isPaid;
+
   if (isEditing) {
     return (
       <div className="border-b py-3">
@@ -68,11 +76,25 @@ export function StaffPayslipListRow({ payslip, detailHref }: { payslip: StaffPay
           <p className="w-full text-sm font-medium">{payslip.full_name}</p>
           <div className="space-y-1">
             <Label htmlFor={`period_start_${payslip.id}`}>{ct("payroll.run.period_start_label")}</Label>
-            <Input id={`period_start_${payslip.id}`} name="period_start" type="date" defaultValue={payslip.period_start} className="w-36" />
+            <Input
+              id={`period_start_${payslip.id}`}
+              name="period_start"
+              type="date"
+              defaultValue={payslip.period_start}
+              readOnly={isPosted}
+              className="w-36"
+            />
           </div>
           <div className="space-y-1">
             <Label htmlFor={`period_end_${payslip.id}`}>{ct("payroll.run.period_end_label")}</Label>
-            <Input id={`period_end_${payslip.id}`} name="period_end" type="date" defaultValue={payslip.period_end} className="w-36" />
+            <Input
+              id={`period_end_${payslip.id}`}
+              name="period_end"
+              type="date"
+              defaultValue={payslip.period_end}
+              readOnly={isPosted}
+              className="w-36"
+            />
           </div>
           <div className="space-y-1">
             <Label htmlFor={`amount_${payslip.id}`}>{ct("payroll.staff.amount_label")}</Label>
@@ -83,6 +105,7 @@ export function StaffPayslipListRow({ payslip, detailHref }: { payslip: StaffPay
               step="0.01"
               min="0"
               defaultValue={payslip.gross_amount}
+              readOnly={isPosted}
               className="w-32"
             />
           </div>
@@ -96,6 +119,7 @@ export function StaffPayslipListRow({ payslip, detailHref }: { payslip: StaffPay
           <Button type="button" size="sm" variant="ghost" onClick={() => setIsEditing(false)} disabled={isSaving}>
             {ct("payroll.staff.cancel_button")}
           </Button>
+          {isPosted && <p className="w-full text-xs text-muted-foreground">{ct("payroll.staff.error.already_posted")}</p>}
           {state.status === "error" && (
             <p className="w-full text-sm text-destructive" role="alert">
               {state.message}
@@ -105,9 +129,6 @@ export function StaffPayslipListRow({ payslip, detailHref }: { payslip: StaffPay
       </div>
     );
   }
-
-  const isAdminFee = payslip.document_type === "admin_fee";
-  const isPaid = !!payslip.paid_at;
 
   return (
     <div className="flex items-center justify-between py-3 text-sm">

@@ -1435,6 +1435,7 @@
   "payroll.admin_fee.print_title": "Admin Fee Statement / 行政费缴费通知单",
   "payroll.admin_fee.remit_note": "Please remit the above amount to the following company account:",
   "payroll.staff.error.not_found": "This document could not be found",
+  "payroll.staff.error.already_posted": "This document has already posted to the ledger — amount/period can't be changed. Delete and recreate it to correct a mistake.",
   "payroll.staff.already_paid": "This document is already marked as paid",
   "payroll.staff.mark_paid_success": "Marked as paid, receipt number generated",
   "payroll.staff.mark_paid_button": "Mark as Paid",

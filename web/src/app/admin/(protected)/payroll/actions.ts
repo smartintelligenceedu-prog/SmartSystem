@@ -160,10 +160,81 @@ async function buildCreateStaffPayslipSchema() {
 
 export type CreateStaffPayslipState = { status: "idle" } | { status: "error"; message: string } | { status: "success" };
 
+async function getIndividualName(admin: ReturnType<typeof createAdminClient>, partyId: string): Promise<string> {
+  const { data } = await admin.from("individuals").select("full_name").eq("party_id", partyId).maybeSingle();
+  return data?.full_name ?? "—";
+}
+
+async function getAccountIds(admin: ReturnType<typeof createAdminClient>, codes: string[]): Promise<Map<string, string>> {
+  const { data } = await admin.from("chart_of_accounts").select("id, code").in("code", codes);
+  return new Map((data ?? []).map((a) => [a.code, a.id]));
+}
+
+// Posts a 'payslip' (Dr 6300 Staff Salary / Cr 1000 Cash) — a payslip
+// already represents a completed payment (see the comment on
+// createStaffPayslip below), so it posts immediately at creation, same
+// posture as recordOperatingExpense() — or, for an 'admin_fee' once it's
+// actually collected, the reverse (Dr 1000 Cash / Cr 4900 Admin Fee
+// Recovery). entry_date is the pay period's end date for a payslip (the
+// period it covers); today's date for an admin_fee (the date it was paid).
+// Migration 074.
+async function postStaffPayslipEntry(
+  admin: ReturnType<typeof createAdminClient>,
+  payslip: { id: string; document_type: "payslip" | "admin_fee"; gross_amount: number; description: string | null; party_id: string; period_end: string },
+  postedBy: string
+): Promise<{ error?: string }> {
+  const debitCode = payslip.document_type === "payslip" ? "6300" : "1000";
+  const creditCode = payslip.document_type === "payslip" ? "1000" : "4900";
+  const accountIds = await getAccountIds(admin, [debitCode, creditCode]);
+  const debitAccountId = accountIds.get(debitCode);
+  const creditAccountId = accountIds.get(creditCode);
+  if (!debitAccountId || !creditAccountId) return { error: await t("finance.error.missing_accounts") };
+
+  const name = await getIndividualName(admin, payslip.party_id);
+  const label = payslip.document_type === "payslip" ? await t("payroll.staff.payslip_title") : await t("payroll.admin_fee.print_title");
+  const entryDate = payslip.document_type === "payslip" ? payslip.period_end : new Date().toISOString().slice(0, 10);
+
+  const { data: entry, error: entryError } = await admin
+    .from("journal_entries")
+    .insert({
+      entry_date: entryDate,
+      source_type: "staff_payslip",
+      source_id: payslip.id,
+      description: `${label} - ${name}${payslip.description ? ` - ${payslip.description}` : ""}`,
+      posted_by: postedBy,
+    })
+    .select("id")
+    .single();
+  if (entryError || !entry) return { error: entryError?.message ?? await t("finance.error.unknown_error") };
+
+  const { error: linesError } = await admin.from("journal_lines").insert([
+    { journal_entry_id: entry.id, account_id: debitAccountId, debit: payslip.gross_amount, credit: 0 },
+    { journal_entry_id: entry.id, account_id: creditAccountId, debit: 0, credit: payslip.gross_amount },
+  ]);
+  if (linesError) return { error: linesError.message };
+  return {};
+}
+
+// True once a non-voided journal_entries row exists for this payslip — a
+// 'payslip' is always posted immediately at creation (see below), so this
+// is only ever meaningfully false for an unpaid 'admin_fee'.
+async function isStaffPayslipPosted(admin: ReturnType<typeof createAdminClient>, payslipId: string): Promise<boolean> {
+  const { data } = await admin
+    .from("journal_entries")
+    .select("id")
+    .eq("source_type", "staff_payslip")
+    .eq("source_id", payslipId)
+    .neq("status", "voided")
+    .maybeSingle();
+  return !!data;
+}
+
 // Deliberately manual (the user's explicit choice over a stored monthly
 // salary + auto-run): back office types an amount each time a plain staff
 // member (neither analyst nor introducer) gets paid, same posture as
-// adminAdjustCommission's manual override.
+// adminAdjustCommission's manual override. A 'payslip' posts to the ledger
+// immediately (migration 074) since creating one already means the payment
+// happened; an 'admin_fee' only posts once markStaffPayslipPaid runs.
 export async function createStaffPayslip(_prev: CreateStaffPayslipState, formData: FormData): Promise<CreateStaffPayslipState> {
   const auth = await requireFinanceUserId();
   if ("error" in auth) return { status: "error", message: auth.error };
@@ -186,18 +257,32 @@ export async function createStaffPayslip(_prev: CreateStaffPayslipState, formDat
   }
 
   const admin = createAdminClient();
-  const { error } = await admin.from("staff_payslips").insert({
-    party_id: input.party_id,
-    period_start: input.period_start,
-    period_end: input.period_end,
-    gross_amount: input.gross_amount,
-    description: input.description ?? null,
-    created_by: auth.userId,
-    document_type: input.document_type,
-  });
-  if (error) return { status: "error", message: `${await t("payroll.error.run_failed")}${error.message}` };
+  const { data: payslip, error } = await admin
+    .from("staff_payslips")
+    .insert({
+      party_id: input.party_id,
+      period_start: input.period_start,
+      period_end: input.period_end,
+      gross_amount: input.gross_amount,
+      description: input.description ?? null,
+      created_by: auth.userId,
+      document_type: input.document_type,
+    })
+    .select("id")
+    .single();
+  if (error || !payslip) return { status: "error", message: `${await t("payroll.error.run_failed")}${error?.message ?? ""}` };
+
+  if (input.document_type === "payslip") {
+    const posting = await postStaffPayslipEntry(
+      admin,
+      { id: payslip.id, document_type: "payslip", gross_amount: input.gross_amount, description: input.description ?? null, party_id: input.party_id, period_end: input.period_end },
+      auth.userId
+    );
+    if (posting.error) return { status: "error", message: `${await t("payroll.error.run_failed")}${posting.error}` };
+  }
 
   revalidatePath("/admin/payroll");
+  revalidatePath("/admin/finance");
   return { status: "success" };
 }
 
@@ -213,11 +298,14 @@ async function buildUpdateStaffPayslipSchema() {
 
 export type UpdateStaffPayslipState = { status: "idle" } | { status: "error"; message: string } | { status: "success" };
 
-// Scoped to amount/period/description only — party_id and document_type
-// define what the document fundamentally IS, so changing either is a
-// delete-and-recreate, not an edit. staff_payslips never posts to the
-// ledger on its own (unlike commission_records/operating expenses), so a
-// plain in-place UPDATE is safe here — no reversal entry needed.
+// Scoped to amount/period/description — party_id/document_type define what
+// the document fundamentally IS, so changing either is a delete-and-recreate,
+// not an edit. Once a row has posted to the ledger (a 'payslip', always; an
+// 'admin_fee', once paid), amount/period changes are refused — editing them
+// in place would silently desync the posted journal_lines amount from the
+// row, same restriction updateExpenseDescription applies to operating
+// expenses. Delete-then-recreate (which voids the old entry) is the correct
+// path for a posted row's amount being wrong.
 export async function updateStaffPayslip(payslipId: string, _prev: UpdateStaffPayslipState, formData: FormData): Promise<UpdateStaffPayslipState> {
   const auth = await requireFinanceUserId();
   if ("error" in auth) return { status: "error", message: auth.error };
@@ -238,6 +326,17 @@ export async function updateStaffPayslip(payslipId: string, _prev: UpdateStaffPa
   }
 
   const admin = createAdminClient();
+
+  if (await isStaffPayslipPosted(admin, payslipId)) {
+    const { data: current } = await admin.from("staff_payslips").select("period_start, period_end, gross_amount").eq("id", payslipId).maybeSingle();
+    if (
+      current &&
+      (current.period_start !== input.period_start || current.period_end !== input.period_end || Number(current.gross_amount) !== input.gross_amount)
+    ) {
+      return { status: "error", message: await t("payroll.staff.error.already_posted") };
+    }
+  }
+
   const { error } = await admin
     .from("staff_payslips")
     .update({
@@ -255,33 +354,73 @@ export async function updateStaffPayslip(payslipId: string, _prev: UpdateStaffPa
 
 export type DeleteStaffPayslipState = { ok: boolean; message: string };
 
+// Voids the posted ledger entry first (if one exists) via
+// void_staff_payslip_entry (migration 074 — same reversal-entry pattern as
+// void_manual_expense), then removes the staff_payslips row. An unposted
+// row (an unpaid admin_fee) has nothing to void, so this is a plain delete
+// in that case, same as before migration 074.
 export async function deleteStaffPayslip(payslipId: string): Promise<DeleteStaffPayslipState> {
   const auth = await requireFinanceUserId();
   if ("error" in auth) return { ok: false, message: auth.error };
 
   const admin = createAdminClient();
+
+  const { data: entry } = await admin
+    .from("journal_entries")
+    .select("id")
+    .eq("source_type", "staff_payslip")
+    .eq("source_id", payslipId)
+    .neq("status", "voided")
+    .maybeSingle();
+  if (entry) {
+    const { error: voidError } = await admin.rpc("void_staff_payslip_entry", { p_journal_entry_id: entry.id, p_posted_by: auth.userId });
+    if (voidError) return { ok: false, message: `${await t("payroll.error.run_failed")}${voidError.message}` };
+  }
+
   const { error } = await admin.from("staff_payslips").delete().eq("id", payslipId);
   if (error) return { ok: false, message: `${await t("payroll.error.run_failed")}${error.message}` };
 
   revalidatePath("/admin/payroll");
+  revalidatePath("/admin/finance");
   return { ok: true, message: await t("payroll.staff.delete_success") };
 }
 
 export type MarkPaidState = { ok: boolean; message: string };
 
-// Self-contained receipt (migration 073) — deliberately not the real
-// payments/receipts trigger pipeline (finance_engine.sql), which posts
-// customer-revenue journal entries on every insert; an admin_fee collection
-// is internal cost-sharing recovery, not revenue, so it stays off the ledger
-// the same way the rest of staff_payslips already does.
+// Posts to the real ledger (migration 074) the moment an admin_fee is
+// actually collected — Dr 1000 Cash / Cr 4900 Admin Fee Recovery, kept
+// separate from real customer revenue (4000/4100) in the P&L breakdown.
 export async function markStaffPayslipPaid(payslipId: string): Promise<MarkPaidState> {
   const auth = await requireFinanceUserId();
   if ("error" in auth) return { ok: false, message: auth.error };
 
   const admin = createAdminClient();
-  const { data: existing } = await admin.from("staff_payslips").select("paid_at").eq("id", payslipId).maybeSingle();
+  const { data: existing } = await admin
+    .from("staff_payslips")
+    .select("party_id, document_type, gross_amount, description, period_end, paid_at")
+    .eq("id", payslipId)
+    .maybeSingle();
   if (!existing) return { ok: false, message: await t("payroll.staff.error.not_found") };
   if (existing.paid_at) return { ok: true, message: await t("payroll.staff.already_paid") };
+
+  // Post to the ledger BEFORE flipping paid_at — if this fails, the row
+  // must stay unpaid so a retry can post it cleanly. Doing it the other way
+  // around would let a failed posting leave the row permanently "paid" with
+  // no ledger entry and no way back in, since the next call would just hit
+  // the already_paid short-circuit above.
+  const posting = await postStaffPayslipEntry(
+    admin,
+    {
+      id: payslipId,
+      document_type: existing.document_type === "admin_fee" ? "admin_fee" : "payslip",
+      gross_amount: Number(existing.gross_amount),
+      description: existing.description,
+      party_id: existing.party_id,
+      period_end: existing.period_end,
+    },
+    auth.userId
+  );
+  if (posting.error) return { ok: false, message: `${await t("payroll.error.run_failed")}${posting.error}` };
 
   const receiptNo = `RCP-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${Math.random().toString(16).slice(2, 8)}`;
   const { error } = await admin
@@ -291,6 +430,7 @@ export async function markStaffPayslipPaid(payslipId: string): Promise<MarkPaidS
   if (error) return { ok: false, message: `${await t("payroll.error.run_failed")}${error.message}` };
 
   revalidatePath("/admin/payroll");
+  revalidatePath("/admin/finance");
   return { ok: true, message: await t("payroll.staff.mark_paid_success") };
 }
 
