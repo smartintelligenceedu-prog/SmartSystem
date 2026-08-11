@@ -1,31 +1,42 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ct } from "@/lib/i18n-client";
 import { addStaffMember, type AddStaffMemberState } from "./actions";
-import { submitWithoutReset } from "@/lib/submit-without-reset";
 
 const initialState: AddStaffMemberState = { status: "idle" };
 
-// Collapsed by default — most payslip creation just picks an existing
-// recipient; this only needs to surface when someone genuinely new (with no
-// portal login) has to be paid for the first time (migration 072).
+// Deliberately no <form> element here — this renders inside
+// CreateStaffPayslipForm's own <form>, and nested <form>s are invalid HTML
+// (a browser silently drops the inner tag, so its submit button ends up
+// firing the OUTER form instead — that's exactly what silently swallowed
+// every "add staff member" attempt before this fix). Controlled input +
+// manual FormData + direct dispatch sidesteps the whole nested-form issue.
 export function AddStaffMemberForm() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [state, formAction, isPending] = useActionState(addStaffMember, initialState);
-  const formRef = useRef<HTMLFormElement>(null);
+  const [fullName, setFullName] = useState("");
+  const [state, dispatch] = useActionState(addStaffMember, initialState);
+  const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     if (state.status === "success") {
-      formRef.current?.reset();
+      setFullName("");
       router.refresh();
     }
   }, [state, router]);
+
+  function handleAdd() {
+    const formData = new FormData();
+    formData.set("full_name", fullName);
+    startTransition(() => {
+      dispatch(formData);
+    });
+  }
 
   if (!open) {
     return (
@@ -36,12 +47,17 @@ export function AddStaffMemberForm() {
   }
 
   return (
-    <form ref={formRef} onSubmit={submitWithoutReset(formAction)} className="flex flex-wrap items-end gap-2 rounded-md border border-dashed p-3">
+    <div className="flex flex-wrap items-end gap-2 rounded-md border border-dashed p-3">
       <div className="space-y-2">
         <Label htmlFor="add_staff_full_name">{ct("payroll.staff.add_member_name_label")}</Label>
-        <Input id="add_staff_full_name" name="full_name" placeholder={ct("payroll.staff.add_member_name_placeholder")} required />
+        <Input
+          id="add_staff_full_name"
+          value={fullName}
+          onChange={(e) => setFullName(e.target.value)}
+          placeholder={ct("payroll.staff.add_member_name_placeholder")}
+        />
       </div>
-      <Button type="submit" size="sm" disabled={isPending}>
+      <Button type="button" size="sm" onClick={handleAdd} disabled={isPending || !fullName.trim()}>
         {isPending ? ct("payroll.staff.add_member_submitting") : ct("payroll.staff.add_member_submit")}
       </Button>
       <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)} disabled={isPending}>
@@ -53,6 +69,6 @@ export function AddStaffMemberForm() {
         </p>
       )}
       {state.status === "success" && <p className="w-full text-sm">{ct("payroll.staff.add_member_success")}</p>}
-    </form>
+    </div>
   );
 }
