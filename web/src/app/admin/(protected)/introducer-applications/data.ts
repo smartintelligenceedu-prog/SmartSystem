@@ -17,6 +17,7 @@ export interface IntroducerApplicationRow {
   referring_analyst_name: string | null;
   rejection_reason: string | null;
   created_at: string;
+  resulting_introducer_id: string | null;
 }
 
 export async function listIntroducerApplications(statusFilter?: IntroducerApplicationStatus): Promise<IntroducerApplicationRow[]> {
@@ -25,7 +26,7 @@ export async function listIntroducerApplications(statusFilter?: IntroducerApplic
   let query = admin
     .from("introducer_applications")
     .select(
-      "id, status, full_name, email, phone, bank_name, bank_account_name, bank_account_no, sponsor_referral_code, sponsor_id, referring_analyst_id, rejection_reason, created_at"
+      "id, status, full_name, email, phone, bank_name, bank_account_name, bank_account_no, sponsor_referral_code, sponsor_id, referring_analyst_id, rejection_reason, created_at, resulting_introducer_id"
     )
     .order("created_at", { ascending: false });
   if (statusFilter) query = query.eq("status", statusFilter);
@@ -78,5 +79,6 @@ export async function listIntroducerApplications(statusFilter?: IntroducerApplic
     referring_analyst_name: a.referring_analyst_id ? (analystNameById.get(a.referring_analyst_id) ?? null) : null,
     rejection_reason: a.rejection_reason,
     created_at: a.created_at,
+    resulting_introducer_id: a.resulting_introducer_id,
   }));
 }

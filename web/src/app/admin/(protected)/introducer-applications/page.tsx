@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { CopyLinkButton } from "../_components/copy-link-button";
 import { ReviewRowActions } from "./review-row-actions";
+import { ResetPasswordCell } from "./reset-password-cell";
 import { t, type TranslationKey } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
@@ -111,7 +112,12 @@ export default async function IntroducerApplicationsPage({
                   {row.rejection_reason && <p className="mt-1 text-xs text-muted-foreground">{row.rejection_reason}</p>}
                 </TableCell>
                 <TableCell className="text-muted-foreground tabular-nums">{new Date(row.created_at).toLocaleString("zh-CN")}</TableCell>
-                <TableCell>{row.status === "pending" && <ReviewRowActions applicationId={row.id} />}</TableCell>
+                <TableCell>
+                  {row.status === "pending" && <ReviewRowActions applicationId={row.id} />}
+                  {row.status === "approved" && row.resulting_introducer_id && (
+                    <ResetPasswordCell introducerId={row.resulting_introducer_id} />
+                  )}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
