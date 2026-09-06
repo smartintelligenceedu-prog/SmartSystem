@@ -185,6 +185,7 @@
   "sales_orders.form.customers_label": "Customers (add more than one, e.g. a family visiting together)",
   "sales_orders.form.add_customer": "Add Customer",
   "sales_orders.form.no_customers_hint": "You haven't registered any customers yet — please register one first.",
+  "sales_orders.form.multi_report_reminder": "Reminder: add a separate line with its own Test Subject for each report (self or a specific child) — don't combine several reports' fees into one line's amount. Once payment is approved, remember to mark each report delivered individually on the Reports page — commission and cost are calculated per line, so a report left unmarked never gets counted.",
   "sales_orders.form.customer_label": "Customer",
   "sales_orders.form.select_customer_placeholder": "Type a name to search customers",
   "sales_orders.form.clear_selection": "Clear selected customer",
@@ -671,6 +672,9 @@
   "reports.tier.upgrade": "Upgrade",
   "reports.status.delivered": "Delivered",
   "reports.status.undelivered": "Not Delivered",
+  "reports.same_order_hint_prefix": "This order has ",
+  "reports.same_order_hint_middle": " report(s) total, ",
+  "reports.same_order_hint_suffix": " still not marked delivered",
   "reports.mark_delivered.tier_placeholder": "Select tier",
   "reports.mark_delivered.submit": "Confirm Delivery",
 

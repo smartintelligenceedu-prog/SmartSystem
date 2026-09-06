@@ -185,6 +185,7 @@
   "sales_orders.form.customers_label": "顾客（可加入多位，例如一家人一起来）",
   "sales_orders.form.add_customer": "新增顾客",
   "sales_orders.form.no_customers_hint": "你还没有登记任何顾客，请先登记顾客。",
+  "sales_orders.form.multi_report_reminder": "提醒：每一份报告（无论是本人还是哪个孩子）请个别新增一行并选择对应的受测人，不要把多份报告的金额合并填在同一行。付款审核通过后，也请务必到「报告」页面为每一份报告分别标记交付——每一行都是独立计算佣金和成本的，漏标记就会漏算。",
   "sales_orders.form.customer_label": "顾客",
   "sales_orders.form.select_customer_placeholder": "输入姓名搜索顾客",
   "sales_orders.form.clear_selection": "清除已选顾客",
@@ -671,6 +672,9 @@
   "reports.tier.upgrade": "升级",
   "reports.status.delivered": "已交付",
   "reports.status.undelivered": "未交付",
+  "reports.same_order_hint_prefix": "同一订单共 ",
+  "reports.same_order_hint_middle": " 份报告，其中 ",
+  "reports.same_order_hint_suffix": " 份尚未标记交付",
   "reports.mark_delivered.tier_placeholder": "选择分类",
   "reports.mark_delivered.submit": "确认交付",
 

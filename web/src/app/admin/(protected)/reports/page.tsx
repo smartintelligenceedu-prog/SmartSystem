@@ -72,6 +72,15 @@ export default async function ReportsPage() {
                   ) : (
                     <Badge variant="outline">{t("reports.status.undelivered")}</Badge>
                   )}
+                  {o.order_item_count > 1 && (
+                    <p className="mt-1 text-xs text-amber-700">
+                      {t("reports.same_order_hint_prefix")}
+                      {o.order_item_count}
+                      {t("reports.same_order_hint_middle")}
+                      {o.order_undelivered_count}
+                      {t("reports.same_order_hint_suffix")}
+                    </p>
+                  )}
                 </TableCell>
                 <TableCell className="text-right">
                   {!o.report_delivered_at && o.can_mark_delivered && <MarkDeliveredButton orderItemId={o.item_id} />}

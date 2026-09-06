@@ -14,6 +14,16 @@ export interface ReportableOrder {
   report_tier: ReportTier | null;
   report_delivered_at: string | null;
   can_mark_delivered: boolean; // true for the item's own assigned analyst, or back office
+  // How many detection_session/voucher_redemption items this item's own
+  // order has in total, and how many of those (including this one) are
+  // still undelivered — surfaced so back office notices a multi-report
+  // order (e.g. a discounted 2-report package) with one report marked
+  // delivered and another silently left pending, which previously had no
+  // commission/report-cost fired for it at all (each is a separate
+  // order_item, so calculate_report_override_commission() only fires per
+  // item actually marked delivered).
+  order_item_count: number;
+  order_undelivered_count: number;
 }
 
 // One row per person (order_item), not per order — a multi-person order
@@ -43,6 +53,18 @@ export async function listReportableOrders(isBackOffice: boolean, selfAnalystId:
 
   const scopedItems = isBackOffice ? items : items.filter((it) => it.analyst_id === selfAnalystId);
   if (scopedItems.length === 0) return [];
+
+  // Counted across ALL of that order's reportable items (not just the
+  // caller's scoped subset) — an analyst should still see "this order has
+  // another report" even if that other item is credited to a different agent.
+  const itemCountByOrder = new Map<string, number>();
+  const undeliveredCountByOrder = new Map<string, number>();
+  for (const it of items) {
+    itemCountByOrder.set(it.order_id, (itemCountByOrder.get(it.order_id) ?? 0) + 1);
+    if (!it.report_delivered_at) {
+      undeliveredCountByOrder.set(it.order_id, (undeliveredCountByOrder.get(it.order_id) ?? 0) + 1);
+    }
+  }
 
   const orderById = new Map(orders.map((o) => [o.id, o]));
   const customerIds = [...new Set(scopedItems.map((it) => it.customer_id).filter((id): id is string => !!id))];
@@ -75,6 +97,8 @@ export async function listReportableOrders(isBackOffice: boolean, selfAnalystId:
         report_tier: it.report_tier as ReportTier | null,
         report_delivered_at: it.report_delivered_at,
         can_mark_delivered: isBackOffice || it.analyst_id === selfAnalystId,
+        order_item_count: itemCountByOrder.get(it.order_id) ?? 1,
+        order_undelivered_count: undeliveredCountByOrder.get(it.order_id) ?? 0,
       };
     })
     .filter((row): row is ReportableOrder => row !== null)

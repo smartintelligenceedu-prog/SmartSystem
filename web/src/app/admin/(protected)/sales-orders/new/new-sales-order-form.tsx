@@ -204,6 +204,9 @@ export function NewSalesOrderForm({
                   </Button>
                 </div>
                 {customers.length === 0 && <p className="text-xs text-muted-foreground">{ct("sales_orders.form.no_customers_hint")}</p>}
+                <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
+                  {ct("sales_orders.form.multi_report_reminder")}
+                </p>
                 {members.map((member, index) => (
                   <div key={index} className="space-y-2 rounded-md border p-3">
                     <div className="space-y-1">
