@@ -81,6 +81,12 @@ export function ReviewPanel({ detail }: { detail: SalesOrderDetail }) {
               <div key={item.item_id} className="flex items-center justify-between px-3 py-2 text-sm">
                 <div>
                   <p>{item.customer_name}</p>
+                  {item.subject_name && (
+                    <p className="text-xs text-muted-foreground">
+                      {ct("sales_orders.review.subject_prefix")}
+                      {item.subject_name}
+                    </p>
+                  )}
                   <p className="text-xs text-muted-foreground">
                     {ct("sales_orders.review.assigned_analyst_prefix")}
                     {item.analyst_name}

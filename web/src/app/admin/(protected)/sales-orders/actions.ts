@@ -76,6 +76,9 @@ const lineSchema = z.object({
 const memberSchema = z.object({
   customer_id: z.string().uuid(),
   analyst_id: z.string().uuid(),
+  // Which of the customer's registered children was actually tested — null
+  // means the customer themselves. See migration 075's header comment.
+  subject_child_id: z.string().uuid().nullable().optional(),
   lines: z.array(lineSchema).min(1),
 });
 
@@ -257,6 +260,19 @@ export async function createSalesOrder(_prev: CreateSalesOrderState, formData: F
     return { status: "error", message: await t("sales_orders.error.invalid_agent") };
   }
 
+  // Each picked child must actually belong to that same line's customer —
+  // never trust the client to have kept the two in sync.
+  const subjectChildIds = [...new Set(members.map((m) => m.subject_child_id).filter((id): id is string => !!id))];
+  if (subjectChildIds.length > 0) {
+    const { data: validChildren } = await admin.from("customer_children").select("id, customer_id").in("id", subjectChildIds);
+    const customerIdByChild = new Map((validChildren ?? []).map((c) => [c.id, c.customer_id]));
+    for (const m of members) {
+      if (m.subject_child_id && customerIdByChild.get(m.subject_child_id) !== m.customer_id) {
+        return { status: "error", message: await t("sales_orders.error.invalid_subject") };
+      }
+    }
+  }
+
   const screenshot = formData.get("payment_screenshot") as File | null;
   const fileError = await validateUploadFile(screenshot, await t("sales_orders.field.payment_screenshot"), true);
   if (fileError) return { status: "error", message: fileError };
@@ -304,6 +320,7 @@ export async function createSalesOrder(_prev: CreateSalesOrderState, formData: F
           subtotal: l.amount,
           customer_id: m.customer_id,
           analyst_id: m.analyst_id,
+          subject_child_id: m.subject_child_id ?? null,
         };
       })
     )

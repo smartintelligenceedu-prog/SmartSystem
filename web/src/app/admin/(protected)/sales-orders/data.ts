@@ -101,6 +101,7 @@ export async function listSalesOrders(isBackOffice: boolean, statusFilter?: stri
 export interface SalesOrderDetailItem {
   item_id: string;
   customer_name: string;
+  subject_name: string | null; // null when the subject is the customer themselves; a child's name otherwise
   analyst_name: string;
   subtotal: number;
 }
@@ -134,18 +135,21 @@ export async function getSalesOrderDetail(orderId: string): Promise<SalesOrderDe
     .maybeSingle();
   if (!salesOrder) return null; // voucher-redemption orders have nothing to review
 
-  const { data: items } = await admin.from("order_items").select("id, customer_id, analyst_id, subtotal").eq("order_id", orderId);
+  const { data: items } = await admin.from("order_items").select("id, customer_id, analyst_id, subject_child_id, subtotal").eq("order_id", orderId);
 
   const itemCustomerIds = [...new Set((items ?? []).map((i) => i.customer_id).filter((id): id is string => !!id))];
   const itemAnalystIds = [...new Set((items ?? []).map((i) => i.analyst_id).filter((id): id is string => !!id))];
   const analystIds = [...new Set([order.analyst_id, ...itemAnalystIds].filter((id): id is string => !!id))];
+  const subjectChildIds = [...new Set((items ?? []).map((i) => i.subject_child_id).filter((id): id is string => !!id))];
 
-  const [{ data: customers }, { data: analysts }] = await Promise.all([
+  const [{ data: customers }, { data: analysts }, { data: children }] = await Promise.all([
     itemCustomerIds.length > 0 ? admin.from("customers").select("id, party_id").in("id", itemCustomerIds) : Promise.resolve({ data: [] }),
     analystIds.length > 0 ? admin.from("analysts").select("id, party_id").in("id", analystIds) : Promise.resolve({ data: [] }),
+    subjectChildIds.length > 0 ? admin.from("customer_children").select("id, full_name").in("id", subjectChildIds) : Promise.resolve({ data: [] }),
   ]);
   const customerPartyById = new Map((customers ?? []).map((c) => [c.id, c.party_id]));
   const analystPartyById = new Map((analysts ?? []).map((a) => [a.id, a.party_id]));
+  const childNameById = new Map((children ?? []).map((c) => [c.id, c.full_name]));
   const partyIds = [...new Set([...customerPartyById.values(), ...analystPartyById.values()])];
   const { data: identities } = await admin.from("individuals").select("party_id, full_name").in("party_id", partyIds.length > 0 ? partyIds : ["00000000-0000-0000-0000-000000000000"]);
   const nameByParty = new Map((identities ?? []).map((i) => [i.party_id, i.full_name]));
@@ -169,6 +173,7 @@ export async function getSalesOrderDetail(orderId: string): Promise<SalesOrderDe
       return {
         item_id: it.id,
         customer_name: (customerParty && nameByParty.get(customerParty)) ?? "—",
+        subject_name: it.subject_child_id ? (childNameById.get(it.subject_child_id) ?? "—") : null,
         analyst_name: (itemAnalystParty && nameByParty.get(itemAnalystParty)) ?? "—",
         subtotal: Number(it.subtotal),
       };
@@ -342,10 +347,15 @@ export async function listSalesItems(): Promise<SalesItemRow[]> {
 // can default the interpreting analyst to whoever already owns them, instead
 // of leaving it blank and easy to forget — see the same reasoning in
 // create-institutional-order-form.tsx.
+export interface CustomerPickerChild {
+  id: string;
+  name: string;
+}
+
 export async function listOwnCustomersForPicker(
   analystId: string,
   includeAll = false
-): Promise<{ id: string; name: string; owner_analyst_id: string | null }[]> {
+): Promise<{ id: string; name: string; owner_analyst_id: string | null; children: CustomerPickerChild[] }[]> {
   const admin = createAdminClient();
   let query = admin.from("customers").select("id, party_id, owner_analyst_id").eq("status", "active");
   if (!includeAll) query = query.eq("owner_analyst_id", analystId);
@@ -353,7 +363,28 @@ export async function listOwnCustomersForPicker(
   if (!customers || customers.length === 0) return [];
   const { data: identities } = await admin.from("individuals").select("party_id, full_name").in("party_id", customers.map((c) => c.party_id));
   const nameByParty = new Map((identities ?? []).map((i) => [i.party_id, i.full_name]));
-  return customers.map((c) => ({ id: c.id, name: nameByParty.get(c.party_id) ?? "—", owner_analyst_id: c.owner_analyst_id }));
+
+  // So the New Sales Order form can offer "who was actually tested" (self vs
+  // one of the customer's registered children) at submission time — see
+  // migration 075's header comment for why order_items previously had no
+  // way to record this.
+  const { data: children } = await admin.from("customer_children").select("id, customer_id, full_name").in(
+    "customer_id",
+    customers.map((c) => c.id)
+  );
+  const childrenByCustomer = new Map<string, CustomerPickerChild[]>();
+  for (const child of children ?? []) {
+    const arr = childrenByCustomer.get(child.customer_id) ?? [];
+    arr.push({ id: child.id, name: child.full_name });
+    childrenByCustomer.set(child.customer_id, arr);
+  }
+
+  return customers.map((c) => ({
+    id: c.id,
+    name: nameByParty.get(c.party_id) ?? "—",
+    owner_analyst_id: c.owner_analyst_id,
+    children: childrenByCustomer.get(c.id) ?? [],
+  }));
 }
 
 // For the per-item "assigned agent" picker on the new-order form — a

@@ -29,6 +29,7 @@ interface ItemLine {
 interface Member {
   customer_id: string;
   analyst_id: string;
+  subject_child_id: string; // "self" means the customer themselves, not one of their children
   lines: ItemLine[];
 }
 
@@ -52,7 +53,7 @@ export function NewSalesOrderForm({
 }: {
   ownAnalystId: string;
   ownAnalystName: string;
-  customers: { id: string; name: string }[];
+  customers: { id: string; name: string; children: { id: string; name: string }[] }[];
   agents: { id: string; name: string }[];
   vouchers: { id: string; label: string }[];
   salesItems: SalesItemRow[];
@@ -62,7 +63,9 @@ export function NewSalesOrderForm({
   const router = useRouter();
   const [state, formAction, isPending] = useActionState(createSalesOrder, initialState);
   const [mode, setMode] = useState<"pay_now" | "redeem_voucher">(defaultMode ?? "pay_now");
-  const [members, setMembers] = useState<Member[]>([{ customer_id: "", analyst_id: ownAnalystId, lines: [emptyLine()] }]);
+  const [members, setMembers] = useState<Member[]>([
+    { customer_id: "", analyst_id: ownAnalystId, subject_child_id: "self", lines: [emptyLine()] },
+  ]);
 
   // redeem_voucher mode keeps the original single-person fields.
   const [voucherCustomerId, setVoucherCustomerId] = useState("");
@@ -87,13 +90,21 @@ export function NewSalesOrderForm({
   }
 
   function addMember() {
-    setMembers((prev) => [...prev, { customer_id: "", analyst_id: ownAnalystId, lines: [emptyLine()] }]);
+    setMembers((prev) => [...prev, { customer_id: "", analyst_id: ownAnalystId, subject_child_id: "self", lines: [emptyLine()] }]);
   }
   function removeMember(index: number) {
     setMembers((prev) => prev.filter((_, i) => i !== index));
   }
-  function updateMember(index: number, field: "customer_id" | "analyst_id", value: string) {
-    setMembers((prev) => prev.map((m, i) => (i === index ? { ...m, [field]: value } : m)));
+  function updateMember(index: number, field: "customer_id" | "analyst_id" | "subject_child_id", value: string) {
+    setMembers((prev) =>
+      prev.map((m, i) =>
+        i === index
+          ? // Changing the customer invalidates any previously-picked child
+            // (it belonged to the old customer's own children list).
+            { ...m, [field]: value, ...(field === "customer_id" ? { subject_child_id: "self" } : {}) }
+          : m
+      )
+    );
   }
   function addLine(memberIndex: number) {
     setMembers((prev) => prev.map((m, i) => (i === memberIndex ? { ...m, lines: [...m.lines, emptyLine()] } : m)));
@@ -169,7 +180,13 @@ export function NewSalesOrderForm({
 
           {mode === "pay_now" ? (
             <>
-              <input type="hidden" name="members_json" value={JSON.stringify(members)} />
+              <input
+                type="hidden"
+                name="members_json"
+                value={JSON.stringify(
+                  members.map((m) => ({ ...m, subject_child_id: m.subject_child_id === "self" ? null : m.subject_child_id }))
+                )}
+              />
               {salesItems.length === 0 && (
                 <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
                   {ct("sales_orders.form.no_items_warning_prefix")}{" "}
@@ -213,6 +230,34 @@ export function NewSalesOrderForm({
                         </ComboboxContent>
                       </Combobox>
                     </div>
+                    {member.customer_id && (
+                      <div className="space-y-1">
+                        <Label className="text-xs">{ct("sales_orders.form.subject_label")}</Label>
+                        <Select
+                          items={[
+                            { value: "self", label: ct("sales_orders.form.subject_self") },
+                            ...(customers.find((c) => c.id === member.customer_id)?.children ?? []).map((child) => ({
+                              value: child.id,
+                              label: child.name,
+                            })),
+                          ]}
+                          value={member.subject_child_id}
+                          onValueChange={(v) => updateMember(index, "subject_child_id", v ?? "self")}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="self">{ct("sales_orders.form.subject_self")}</SelectItem>
+                            {(customers.find((c) => c.id === member.customer_id)?.children ?? []).map((child) => (
+                              <SelectItem key={child.id} value={child.id}>
+                                {child.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                     <div className="space-y-1">
                       <Label className="text-xs">{ct("sales_orders.form.assigned_analyst_label")}</Label>
                       <Select
