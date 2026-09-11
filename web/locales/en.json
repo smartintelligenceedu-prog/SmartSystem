@@ -224,6 +224,7 @@
   "sales_orders.list.empty_no_orders": "No orders yet",
   "sales_orders.list.empty_no_match": "No matching customer found",
   "sales_orders.list.review_button": "Review",
+  "sales_orders.list.view_payment_proof_button": "View Payment Screenshot",
   "sales_orders.list.print_receipt_button": "Print Receipt",
   "sales_orders.review.status.pending": "Pending Review",
   "sales_orders.review.status.approved": "Approved",
@@ -626,6 +627,7 @@
   "order.status.cancelled": "Cancelled",
   "order.status.refunded": "Refunded",
   "customer.detail.print_receipt": "Print Receipt",
+  "customer.detail.view_payment_proof": "View Payment Screenshot",
 
   "dashboard.agent.title": "My Workspace (Agent)",
   "dashboard.agent.status.pending": "Pending",

@@ -106,6 +106,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
   const scheduleNavLabel = await t("schedule.appointment.nav_link");
   const reportViewLabel = await t("tqc.report.view_link");
   const printReceiptLabel = await t("customer.detail.print_receipt");
+  const viewPaymentProofLabel = await t("customer.detail.view_payment_proof");
   const itemTypeLabelByType = Object.fromEntries(
     await Promise.all(Object.entries(ITEM_TYPE_KEY).map(async ([k, key]) => [k, await t(key)]))
   ) as Record<string, string>;
@@ -242,6 +243,13 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
                   <Badge variant={o.status === "paid" ? "secondary" : "outline"}>{orderStatusLabelByStatus[o.status] ?? o.status}</Badge>
                   {o.status === "paid" && (
                     <Button size="sm" variant="ghost" render={<Link href={`/admin/sales-orders/${o.order_id}/receipt`}>{printReceiptLabel}</Link>} />
+                  )}
+                  {isBackOffice && o.has_payment_review && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      render={<Link href={`/admin/sales-orders/${o.order_id}`}>{viewPaymentProofLabel}</Link>}
+                    />
                   )}
                 </div>
               </div>

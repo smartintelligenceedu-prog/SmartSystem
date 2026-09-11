@@ -134,6 +134,13 @@ export function SalesOrdersSearch({ orders, isBackOffice }: { orders: SalesOrder
                         render={<Link href={`/admin/sales-orders/${o.order_id}`}>{ct("sales_orders.list.review_button")}</Link>}
                       />
                     )}
+                    {isBackOffice && o.review_status !== null && o.review_status !== "pending" && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        render={<Link href={`/admin/sales-orders/${o.order_id}`}>{ct("sales_orders.list.view_payment_proof_button")}</Link>}
+                      />
+                    )}
                     {o.order_status === "paid" && (
                       <Button
                         size="sm"

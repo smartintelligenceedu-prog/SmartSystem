@@ -224,6 +224,7 @@
   "sales_orders.list.empty_no_orders": "尚无订单",
   "sales_orders.list.empty_no_match": "找不到符合的顾客",
   "sales_orders.list.review_button": "审核",
+  "sales_orders.list.view_payment_proof_button": "查看付款截图",
   "sales_orders.list.print_receipt_button": "打印收据",
   "sales_orders.review.status.pending": "待审核",
   "sales_orders.review.status.approved": "已核准",
@@ -626,6 +627,7 @@
   "order.status.cancelled": "已取消",
   "order.status.refunded": "已退款",
   "customer.detail.print_receipt": "打印收据",
+  "customer.detail.view_payment_proof": "查看付款截图",
 
   "dashboard.agent.title": "我的工作台（Agent）",
   "dashboard.agent.status.pending": "待审核",

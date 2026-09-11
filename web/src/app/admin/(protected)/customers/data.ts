@@ -337,6 +337,11 @@ export interface CustomerOrderRow {
   status: string;
   created_at: string;
   report_delivered_at: string | null;
+  // True only for a "pay now" order that went through the payment-screenshot
+  // review flow (a sales_orders row exists) — a voucher_redemption order has
+  // no such row (nothing to review), so linking to the review/screenshot
+  // page for one of those would 404.
+  has_payment_review: boolean;
 }
 
 // detection_service orders no longer set orders.customer_id (migration 012
@@ -352,11 +357,13 @@ export async function listCustomerOrders(customerId: string): Promise<CustomerOr
     .in("item_type", ["detection_session", "voucher_redemption"]);
   if (!items || items.length === 0) return [];
 
-  const { data: orders } = await admin
-    .from("orders")
-    .select("id, status, created_at, report_delivered_at")
-    .in("id", items.map((i) => i.order_id));
+  const orderIds = items.map((i) => i.order_id);
+  const [{ data: orders }, { data: salesOrders }] = await Promise.all([
+    admin.from("orders").select("id, status, created_at, report_delivered_at").in("id", orderIds),
+    admin.from("sales_orders").select("order_id").in("order_id", orderIds),
+  ]);
   const orderById = new Map((orders ?? []).map((o) => [o.id, o]));
+  const orderIdsWithReview = new Set((salesOrders ?? []).map((s) => s.order_id));
 
   return items
     .map((it) => {
@@ -369,6 +376,7 @@ export async function listCustomerOrders(customerId: string): Promise<CustomerOr
         status: order.status,
         created_at: order.created_at,
         report_delivered_at: order.report_delivered_at,
+        has_payment_review: orderIdsWithReview.has(it.order_id),
       };
     })
     .filter((row): row is CustomerOrderRow => row !== null)
