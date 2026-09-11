@@ -86,6 +86,7 @@ export default async function CommissionPage({ searchParams }: { searchParams: P
     const priorSettlementSuffix = await t("commission.cell.prior_settlement_suffix");
     const flatAmountLabel = await t("commission.page.flat_amount");
     const originalAmountPrefix = await t("commission.page.original_amount_prefix");
+    const approvedAtPrefix = await t("commission.page.approved_at_prefix");
     return (
       <div className="mx-auto max-w-6xl space-y-6">
         <div className="flex items-start justify-between gap-4">
@@ -210,6 +211,13 @@ export default async function CommissionPage({ searchParams }: { searchParams: P
                   </TableCell>
                   <TableCell>
                     <Badge variant={r.status === "paid" ? "secondary" : "outline"}>{statusLabelByStatus[r.status] ?? r.status}</Badge>
+                    {r.approved_at && (
+                      <div className="mt-0.5 text-xs text-muted-foreground">
+                        {approvedAtPrefix}
+                        {new Date(r.approved_at).toLocaleString("zh-CN")}
+                        {r.approved_by_name && ` · ${r.approved_by_name}`}
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap items-start gap-2">

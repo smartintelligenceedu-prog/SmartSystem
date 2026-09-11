@@ -13,6 +13,10 @@ export interface CommissionRow {
   calculated_at: string;
   adjusted_at: string | null;
   adjustment_reason: string | null;
+  // When/who flipped this record pending -> approved (migration 077) — null
+  // for a record still pending, or one approved before this column existed.
+  approved_at: string | null;
+  approved_by_name: string | null;
   payee_type: "analyst" | "introducer";
   payee_name: string;
   analyst_id: string | null;
@@ -192,7 +196,7 @@ export async function listAllCommissions(dateFrom?: string, dateTo?: string): Pr
   let query = admin
     .from("commission_records")
     .select(
-      "id, trigger_type, calculation_type, rate_applied, base_amount, commission_amount, original_amount, status, calculated_at, adjusted_at, adjustment_reason, analyst_id, introducer_id, customer_id, source_transaction_type, source_transaction_id"
+      "id, trigger_type, calculation_type, rate_applied, base_amount, commission_amount, original_amount, status, calculated_at, adjusted_at, adjustment_reason, approved_at, approved_by, analyst_id, introducer_id, customer_id, source_transaction_type, source_transaction_id"
     )
     .order("calculated_at", { ascending: false });
   if (dateFrom) query = query.gte("calculated_at", `${dateFrom}T00:00:00+08:00`);
@@ -309,13 +313,17 @@ export async function listAllCommissions(dateFrom?: string, dateTo?: string): Pr
     ...new Set([...visibleCustomerIds, ...priorCustomerIds, ...itemCustomerByItemId.values()]),
   ];
 
-  const [{ data: analysts }, { data: introducers }, { data: customers }] = await Promise.all([
+  const approverUserIds = [...new Set(records.filter((r) => r.approved_by).map((r) => r.approved_by as string))];
+
+  const [{ data: analysts }, { data: introducers }, { data: customers }, { data: approverUsers }] = await Promise.all([
     analystIds.length > 0 ? admin.from("analysts").select("id, party_id").in("id", analystIds) : Promise.resolve({ data: [] }),
     introducerIds.length > 0
       ? admin.from("introducers").select("id, party_id").in("id", introducerIds)
       : Promise.resolve({ data: [] }),
     allCustomerIds.length > 0 ? admin.from("customers").select("id, party_id").in("id", allCustomerIds) : Promise.resolve({ data: [] }),
+    approverUserIds.length > 0 ? admin.from("users").select("id, party_id").in("id", approverUserIds) : Promise.resolve({ data: [] }),
   ]);
+  const partyByApprover = new Map((approverUsers ?? []).map((u) => [u.id, u.party_id]));
 
   const partyIds = [
     ...new Set([
@@ -323,6 +331,7 @@ export async function listAllCommissions(dateFrom?: string, dateTo?: string): Pr
       ...(introducers ?? []).map((i) => i.party_id),
       ...(customers ?? []).map((c) => c.party_id),
       ...sourcePartyByOrderId.values(),
+      ...partyByApprover.values(),
     ]),
   ];
   const { data: identities } =
@@ -415,6 +424,10 @@ export async function listAllCommissions(dateFrom?: string, dateTo?: string): Pr
       calculated_at: r.calculated_at,
       adjusted_at: r.adjusted_at,
       adjustment_reason: r.adjustment_reason,
+      approved_at: r.approved_at,
+      approved_by_name: r.approved_by
+        ? (nameByParty.get(partyByApprover.get(r.approved_by as string) ?? "") ?? null)
+        : null,
       payee_type: isIntroducer ? "introducer" : "analyst",
       payee_name: payeeNameForCompare,
       source_name: sourceName,

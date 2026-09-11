@@ -128,7 +128,7 @@ export async function adminApproveCommission(recordId: string): Promise<{ ok: bo
 
   const { data, error } = await admin
     .from("commission_records")
-    .update({ status: "approved" })
+    .update({ status: "approved", approved_at: new Date().toISOString(), approved_by: auth.userId })
     .eq("id", recordId)
     .eq("status", "pending")
     .select("id")

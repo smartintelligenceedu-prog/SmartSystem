@@ -462,6 +462,7 @@
   "commission.page.date_filter_clear": "Clear filter",
   "commission.page.flat_amount": "Flat Amount",
   "commission.page.original_amount_prefix": "Was ",
+  "commission.page.approved_at_prefix": "Approved ",
   "commission.page.self_title": "My Commission",
   "commission.page.self_subtitle_prefix": "Most recent ",
   "commission.page.self_subtitle_middle": ", total ",

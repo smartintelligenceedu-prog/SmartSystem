@@ -462,6 +462,7 @@
   "commission.page.date_filter_clear": "清除筛选",
   "commission.page.flat_amount": "固定金额",
   "commission.page.original_amount_prefix": "原 ",
+  "commission.page.approved_at_prefix": "审核于 ",
   "commission.page.self_title": "我的佣金",
   "commission.page.self_subtitle_prefix": "最近 ",
   "commission.page.self_subtitle_middle": " 笔，累计 ",
