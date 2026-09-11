@@ -25,6 +25,22 @@ async function requireFinanceUserId(): Promise<{ userId: string } | { error: str
   return { userId: userRow.id };
 }
 
+// Malaysia has a single fixed UTC+8 offset (no DST) — same reasoning as the
+// scheduling/sales-orders modules' own toMYTimestamp()/todayMYDateString().
+function monthKeyMY(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-CA", { timeZone: "Asia/Kuala_Lumpur" }).slice(0, 7); // "YYYY-MM"
+}
+
+// Pure calendar-date arithmetic (no timezone conversion involved — y/m/d in,
+// y/m/d out), so this is safe regardless of the server's own local timezone.
+function monthRangeFromKey(monthKey: string): { start: string; end: string } {
+  const [yStr, mStr] = monthKey.split("-");
+  const year = Number(yStr);
+  const month = Number(mStr);
+  const lastDay = new Date(year, month, 0).getDate();
+  return { start: `${monthKey}-01`, end: `${monthKey}-${String(lastDay).padStart(2, "0")}` };
+}
+
 // Built per-call, not a module-scope constant — see the identical note in
 // customers/actions.ts's buildCustomerFormSchema.
 async function buildRunPayoutSchema() {
@@ -37,13 +53,16 @@ async function buildRunPayoutSchema() {
 
 export type RunPayoutState = { status: "idle" } | { status: "error"; message: string } | { status: "success"; message: string };
 
-// One-click monthly settlement: pulls every already-'approved' commission
-// record in the period, tags it 'paid' + this run's id (locking it against
-// being pulled into a future run), then rolls the tagged records up into
-// one analyst_payslips row per analyst and one introducer_commission_
-// statements row per introducer. Approval itself is a separate, existing
-// manual step (see the comment in commission_engine.sql) — this action only
-// ever touches records someone already reviewed.
+// One-click settlement: pulls every already-'approved' commission record in
+// the period, tags it 'paid' + this run's id (locking it against being
+// pulled into a future run), then rolls the tagged records up into one
+// analyst_payslips row per analyst PER CALENDAR MONTH and one
+// introducer_commission_statements row per introducer per calendar month
+// (migration 076) — so a wide catch-up period spanning more than one month
+// still shows each payee a clean single-month payslip/statement, never a
+// combined "1 August - 30 September" line. Approval itself is a separate,
+// existing manual step (see the comment in commission_engine.sql) — this
+// action only ever touches records someone already reviewed.
 export async function runMonthlyPayout(_prev: RunPayoutState, formData: FormData): Promise<RunPayoutState> {
   const auth = await requireFinanceUserId();
   if ("error" in auth) return { status: "error", message: auth.error };
@@ -79,7 +98,7 @@ export async function runMonthlyPayout(_prev: RunPayoutState, formData: FormData
 
   const { data: approvedRecords } = await admin
     .from("commission_records")
-    .select("id, analyst_id, introducer_id, commission_amount")
+    .select("id, analyst_id, introducer_id, commission_amount, calculated_at")
     .eq("status", "approved")
     .gte("calculated_at", periodStartInclusive)
     .lt("calculated_at", periodEndExclusive.toISOString());
@@ -109,29 +128,46 @@ export async function runMonthlyPayout(_prev: RunPayoutState, formData: FormData
     .in("id", recordIds);
   if (tagError) return { status: "error", message: `${await t("payroll.error.run_failed")}${tagError.message}` };
 
-  const analystTotals = new Map<string, number>();
-  const introducerTotals = new Map<string, number>();
+  // Grouped by calendar month (not just payee) — a wide catch-up run (e.g.
+  // re-sweeping straggler commissions that only got approved after the
+  // tidy month-end run already happened) can contain records from more than
+  // one month, and each payee should see one clean per-month payslip/
+  // statement, never a combined "1 August - 30 September" line. See
+  // migration 076's header comment.
+  const analystTotals = new Map<string, Map<string, number>>(); // analyst_id -> monthKey -> total
+  const introducerTotals = new Map<string, Map<string, number>>();
   for (const r of approvedRecords) {
-    if (r.analyst_id) analystTotals.set(r.analyst_id, (analystTotals.get(r.analyst_id) ?? 0) + Number(r.commission_amount));
-    if (r.introducer_id) introducerTotals.set(r.introducer_id, (introducerTotals.get(r.introducer_id) ?? 0) + Number(r.commission_amount));
+    const monthKey = monthKeyMY(r.calculated_at);
+    if (r.analyst_id) {
+      const byMonth = analystTotals.get(r.analyst_id) ?? new Map<string, number>();
+      byMonth.set(monthKey, (byMonth.get(monthKey) ?? 0) + Number(r.commission_amount));
+      analystTotals.set(r.analyst_id, byMonth);
+    }
+    if (r.introducer_id) {
+      const byMonth = introducerTotals.get(r.introducer_id) ?? new Map<string, number>();
+      byMonth.set(monthKey, (byMonth.get(monthKey) ?? 0) + Number(r.commission_amount));
+      introducerTotals.set(r.introducer_id, byMonth);
+    }
   }
 
   if (analystTotals.size > 0) {
-    const payslipRows = [...analystTotals.entries()].map(([analyst_id, gross_amount]) => ({
-      payout_run_id: run.id,
-      analyst_id,
-      gross_amount,
-    }));
+    const payslipRows = [...analystTotals.entries()].flatMap(([analyst_id, byMonth]) =>
+      [...byMonth.entries()].map(([monthKey, gross_amount]) => {
+        const { start, end } = monthRangeFromKey(monthKey);
+        return { payout_run_id: run.id, analyst_id, gross_amount, period_start: start, period_end: end };
+      })
+    );
     const { error } = await admin.from("analyst_payslips").insert(payslipRows);
     if (error) return { status: "error", message: `${await t("payroll.error.run_failed")}${error.message}` };
   }
 
   if (introducerTotals.size > 0) {
-    const statementRows = [...introducerTotals.entries()].map(([introducer_id, gross_amount]) => ({
-      payout_run_id: run.id,
-      introducer_id,
-      gross_amount,
-    }));
+    const statementRows = [...introducerTotals.entries()].flatMap(([introducer_id, byMonth]) =>
+      [...byMonth.entries()].map(([monthKey, gross_amount]) => {
+        const { start, end } = monthRangeFromKey(monthKey);
+        return { payout_run_id: run.id, introducer_id, gross_amount, period_start: start, period_end: end };
+      })
+    );
     const { error } = await admin.from("introducer_commission_statements").insert(statementRows);
     if (error) return { status: "error", message: `${await t("payroll.error.run_failed")}${error.message}` };
   }

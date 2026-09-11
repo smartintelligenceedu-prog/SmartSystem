@@ -25,12 +25,20 @@ export interface PayeeSettlementRow {
 export async function listPayeeSettlementRows(): Promise<PayeeSettlementRow[]> {
   const admin = createAdminClient();
   const [{ data: payslips }, { data: statements }] = await Promise.all([
-    admin.from("analyst_payslips").select("id, payout_run_id, analyst_id, gross_amount"),
-    admin.from("introducer_commission_statements").select("id, payout_run_id, introducer_id, gross_amount"),
+    admin.from("analyst_payslips").select("id, payout_run_id, analyst_id, gross_amount, period_start, period_end"),
+    admin.from("introducer_commission_statements").select("id, payout_run_id, introducer_id, gross_amount, period_start, period_end"),
   ]);
   if ((!payslips || payslips.length === 0) && (!statements || statements.length === 0)) return [];
 
-  const runIds = [...new Set([...(payslips ?? []).map((p) => p.payout_run_id), ...(statements ?? []).map((s) => s.payout_run_id)])];
+  // Fallback only for pre-migration-076 rows whose own period_start/end
+  // somehow never got backfilled — every row created by runMonthlyPayout()
+  // since then carries its own accurate (single-month) period.
+  const runIds = [
+    ...new Set([
+      ...(payslips ?? []).filter((p) => !p.period_start).map((p) => p.payout_run_id),
+      ...(statements ?? []).filter((s) => !s.period_start).map((s) => s.payout_run_id),
+    ]),
+  ];
   const { data: runs } =
     runIds.length > 0 ? await admin.from("commission_payout_runs").select("id, period_start, period_end").in("id", runIds) : { data: [] };
   const runById = new Map((runs ?? []).map((r) => [r.id, r]));
@@ -59,8 +67,8 @@ export async function listPayeeSettlementRows(): Promise<PayeeSettlementRow[]> {
       id: p.id,
       payee_type: "analyst",
       name: nameByParty.get(analyst?.party_id ?? "") ?? "—",
-      period_start: run?.period_start ?? "",
-      period_end: run?.period_end ?? "",
+      period_start: p.period_start ?? run?.period_start ?? "",
+      period_end: p.period_end ?? run?.period_end ?? "",
       gross_amount: Number(p.gross_amount),
       href: `/admin/payroll/payslip/${p.id}`,
       bank_name: analyst?.bank_name ?? null,
@@ -75,8 +83,8 @@ export async function listPayeeSettlementRows(): Promise<PayeeSettlementRow[]> {
       id: s.id,
       payee_type: "introducer",
       name: nameByParty.get(introducer?.party_id ?? "") ?? "—",
-      period_start: run?.period_start ?? "",
-      period_end: run?.period_end ?? "",
+      period_start: s.period_start ?? run?.period_start ?? "",
+      period_end: s.period_end ?? run?.period_end ?? "",
       gross_amount: Number(s.gross_amount),
       href: `/admin/payroll/statement/${s.id}`,
       bank_name: introducer?.bank_name ?? null,
@@ -283,13 +291,15 @@ export async function listAnalystPayslips(analystId: string): Promise<AnalystPay
   const admin = createAdminClient();
   const { data: payslips } = await admin
     .from("analyst_payslips")
-    .select("id, payout_run_id, gross_amount")
+    .select("id, payout_run_id, gross_amount, period_start, period_end")
     .eq("analyst_id", analystId)
     .order("created_at", { ascending: false });
   if (!payslips || payslips.length === 0) return [];
 
-  const runIds = payslips.map((p) => p.payout_run_id);
-  const { data: runs } = await admin.from("commission_payout_runs").select("id, period_start, period_end").in("id", runIds);
+  // Fallback only for pre-migration-076 rows — see listPayeeSettlementRows().
+  const runIds = payslips.filter((p) => !p.period_start).map((p) => p.payout_run_id);
+  const { data: runs } =
+    runIds.length > 0 ? await admin.from("commission_payout_runs").select("id, period_start, period_end").in("id", runIds) : { data: [] };
   const runById = new Map((runs ?? []).map((r) => [r.id, r]));
 
   return payslips.map((p) => {
@@ -297,8 +307,8 @@ export async function listAnalystPayslips(analystId: string): Promise<AnalystPay
     return {
       id: p.id,
       payout_run_id: p.payout_run_id,
-      period_start: run?.period_start ?? "",
-      period_end: run?.period_end ?? "",
+      period_start: p.period_start ?? run?.period_start ?? "",
+      period_end: p.period_end ?? run?.period_end ?? "",
       gross_amount: Number(p.gross_amount),
     };
   });
@@ -314,28 +324,47 @@ export async function getAnalystPayslipDetail(payslipId: string): Promise<Analys
   const admin = createAdminClient();
   const { data: payslip } = await admin
     .from("analyst_payslips")
-    .select("id, payout_run_id, analyst_id, gross_amount")
+    .select("id, payout_run_id, analyst_id, gross_amount, period_start, period_end")
     .eq("id", payslipId)
     .maybeSingle();
   if (!payslip) return null;
 
+  // Fallback only for a pre-migration-076 row with no period of its own —
+  // see listPayeeSettlementRows().
   const [{ data: run }, { data: analyst }] = await Promise.all([
-    admin.from("commission_payout_runs").select("period_start, period_end").eq("id", payslip.payout_run_id).maybeSingle(),
+    payslip.period_start
+      ? Promise.resolve({ data: null })
+      : admin.from("commission_payout_runs").select("period_start, period_end").eq("id", payslip.payout_run_id).maybeSingle(),
     admin.from("analysts").select("party_id").eq("id", payslip.analyst_id).maybeSingle(),
   ]);
   const { data: identity } = analyst ? await admin.from("individuals").select("full_name").eq("party_id", analyst.party_id).maybeSingle() : { data: null };
 
-  const { data: records } = await admin
+  const periodStart = payslip.period_start ?? run?.period_start ?? "";
+  const periodEnd = payslip.period_end ?? run?.period_end ?? "";
+
+  // Scoped by this payslip's own period, not just payout_run_id — a run that
+  // covers more than one month (migration 076) now produces one payslip per
+  // month for the same analyst, and each must only show its own month's
+  // line items, not the whole run's.
+  let recordsQuery = admin
     .from("commission_records")
     .select("id, trigger_type, commission_amount, calculated_at, source_transaction_type, source_transaction_id")
     .eq("payout_run_id", payslip.payout_run_id)
     .eq("analyst_id", payslip.analyst_id);
+  if (periodStart && periodEnd) {
+    const periodEndExclusive = new Date(`${periodEnd}T00:00:00+08:00`);
+    periodEndExclusive.setDate(periodEndExclusive.getDate() + 1);
+    recordsQuery = recordsQuery
+      .gte("calculated_at", new Date(`${periodStart}T00:00:00+08:00`).toISOString())
+      .lt("calculated_at", periodEndExclusive.toISOString());
+  }
+  const { data: records } = await recordsQuery;
 
   return {
     id: payslip.id,
     payout_run_id: payslip.payout_run_id,
-    period_start: run?.period_start ?? "",
-    period_end: run?.period_end ?? "",
+    period_start: periodStart,
+    period_end: periodEnd,
     gross_amount: Number(payslip.gross_amount),
     analyst_id: payslip.analyst_id,
     analyst_name: identity?.full_name ?? "—",
@@ -355,13 +384,15 @@ export async function listIntroducerStatements(introducerId: string): Promise<In
   const admin = createAdminClient();
   const { data: statements } = await admin
     .from("introducer_commission_statements")
-    .select("id, payout_run_id, gross_amount")
+    .select("id, payout_run_id, gross_amount, period_start, period_end")
     .eq("introducer_id", introducerId)
     .order("created_at", { ascending: false });
   if (!statements || statements.length === 0) return [];
 
-  const runIds = statements.map((s) => s.payout_run_id);
-  const { data: runs } = await admin.from("commission_payout_runs").select("id, period_start, period_end").in("id", runIds);
+  // Fallback only for pre-migration-076 rows — see listPayeeSettlementRows().
+  const runIds = statements.filter((s) => !s.period_start).map((s) => s.payout_run_id);
+  const { data: runs } =
+    runIds.length > 0 ? await admin.from("commission_payout_runs").select("id, period_start, period_end").in("id", runIds) : { data: [] };
   const runById = new Map((runs ?? []).map((r) => [r.id, r]));
 
   return statements.map((s) => {
@@ -369,8 +400,8 @@ export async function listIntroducerStatements(introducerId: string): Promise<In
     return {
       id: s.id,
       payout_run_id: s.payout_run_id,
-      period_start: run?.period_start ?? "",
-      period_end: run?.period_end ?? "",
+      period_start: s.period_start ?? run?.period_start ?? "",
+      period_end: s.period_end ?? run?.period_end ?? "",
       gross_amount: Number(s.gross_amount),
     };
   });
@@ -386,30 +417,47 @@ export async function getIntroducerStatementDetail(statementId: string): Promise
   const admin = createAdminClient();
   const { data: statement } = await admin
     .from("introducer_commission_statements")
-    .select("id, payout_run_id, introducer_id, gross_amount")
+    .select("id, payout_run_id, introducer_id, gross_amount, period_start, period_end")
     .eq("id", statementId)
     .maybeSingle();
   if (!statement) return null;
 
+  // Fallback only for a pre-migration-076 row with no period of its own —
+  // see listPayeeSettlementRows().
   const [{ data: run }, { data: introducer }] = await Promise.all([
-    admin.from("commission_payout_runs").select("period_start, period_end").eq("id", statement.payout_run_id).maybeSingle(),
+    statement.period_start
+      ? Promise.resolve({ data: null })
+      : admin.from("commission_payout_runs").select("period_start, period_end").eq("id", statement.payout_run_id).maybeSingle(),
     admin.from("introducers").select("party_id").eq("id", statement.introducer_id).maybeSingle(),
   ]);
   const { data: identity } = introducer
     ? await admin.from("individuals").select("full_name").eq("party_id", introducer.party_id).maybeSingle()
     : { data: null };
 
-  const { data: records } = await admin
+  const periodStart = statement.period_start ?? run?.period_start ?? "";
+  const periodEnd = statement.period_end ?? run?.period_end ?? "";
+
+  // Scoped by this statement's own period, not just payout_run_id — see the
+  // matching note in getAnalystPayslipDetail().
+  let recordsQuery = admin
     .from("commission_records")
     .select("id, trigger_type, commission_amount, calculated_at, source_transaction_type, source_transaction_id")
     .eq("payout_run_id", statement.payout_run_id)
     .eq("introducer_id", statement.introducer_id);
+  if (periodStart && periodEnd) {
+    const periodEndExclusive = new Date(`${periodEnd}T00:00:00+08:00`);
+    periodEndExclusive.setDate(periodEndExclusive.getDate() + 1);
+    recordsQuery = recordsQuery
+      .gte("calculated_at", new Date(`${periodStart}T00:00:00+08:00`).toISOString())
+      .lt("calculated_at", periodEndExclusive.toISOString());
+  }
+  const { data: records } = await recordsQuery;
 
   return {
     id: statement.id,
     payout_run_id: statement.payout_run_id,
-    period_start: run?.period_start ?? "",
-    period_end: run?.period_end ?? "",
+    period_start: periodStart,
+    period_end: periodEnd,
     gross_amount: Number(statement.gross_amount),
     introducer_id: statement.introducer_id,
     introducer_name: identity?.full_name ?? "—",
