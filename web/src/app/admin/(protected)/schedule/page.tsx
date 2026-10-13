@@ -51,6 +51,32 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
         </div>
       </div>
 
+      {groups.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{t("schedule.status_section.title")}</p>
+          <div className="flex flex-wrap gap-2">
+            {groups.map((g) => {
+              const isFree = g.slots.length === 0;
+              return (
+                <a
+                  key={g.device_id}
+                  href={`#device-${g.device_id}`}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                    isFree
+                      ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                      : "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
+                  }`}
+                >
+                  {g.device_label}
+                  {" · "}
+                  {isFree ? t("schedule.status_section.free_badge") : `${g.slots.length}${t("schedule.status_section.booked_badge_suffix")}`}
+                </a>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {canBookMachine ? (
         <InlineBookingForm customers={customers} centers={centers} devices={devices} />
       ) : (
@@ -73,7 +99,7 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
 
       <div className="space-y-3">
         {groups.map((g) => (
-          <Card key={g.device_id}>
+          <Card key={g.device_id} id={`device-${g.device_id}`} className="scroll-mt-4">
             <CardContent className="pt-6">
               <p className="font-medium">{g.device_label}</p>
               {g.slots.length === 0 ? (
