@@ -43,7 +43,7 @@ export default async function IntroducerStatementPage({ params }: { params: Prom
   return (
     <div className="mx-auto max-w-3xl bg-white text-black print:max-w-none">
       <style>{`
-        @page { size: A4; margin: 15mm; }
+        @page { size: A4; margin: 0; }
         @media print {
           .print-hidden { display: none !important; }
           body { background: white !important; }
@@ -54,7 +54,7 @@ export default async function IntroducerStatementPage({ params }: { params: Prom
         <PayrollPrintButton />
       </div>
 
-      <div className="rounded-md border border-neutral-300 bg-white p-10 print:border-0 print:p-0">
+      <div className="rounded-md border border-neutral-300 bg-white p-10 print:border-0 print:p-[15mm]">
         <div className="flex flex-wrap items-start justify-between gap-4 border-b-4 border-black pb-6">
           <div>
             <div className="flex items-center gap-3">

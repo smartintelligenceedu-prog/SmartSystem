@@ -40,7 +40,7 @@ export default async function SalesOrderReceiptPage({ params }: { params: Promis
   return (
     <div className="mx-auto max-w-3xl bg-white text-black print:max-w-none">
       <style>{`
-        @page { size: A4; margin: 15mm; }
+        @page { size: A4; margin: 0; }
         @media print {
           .print-hidden { display: none !important; }
           body { background: white !important; }
@@ -51,7 +51,7 @@ export default async function SalesOrderReceiptPage({ params }: { params: Promis
         <ReceiptPrintButton backHref="/admin/sales-orders" />
       </div>
 
-      <div className="relative rounded-md border border-neutral-300 bg-white p-10 print:border-0 print:p-0">
+      <div className="relative rounded-md border border-neutral-300 bg-white p-10 print:border-0 print:p-[15mm]">
         {receipt.status === "paid" && (
           <div className="absolute top-8 right-10 -rotate-12 rounded border-4 border-emerald-600 px-4 py-1 text-2xl font-black tracking-widest text-emerald-600">
             {t("finance.institutional.print.paid_stamp")}
